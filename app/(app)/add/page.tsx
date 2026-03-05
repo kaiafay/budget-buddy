@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CalendarIcon, Repeat } from "lucide-react";
 import { format } from "date-fns";
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,10 +32,57 @@ export default function AddTransactionPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [recurring, setRecurring] = useState(false);
   const [frequency, setFrequency] = useState<string>("monthly");
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [noAccount, setNoAccount] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  useEffect(() => {
+    async function loadAccount() {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("accounts")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (data?.id) setAccountId(data.id);
+      else setNoAccount(true);
+    }
+    loadAccount();
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Mock submit - just go back
+    if (!accountId || !date) return;
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    const finalAmount =
+      type === "expense"
+        ? -Math.abs(parseFloat(amount))
+        : Math.abs(parseFloat(amount));
+    if (recurring) {
+      await supabase.from("recurring_rules").insert({
+        user_id: user.id,
+        account_id: accountId,
+        label,
+        amount: finalAmount,
+        frequency,
+        start_date: format(date, "yyyy-MM-dd"),
+      });
+    } else {
+      await supabase.from("transactions").insert({
+        user_id: user.id,
+        account_id: accountId,
+        label,
+        amount: finalAmount,
+        date: format(date, "yyyy-MM-dd"),
+      });
+    }
     router.back();
   }
 
@@ -198,9 +246,16 @@ export default function AddTransactionPage() {
           )}
         </div>
 
+        {noAccount && (
+          <p className="text-sm text-destructive">
+            Please set up your account in Settings first.
+          </p>
+        )}
+
         {/* Submit */}
         <Button
           type="submit"
+          disabled={!accountId}
           className="mt-2 h-12 rounded-xl bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
           {type === "income" ? "Add Income" : "Add Expense"}
