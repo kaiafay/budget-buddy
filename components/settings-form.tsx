@@ -160,7 +160,8 @@ export default function SettingsForm({
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           onClick={async () => {
             const supabase = createClient();
-            await supabase.auth.signOut();
+            const { error: signOutError } = await supabase.auth.signOut();
+            if (signOutError) console.error("Sign out failed:", signOutError.message);
             router.push("/login");
             router.refresh();
           }}

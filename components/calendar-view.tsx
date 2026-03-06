@@ -1,44 +1,96 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import { Plus } from "lucide-react";
+import type { Transaction, RecurringRule } from "@/lib/types";
+import { fetchCalendarData } from "@/lib/api";
+import {
+  getProjectedBalances,
+  sumRecurringBeforeDate,
+  expandRecurringForDateRange,
+} from "@/lib/projection";
 import { CalendarGrid } from "@/components/calendar-grid";
-import { useMemo } from "react";
-
-export type CalendarViewTransaction = {
-  id: string;
-  label: string;
-  amount: number;
-  date: string;
-  recurring?: boolean;
-};
-
-export type RecurringRule = {
-  id: string;
-  label: string;
-  amount: number;
-  frequency: "weekly" | "biweekly" | "monthly" | "yearly";
-  start_date: string;
-  end_date?: string | null;
-};
 
 interface CalendarViewProps {
-  balances: Record<string, number>;
-  transactions: CalendarViewTransaction[];
-  recurringRules: RecurringRule[];
-  accountName: string;
-  balanceYear: number;
-  balanceMonth: number;
+  initialMonth: number;
+  initialYear: number;
 }
 
-export function CalendarView({
-  balances,
-  transactions,
-  recurringRules,
-  accountName,
-  balanceYear,
-  balanceMonth,
-}: CalendarViewProps) {
+export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
+  const [month, setMonth] = useState(initialMonth);
+  const [year, setYear] = useState(initialYear);
+
+  const { data, isLoading } = useSWR(
+    `calendar-month-${month}-${year}`,
+    () => fetchCalendarData(month, year),
+  );
+
+  const accountName = data?.account?.name ?? "";
+  const recurringRulesMapped: RecurringRule[] = useMemo(
+    () =>
+      (data?.recurringRules ?? []).map((r) => ({
+        id: r.id,
+        start_date: r.start_date,
+        end_date: r.end_date ?? null,
+        amount: Number(r.amount),
+        label: r.label,
+        frequency: r.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+      })),
+    [data?.recurringRules],
+  );
+
+  const carryForwardBalance = useMemo(() => {
+    if (!data) return 0;
+    const accountStarting = Number(data.account?.starting_balance ?? 0);
+    const sumTxBefore =
+      (data.txBefore ?? []).reduce((s, row) => s + Number(row.amount), 0) ?? 0;
+    const sumRecurringBefore = sumRecurringBeforeDate(
+      recurringRulesMapped,
+      data.firstDayOfMonth,
+    );
+    return accountStarting + sumTxBefore + sumRecurringBefore;
+  }, [data, recurringRulesMapped]);
+
+  const transactionsForProj = useMemo(
+    () =>
+      (data?.transactions ?? []).map((t) => ({
+        id: t.id,
+        date: t.date,
+        amount: Number(t.amount),
+        label: t.label,
+      })),
+    [data?.transactions],
+  );
+
+  const balances = useMemo(() => {
+    if (!data) return {};
+    return getProjectedBalances(
+      carryForwardBalance,
+      transactionsForProj,
+      recurringRulesMapped,
+      month - 1,
+      year,
+    );
+  }, [data, carryForwardBalance, transactionsForProj, recurringRulesMapped, month, year]);
+
+  const transactions: Transaction[] = useMemo(() => {
+    if (!data) return [];
+    const monthTx = (data.transactions ?? []).map((t) => ({
+      id: t.id,
+      label: t.label,
+      amount: Number(t.amount),
+      date: t.date,
+    }));
+    const expanded = expandRecurringForDateRange(
+      recurringRulesMapped,
+      data.firstDayOfMonth,
+      data.lastDayOfMonth,
+    );
+    return [...monthTx, ...expanded].sort((a, b) => a.date.localeCompare(b.date));
+  }, [data, recurringRulesMapped]);
+
   const monthIncome = useMemo(
     () =>
       transactions
@@ -53,6 +105,24 @@ export function CalendarView({
         .reduce((s, t) => s + t.amount, 0),
     [transactions],
   );
+
+  function onPrevMonth() {
+    if (month === 1) {
+      setMonth(12);
+      setYear((y) => y - 1);
+    } else {
+      setMonth((m) => m - 1);
+    }
+  }
+
+  function onNextMonth() {
+    if (month === 12) {
+      setMonth(1);
+      setYear((y) => y + 1);
+    } else {
+      setMonth((m) => m + 1);
+    }
+  }
 
   return (
     <div className="flex flex-col">
@@ -98,9 +168,11 @@ export function CalendarView({
         <CalendarGrid
           balances={balances}
           transactions={transactions}
-          recurringRules={recurringRules}
-          balanceYear={balanceYear}
-          balanceMonth={balanceMonth}
+          balanceYear={year}
+          balanceMonth={month}
+          onPrevMonth={onPrevMonth}
+          onNextMonth={onNextMonth}
+          isLoading={isLoading}
         />
       </div>
 

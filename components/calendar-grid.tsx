@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import type { Transaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { DaySheet, type DaySheetTransaction } from "@/components/day-sheet";
-import type { CalendarViewTransaction } from "@/components/calendar-view";
+import { DaySheet } from "@/components/day-sheet";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
@@ -25,52 +24,37 @@ const MONTH_NAMES = [
 
 interface CalendarGridProps {
   balances: Record<string, number>;
-  transactions: CalendarViewTransaction[];
-  recurringRules: import("@/components/calendar-view").RecurringRule[];
+  transactions: Transaction[];
   balanceYear: number;
   balanceMonth: number;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+  isLoading?: boolean;
 }
 
 export function CalendarGrid({
   balances,
   transactions,
-  recurringRules: _recurringRules,
   balanceYear,
   balanceMonth,
+  onPrevMonth,
+  onNextMonth,
+  isLoading = false,
 }: CalendarGridProps) {
-  const router = useRouter();
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
-  const isViewingBalanceMonth = true;
 
   const daysInMonth = new Date(balanceYear, balanceMonth, 0).getDate();
   const firstDayOfWeek = new Date(balanceYear, balanceMonth - 1, 1).getDay();
 
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
-  function prevMonth() {
-    if (balanceMonth === 1) {
-      router.push(`/?month=12&year=${balanceYear - 1}`);
-    } else {
-      router.push(`/?month=${balanceMonth - 1}&year=${balanceYear}`);
-    }
-  }
-
-  function nextMonth() {
-    if (balanceMonth === 12) {
-      router.push(`/?month=1&year=${balanceYear + 1}`);
-    } else {
-      router.push(`/?month=${balanceMonth + 1}&year=${balanceYear}`);
-    }
-  }
-
   function handleDayClick(day: number) {
     const dateStr = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     setSelectedDate(dateStr);
   }
 
-  const selectedTransactions: DaySheetTransaction[] = useMemo(() => {
+  const selectedTransactions: Transaction[] = useMemo(() => {
     if (!selectedDate) return [];
     return transactions
       .filter((t) => t.date === selectedDate)
@@ -86,9 +70,14 @@ export function CalendarGrid({
   return (
     <>
       {/* Month header */}
-      <div className="flex items-center justify-between px-5 pb-4 pt-6">
+      <div
+        className={cn(
+          "flex items-center justify-between px-5 pb-4 pt-6",
+          isLoading && "opacity-60 transition-opacity",
+        )}
+      >
         <button
-          onClick={prevMonth}
+          onClick={onPrevMonth}
           className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           aria-label="Previous month"
         >
@@ -98,7 +87,7 @@ export function CalendarGrid({
           {MONTH_NAMES[balanceMonth - 1]} {balanceYear}
         </h2>
         <button
-          onClick={nextMonth}
+          onClick={onNextMonth}
           className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           aria-label="Next month"
         >
@@ -130,9 +119,7 @@ export function CalendarGrid({
           const day = i + 1;
           const dateStr = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const balance =
-            isViewingBalanceMonth && balances[dateStr] !== undefined
-              ? balances[dateStr]
-              : undefined;
+            balances[dateStr] !== undefined ? balances[dateStr] : undefined;
           const isToday = dateStr === todayStr;
           const isNegative = balance !== undefined && balance < 0;
 
