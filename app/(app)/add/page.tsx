@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CalendarIcon, Repeat } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,12 +24,24 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
+function getInitialDate(searchParams: ReturnType<typeof useSearchParams>): Date {
+  const dateParam = searchParams.get("date");
+  if (!dateParam) return new Date();
+  try {
+    const d = parseISO(dateParam);
+    return isNaN(d.getTime()) ? new Date() : d;
+  } catch {
+    return new Date();
+  }
+}
+
 export default function AddTransactionPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<"expense" | "income">("expense");
-  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [date, setDate] = useState<Date | undefined>(() => getInitialDate(searchParams));
   const [recurring, setRecurring] = useState(false);
   const [frequency, setFrequency] = useState<string>("monthly");
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -83,6 +95,7 @@ export default function AddTransactionPage() {
         date: format(date, "yyyy-MM-dd"),
       });
     }
+    router.refresh();
     router.back();
   }
 

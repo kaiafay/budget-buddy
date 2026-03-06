@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { Plus } from "lucide-react";
 import {
@@ -37,6 +37,7 @@ export function DaySheet({
   date,
   transactions,
 }: DaySheetProps) {
+  const router = useRouter();
   const formattedDate = date
     ? format(parseISO(date), "EEEE, MMMM d, yyyy")
     : "";
@@ -114,13 +115,12 @@ export function DaySheet({
 
         <DrawerFooter className="px-5 pb-6">
           <Button
-            asChild
+            type="button"
             className="h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={() => router.push(date ? `/add?date=${date}` : "/add")}
           >
-            <Link href="/add">
-              <Plus className="mr-2 h-4 w-4" />
-              Add transaction
-            </Link>
+            <Plus className="mr-2 h-4 w-4" />
+            Add transaction
           </Button>
         </DrawerFooter>
       </DrawerContent>
