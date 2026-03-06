@@ -1,0 +1,106 @@
+# Budget Buddy — Cursor Rules
+
+## Project Overview
+
+A personal budget calendar app called "Budget Buddy". Mobile-first PWA built with Next.js App Router, Tailwind CSS, shadcn/ui, and Supabase.
+
+## Tech Stack
+
+- Next.js 16 with App Router
+- Tailwind CSS v4 (no tailwind.config.ts — configured via CSS variables in app/globals.css)
+- shadcn/ui components in components/ui/
+- Supabase for auth and database
+- TypeScript throughout
+- date-fns for date manipulation
+- Lucide React for icons
+
+## Supabase Schema
+
+### accounts
+
+- id: uuid (primary key)
+- user_id: uuid (references auth.users)
+- name: text
+- starting_balance: numeric
+- created_at: timestamptz
+
+### transactions
+
+- id: uuid (primary key)
+- user_id: uuid (references auth.users)
+- account_id: uuid (references accounts)
+- label: text
+- amount: numeric (negative for expenses, positive for income)
+- date: date (format: yyyy-MM-dd)
+- created_at: timestamptz
+
+### recurring_rules
+
+- id: uuid (primary key)
+- user_id: uuid (references auth.users)
+- account_id: uuid (references accounts)
+- label: text
+- amount: numeric (negative for expenses, positive for income)
+- frequency: text (weekly | biweekly | monthly | yearly)
+- start_date: date (format: yyyy-MM-dd)
+- end_date: date (nullable)
+- created_at: timestamptz
+
+## Supabase Client Usage
+
+- Browser/client components: import { createClient } from "@/lib/supabase/client"
+- Server components: import { createClient } from "@/lib/supabase/server" (always await it)
+- Never use the service_role key — only anon key in frontend code
+- Always use .eq("user_id", user.id) for RLS — never fetch data without filtering by user
+
+## Architecture Rules
+
+- Server components fetch data — no useEffect for data fetching unless absolutely necessary
+- Client components handle interactivity only (forms, UI state, router)
+- Pattern: server component fetches data → passes as props to client component
+- After mutations, call router.refresh() to re-run server components
+- Use lib/supabase/server.ts for all server-side fetches
+- Use lib/supabase/client.ts for all client-side mutations
+
+## Design System
+
+- Font: Inter
+- Background: #F0F4F8
+- Card background: #FFFFFF
+- Primary: #4F6BED (indigo-blue)
+- Positive amounts: #16A34A (green)
+- Negative amounts: #DC2626 (red)
+- Text primary: #0F172A
+- Text secondary: #64748B
+- Text muted: #94A3B8
+- Border: #E2E8F0
+- Border radius: cards 16px, cells 12px, buttons 8px
+- Shadows: 0 1px 4px rgba(0,0,0,0.06)
+- Tailwind color tokens: bg-background, bg-card, text-foreground, text-muted-foreground, text-primary, border-border
+
+## Component Rules
+
+- Never modify files in components/ui/ — those are shadcn primitives
+- Icons: always use lucide-react
+- Amount display: always use Math.abs(amount) for display, determine +/- from sign of amount
+- Amounts are already signed in the DB (negative = expense) — never store type/category
+- Date format for DB: yyyy-MM-dd (use date-fns format())
+- Date format for display: use date-fns format() with human-readable patterns
+
+## File Structure
+
+- app/(app)/ — protected app pages (calendar, transactions, add, settings)
+- app/login/ — public auth page
+- components/ — shared components
+- components/ui/ — shadcn primitives (do not edit)
+- lib/supabase/ — Supabase client helpers
+- lib/projection.ts — balance projection engine
+- lib/mock-data.ts — old mock data (ignore, will be removed)
+
+## Key Rules
+
+- Mobile-first always — design for 390px width, scale up for desktop
+- Never change layout or styling unless explicitly asked
+- Never add categories or type fields — amounts are signed
+- Always handle the case where a user has no account yet
+- Keep prompts surgical — only change what's asked, nothing else
