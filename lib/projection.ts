@@ -1,3 +1,4 @@
+import type { Transaction, RecurringRule } from "@/lib/types";
 import {
   addDays,
   addWeeks,
@@ -10,20 +11,15 @@ import {
   endOfMonth,
 } from "date-fns";
 
-export interface Transaction {
-  id: string;
-  date: string;
-  amount: number;
-  label: string;
-}
-
-export interface RecurringRule {
-  id: string;
-  start_date: string;
-  end_date?: string | null;
-  amount: number;
-  label: string;
-  frequency: "weekly" | "biweekly" | "monthly" | "yearly";
+function addFrequency(
+  date: Date,
+  frequency: RecurringRule["frequency"],
+): Date {
+  if (frequency === "weekly") return addWeeks(date, 1);
+  if (frequency === "biweekly") return addWeeks(date, 2);
+  if (frequency === "monthly") return addMonths(date, 1);
+  if (frequency === "yearly") return addYears(date, 1);
+  return date;
 }
 
 export function getProjectedBalances(
@@ -54,11 +50,7 @@ export function getProjectedBalances(
         const d = format(cursor, "yyyy-MM-dd");
         deltas[d] = (deltas[d] ?? 0) + rule.amount;
       }
-      if (rule.frequency === "weekly") cursor = addWeeks(cursor, 1);
-      else if (rule.frequency === "biweekly") cursor = addWeeks(cursor, 2);
-      else if (rule.frequency === "monthly") cursor = addMonths(cursor, 1);
-      else if (rule.frequency === "yearly") cursor = addYears(cursor, 1);
-      else break;
+      cursor = addFrequency(cursor, rule.frequency);
     }
   }
 
@@ -76,17 +68,8 @@ export function getProjectedBalances(
   return balances;
 }
 
-export type RecurringRuleRow = {
-  id: string;
-  start_date: string;
-  end_date: string | null;
-  amount: number;
-  label: string;
-  frequency: "weekly" | "biweekly" | "monthly" | "yearly";
-};
-
 export function sumRecurringBeforeDate(
-  rules: RecurringRuleRow[],
+  rules: RecurringRule[],
   firstDayOfMonth: string,
 ): number {
   const monthStart = new Date(firstDayOfMonth);
@@ -98,18 +81,14 @@ export function sumRecurringBeforeDate(
       : addYears(new Date(), 10);
     while (isBefore(cursor, monthStart) && !isAfter(cursor, end)) {
       sum += rule.amount;
-      if (rule.frequency === "weekly") cursor = addWeeks(cursor, 1);
-      else if (rule.frequency === "biweekly") cursor = addWeeks(cursor, 2);
-      else if (rule.frequency === "monthly") cursor = addMonths(cursor, 1);
-      else if (rule.frequency === "yearly") cursor = addYears(cursor, 1);
-      else break;
+      cursor = addFrequency(cursor, rule.frequency);
     }
   }
   return sum;
 }
 
 export function expandRecurringForDateRange(
-  rules: RecurringRuleRow[],
+  rules: RecurringRule[],
   startDate: string,
   endDate: string,
 ): { id: string; label: string; amount: number; date: string; recurring: true }[] {
@@ -130,11 +109,7 @@ export function expandRecurringForDateRange(
           recurring: true,
         });
       }
-      if (rule.frequency === "weekly") cursor = addWeeks(cursor, 1);
-      else if (rule.frequency === "biweekly") cursor = addWeeks(cursor, 2);
-      else if (rule.frequency === "monthly") cursor = addMonths(cursor, 1);
-      else if (rule.frequency === "yearly") cursor = addYears(cursor, 1);
-      else break;
+      cursor = addFrequency(cursor, rule.frequency);
     }
   }
   return result;

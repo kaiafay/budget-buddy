@@ -1,14 +1,17 @@
+import type { Account, RecurringRule, Transaction } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
-import {
-  addWeeks,
-  addMonths,
-  addYears,
-  isAfter,
-  isBefore,
-  format,
-} from "date-fns";
 
-export async function fetchCalendarData(month: number, year: number) {
+export async function fetchCalendarData(
+  month: number,
+  year: number,
+): Promise<{
+  account: Account | null;
+  txBefore: { amount: number }[];
+  transactions: Transaction[];
+  recurringRules: RecurringRule[];
+  firstDayOfMonth: string;
+  lastDayOfMonth: string;
+}> {
   const supabase = createClient();
   const {
     data: { user },
@@ -44,17 +47,25 @@ export async function fetchCalendarData(month: number, year: number) {
       .eq("user_id", user.id),
   ]);
 
+  if (accountRes.error) throw new Error(accountRes.error.message);
+  if (txBeforeRes.error) throw new Error(txBeforeRes.error.message);
+  if (txRes.error) throw new Error(txRes.error.message);
+  if (rulesRes.error) throw new Error(rulesRes.error.message);
+
   return {
-    account: accountRes.data,
-    txBefore: txBeforeRes.data ?? [],
-    transactions: txRes.data ?? [],
-    recurringRules: rulesRes.data ?? [],
+    account: accountRes.data as Account | null,
+    txBefore: (txBeforeRes.data ?? []) as { amount: number }[],
+    transactions: (txRes.data ?? []) as Transaction[],
+    recurringRules: (rulesRes.data ?? []) as RecurringRule[],
     firstDayOfMonth,
     lastDayOfMonth,
   };
 }
 
-export async function fetchTransactions() {
+export async function fetchTransactions(): Promise<{
+  transactions: Transaction[];
+  recurringRules: RecurringRule[];
+}> {
   const supabase = createClient();
   const {
     data: { user },
@@ -73,8 +84,11 @@ export async function fetchTransactions() {
       .eq("user_id", user.id),
   ]);
 
+  if (txRes.error) throw new Error(txRes.error.message);
+  if (rulesRes.error) throw new Error(rulesRes.error.message);
+
   return {
-    transactions: txRes.data ?? [],
-    recurringRules: rulesRes.data ?? [],
+    transactions: (txRes.data ?? []) as Transaction[],
+    recurringRules: (rulesRes.data ?? []) as RecurringRule[],
   };
 }

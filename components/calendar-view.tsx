@@ -4,31 +4,14 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { Plus } from "lucide-react";
+import type { Transaction, RecurringRule } from "@/lib/types";
 import { fetchCalendarData } from "@/lib/api";
 import {
   getProjectedBalances,
   sumRecurringBeforeDate,
   expandRecurringForDateRange,
-  type RecurringRuleRow,
 } from "@/lib/projection";
 import { CalendarGrid } from "@/components/calendar-grid";
-
-export type CalendarViewTransaction = {
-  id: string;
-  label: string;
-  amount: number;
-  date: string;
-  recurring?: boolean;
-};
-
-export type RecurringRule = {
-  id: string;
-  label: string;
-  amount: number;
-  frequency: "weekly" | "biweekly" | "monthly" | "yearly";
-  start_date: string;
-  end_date?: string | null;
-};
 
 interface CalendarViewProps {
   initialMonth: number;
@@ -45,7 +28,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
   );
 
   const accountName = data?.account?.name ?? "";
-  const recurringRulesMapped: RecurringRuleRow[] = useMemo(
+  const recurringRulesMapped: RecurringRule[] = useMemo(
     () =>
       (data?.recurringRules ?? []).map((r) => ({
         id: r.id,
@@ -92,7 +75,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
     );
   }, [data, carryForwardBalance, transactionsForProj, recurringRulesMapped, month, year]);
 
-  const transactions: CalendarViewTransaction[] = useMemo(() => {
+  const transactions: Transaction[] = useMemo(() => {
     if (!data) return [];
     const monthTx = (data.transactions ?? []).map((t) => ({
       id: t.id,
@@ -185,7 +168,6 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
         <CalendarGrid
           balances={balances}
           transactions={transactions}
-          recurringRules={recurringRulesMapped as RecurringRule[]}
           balanceYear={year}
           balanceMonth={month}
           onPrevMonth={onPrevMonth}

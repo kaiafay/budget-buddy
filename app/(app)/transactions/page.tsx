@@ -4,25 +4,12 @@ import { useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { DollarSign, ArrowDownLeft } from "lucide-react";
 import useSWR from "swr";
+import type { Transaction, GroupedTransactions } from "@/lib/types";
 import { fetchTransactions } from "@/lib/api";
-import { expandRecurringForDateRange, type RecurringRuleRow } from "@/lib/projection";
-
-type TransactionRow = {
-  id: string;
-  label: string;
-  amount: number;
-  date: string;
-  recurring?: boolean;
-};
-
-type GroupedTransactions = {
-  date: string;
-  formatted: string;
-  transactions: TransactionRow[];
-};
+import { expandRecurringForDateRange } from "@/lib/projection";
 
 function groupTransactionsByDate(
-  transactions: TransactionRow[],
+  transactions: Transaction[],
 ): GroupedTransactions[] {
   const sorted = [...transactions].sort((a, b) =>
     b.date.localeCompare(a.date),
@@ -76,7 +63,7 @@ function TransactionsLoadingSkeleton() {
 export default function TransactionsPage() {
   const { data, isLoading } = useSWR("transactions", fetchTransactions);
 
-  const transactionsList: TransactionRow[] = useMemo(() => {
+  const transactionsList: Transaction[] = useMemo(() => {
     if (!data) return [];
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -95,7 +82,7 @@ export default function TransactionsPage() {
       date: row.date,
     }));
 
-    const rules: RecurringRuleRow[] = (data.recurringRules ?? []).map((r) => ({
+    const rules = (data.recurringRules ?? []).map((r) => ({
       id: r.id,
       start_date: r.start_date,
       end_date: r.end_date ?? null,

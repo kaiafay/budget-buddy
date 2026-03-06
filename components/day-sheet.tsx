@@ -12,20 +12,13 @@ import {
   DrawerFooter,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-
-export interface DaySheetTransaction {
-  id: string;
-  label: string;
-  amount: number;
-  date: string;
-  recurring?: boolean;
-}
+import type { Transaction } from "@/lib/types";
 
 interface DaySheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   date: string | null;
-  transactions: DaySheetTransaction[];
+  transactions: Transaction[];
 }
 
 export function DaySheet({

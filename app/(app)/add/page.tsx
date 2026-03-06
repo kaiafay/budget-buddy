@@ -47,6 +47,7 @@ export default function AddTransactionPage() {
   const [frequency, setFrequency] = useState<string>("monthly");
   const [accountId, setAccountId] = useState<string | null>(null);
   const [noAccount, setNoAccount] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadAccount() {
@@ -55,11 +56,15 @@ export default function AddTransactionPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase
+      const { data, error: fetchError } = await supabase
         .from("accounts")
         .select("id")
         .eq("user_id", user.id)
         .maybeSingle();
+      if (fetchError) {
+        setNoAccount(true);
+        return;
+      }
       if (data?.id) setAccountId(data.id);
       else setNoAccount(true);
     }
@@ -68,6 +73,7 @@ export default function AddTransactionPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
     if (!accountId || !date) return;
     const supabase = createClient();
     const {
@@ -79,7 +85,7 @@ export default function AddTransactionPage() {
         ? -Math.abs(parseFloat(amount))
         : Math.abs(parseFloat(amount));
     if (recurring) {
-      await supabase.from("recurring_rules").insert({
+      const { error: insertError } = await supabase.from("recurring_rules").insert({
         user_id: user.id,
         account_id: accountId,
         label,
@@ -87,14 +93,22 @@ export default function AddTransactionPage() {
         frequency,
         start_date: format(date, "yyyy-MM-dd"),
       });
+      if (insertError) {
+        setError(insertError.message);
+        return;
+      }
     } else {
-      await supabase.from("transactions").insert({
+      const { error: insertError } = await supabase.from("transactions").insert({
         user_id: user.id,
         account_id: accountId,
         label,
         amount: finalAmount,
         date: format(date, "yyyy-MM-dd"),
       });
+      if (insertError) {
+        setError(insertError.message);
+        return;
+      }
     }
     const currentMonth = date.getMonth() + 1;
     const currentYear = date.getFullYear();
@@ -266,6 +280,11 @@ export default function AddTransactionPage() {
         {noAccount && (
           <p className="text-sm text-destructive">
             Please set up your account in Settings first.
+          </p>
+        )}
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
           </p>
         )}
 

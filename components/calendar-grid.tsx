@@ -2,9 +2,9 @@
 
 import { useState, useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import type { Transaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { DaySheet, type DaySheetTransaction } from "@/components/day-sheet";
-import type { CalendarViewTransaction } from "@/components/calendar-view";
+import { DaySheet } from "@/components/day-sheet";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
@@ -24,8 +24,7 @@ const MONTH_NAMES = [
 
 interface CalendarGridProps {
   balances: Record<string, number>;
-  transactions: CalendarViewTransaction[];
-  recurringRules: import("@/components/calendar-view").RecurringRule[];
+  transactions: Transaction[];
   balanceYear: number;
   balanceMonth: number;
   onPrevMonth: () => void;
@@ -36,7 +35,6 @@ interface CalendarGridProps {
 export function CalendarGrid({
   balances,
   transactions,
-  recurringRules: _recurringRules,
   balanceYear,
   balanceMonth,
   onPrevMonth,
@@ -45,8 +43,6 @@ export function CalendarGrid({
 }: CalendarGridProps) {
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-
-  const isViewingBalanceMonth = true;
 
   const daysInMonth = new Date(balanceYear, balanceMonth, 0).getDate();
   const firstDayOfWeek = new Date(balanceYear, balanceMonth - 1, 1).getDay();
@@ -58,7 +54,7 @@ export function CalendarGrid({
     setSelectedDate(dateStr);
   }
 
-  const selectedTransactions: DaySheetTransaction[] = useMemo(() => {
+  const selectedTransactions: Transaction[] = useMemo(() => {
     if (!selectedDate) return [];
     return transactions
       .filter((t) => t.date === selectedDate)
@@ -123,9 +119,7 @@ export function CalendarGrid({
           const day = i + 1;
           const dateStr = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const balance =
-            isViewingBalanceMonth && balances[dateStr] !== undefined
-              ? balances[dateStr]
-              : undefined;
+            balances[dateStr] !== undefined ? balances[dateStr] : undefined;
           const isToday = dateStr === todayStr;
           const isNegative = balance !== undefined && balance < 0;
 
