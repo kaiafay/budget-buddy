@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Transaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { DaySheet } from "@/components/day-sheet";
+import { DayTransactionsContent } from "@/components/day-sheet";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
@@ -43,21 +43,38 @@ export function CalendarGrid({
 }: CalendarGridProps) {
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const transactionsByMonthRef = useRef<Record<string, Transaction[]>>({});
 
   const daysInMonth = new Date(balanceYear, balanceMonth, 0).getDate();
   const firstDayOfWeek = new Date(balanceYear, balanceMonth - 1, 1).getDay();
 
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const currentMonthKey = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}`;
+  const firstDayOfMonth = `${currentMonthKey}-01`;
+
+  useEffect(() => {
+    transactionsByMonthRef.current[currentMonthKey] = transactions;
+  }, [currentMonthKey, transactions]);
 
   function handleDayClick(day: number) {
     const dateStr = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     setSelectedDate(dateStr);
   }
 
-  const selectedTransactions: Transaction[] = useMemo(() => {
-    if (!selectedDate) return [];
-    return transactions
-      .filter((t) => t.date === selectedDate)
+  const effectiveDate = useMemo(() => {
+    if (selectedDate) return selectedDate;
+    const todayInCurrentMonth = todayStr.slice(0, 7) === currentMonthKey;
+    return todayInCurrentMonth ? todayStr : firstDayOfMonth;
+  }, [selectedDate, todayStr, currentMonthKey, firstDayOfMonth]);
+
+  const effectiveTransactions: Transaction[] = useMemo(() => {
+    const monthKey = effectiveDate.slice(0, 7);
+    const list =
+      monthKey === currentMonthKey
+        ? transactions
+        : transactionsByMonthRef.current[monthKey] ?? [];
+    return list
+      .filter((t) => t.date === effectiveDate)
       .map((t) => ({
         id: t.id,
         label: t.label,
@@ -65,7 +82,7 @@ export function CalendarGrid({
         date: t.date,
         recurring: t.recurring ?? false,
       }));
-  }, [selectedDate, transactions]);
+  }, [effectiveDate, currentMonthKey, transactions]);
 
   return (
     <>
@@ -166,14 +183,10 @@ export function CalendarGrid({
         })}
       </div>
 
-      {/* Day bottom sheet */}
-      <DaySheet
-        open={selectedDate !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedDate(null);
-        }}
-        date={selectedDate}
-        transactions={selectedTransactions}
+      {/* Day transactions: selected day (from cache if different month), or today / first of month */}
+      <DayTransactionsContent
+        date={effectiveDate}
+        transactions={effectiveTransactions}
       />
     </>
   );
