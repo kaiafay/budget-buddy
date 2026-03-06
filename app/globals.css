@@ -57,6 +57,72 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animated-gradient {
+  background: linear-gradient(
+    135deg,
+    #4f6bed,
+    #6b8ef5,
+    #3b82f6,
+    #4f46e5,
+    #818cf8
+  );
+  background-size: 300% 300%;
+  animation: gradientShift 10s ease infinite;
+}
+
+/* Full glass — for cards and nav (blur enabled) */
+.glass {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+}
+
+.glass-nav {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Lightweight glass — for calendar cells (no blur, just translucency) */
+.glass-cell {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.glass-cell-today {
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 12px rgba(255, 255, 255, 0.2);
+}
+
+.glass-cell-negative {
+  background: rgba(220, 38, 38, 0.2);
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -66,27 +132,5 @@
   body {
     @apply bg-background text-foreground;
     font-family: "Inter", system-ui, sans-serif;
-  }
-}
-
-@layer utilities {
-  .glass-cell {
-    background: rgba(255, 255, 255, 0.6);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.8);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  }
-
-  .glass-cell-today {
-    background: #4f6bed;
-    border: 1px solid #4f6bed;
-    box-shadow: 0 4px 12px rgba(79, 107, 237, 0.35);
-    color: white;
-  }
-
-  .glass-cell-negative {
-    background: rgba(220, 38, 38, 0.06);
-    border: 1px solid rgba(220, 38, 38, 0.1);
   }
 }

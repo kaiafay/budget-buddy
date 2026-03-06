@@ -25,7 +25,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
-function getInitialDate(searchParams: ReturnType<typeof useSearchParams>): Date {
+function getInitialDate(
+  searchParams: ReturnType<typeof useSearchParams>,
+): Date {
   const dateParam = searchParams.get("date");
   if (!dateParam) return new Date();
   try {
@@ -42,7 +44,9 @@ export default function AddTransactionPage() {
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<"expense" | "income">("expense");
-  const [date, setDate] = useState<Date | undefined>(() => getInitialDate(searchParams));
+  const [date, setDate] = useState<Date | undefined>(() =>
+    getInitialDate(searchParams),
+  );
   const [recurring, setRecurring] = useState(false);
   const [frequency, setFrequency] = useState<string>("monthly");
   const [accountId, setAccountId] = useState<string | null>(null);
@@ -85,26 +89,30 @@ export default function AddTransactionPage() {
         ? -Math.abs(parseFloat(amount))
         : Math.abs(parseFloat(amount));
     if (recurring) {
-      const { error: insertError } = await supabase.from("recurring_rules").insert({
-        user_id: user.id,
-        account_id: accountId,
-        label,
-        amount: finalAmount,
-        frequency,
-        start_date: format(date, "yyyy-MM-dd"),
-      });
+      const { error: insertError } = await supabase
+        .from("recurring_rules")
+        .insert({
+          user_id: user.id,
+          account_id: accountId,
+          label,
+          amount: finalAmount,
+          frequency,
+          start_date: format(date, "yyyy-MM-dd"),
+        });
       if (insertError) {
         setError(insertError.message);
         return;
       }
     } else {
-      const { error: insertError } = await supabase.from("transactions").insert({
-        user_id: user.id,
-        account_id: accountId,
-        label,
-        amount: finalAmount,
-        date: format(date, "yyyy-MM-dd"),
-      });
+      const { error: insertError } = await supabase
+        .from("transactions")
+        .insert({
+          user_id: user.id,
+          account_id: accountId,
+          label,
+          amount: finalAmount,
+          date: format(date, "yyyy-MM-dd"),
+        });
       if (insertError) {
         setError(insertError.message);
         return;
@@ -123,27 +131,23 @@ export default function AddTransactionPage() {
       <header className="flex items-center gap-3 px-5 pb-4 pt-6">
         <button
           onClick={() => router.back()}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Go back"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <h1 className="text-xl font-semibold text-foreground">
-          Add Transaction
-        </h1>
+        <h1 className="text-xl font-semibold text-white">Add Transaction</h1>
       </header>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 px-5 pb-8">
         {/* Type toggle */}
-        <div className="flex gap-2 rounded-2xl bg-secondary p-1">
+        <div className="flex gap-2 rounded-2xl bg-white/10 p-1">
           <button
             type="button"
             onClick={() => setType("expense")}
             className={cn(
               "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
-              type === "expense"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground",
+              type === "expense" ? "bg-white/25 text-white" : "text-white/50",
             )}
           >
             Expense
@@ -153,9 +157,7 @@ export default function AddTransactionPage() {
             onClick={() => setType("income")}
             className={cn(
               "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
-              type === "income"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground",
+              type === "income" ? "bg-white/25 text-white" : "text-white/50",
             )}
           >
             Income
@@ -164,14 +166,11 @@ export default function AddTransactionPage() {
 
         {/* Amount */}
         <div className="flex flex-col gap-2">
-          <Label
-            htmlFor="amount"
-            className="text-sm font-medium text-foreground"
-          >
+          <Label htmlFor="amount" className="text-sm font-medium text-white/70">
             Amount
           </Label>
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-muted-foreground">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-white/70">
               $
             </span>
             <Input
@@ -182,7 +181,7 @@ export default function AddTransactionPage() {
               placeholder="0.00"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="h-12 rounded-xl border-border bg-card pl-8 text-lg font-semibold tabular-nums"
+              className="h-12 rounded-xl border-white/20 bg-white/10 pl-8 text-lg font-semibold tabular-nums text-white placeholder:text-white/40"
               required
             />
           </div>
@@ -190,10 +189,7 @@ export default function AddTransactionPage() {
 
         {/* Label */}
         <div className="flex flex-col gap-2">
-          <Label
-            htmlFor="label"
-            className="text-sm font-medium text-foreground"
-          >
+          <Label htmlFor="label" className="text-sm font-medium text-white/70">
             Label
           </Label>
           <Input
@@ -202,24 +198,24 @@ export default function AddTransactionPage() {
             placeholder="e.g. Grocery Store"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            className="h-11 rounded-xl border-border bg-card"
+            className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
             required
           />
         </div>
 
         {/* Date */}
         <div className="flex flex-col gap-2">
-          <Label className="text-sm font-medium text-foreground">Date</Label>
+          <Label className="text-sm font-medium text-white/70">Date</Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
-                  "h-11 w-full justify-start rounded-xl border-border bg-card text-left font-normal",
-                  !date && "text-muted-foreground",
+                  "h-11 w-full justify-start rounded-xl border-white/20 bg-white/10 text-left font-normal text-white placeholder:text-white/40",
+                  !date && "text-white/60",
                 )}
               >
-                <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                <CalendarIcon className="mr-2 h-4 w-4 text-white/70" />
                 {date ? format(date, "MMM d, yyyy") : "Pick a date"}
               </Button>
             </PopoverTrigger>
@@ -235,17 +231,17 @@ export default function AddTransactionPage() {
         </div>
 
         {/* Recurring */}
-        <div className="flex flex-col gap-4 rounded-2xl bg-card p-4 shadow-sm">
+        <div className="glass-card flex flex-col gap-4 rounded-2xl p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent">
                 <Repeat className="h-4 w-4 text-primary" />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">
+                <span className="text-sm font-medium text-white">
                   Recurring
                 </span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-white/60">
                   Repeat this transaction
                 </span>
               </div>
@@ -259,11 +255,11 @@ export default function AddTransactionPage() {
 
           {recurring && (
             <div className="flex flex-col gap-2">
-              <Label className="text-xs font-medium text-muted-foreground">
+              <Label className="text-xs font-medium text-white/70">
                 Frequency
               </Label>
               <Select value={frequency} onValueChange={setFrequency}>
-                <SelectTrigger className="h-11 rounded-xl border-border">
+                <SelectTrigger className="h-11 rounded-xl border-white/20 bg-white/10 text-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -292,7 +288,7 @@ export default function AddTransactionPage() {
         <Button
           type="submit"
           disabled={!accountId}
-          className="mt-2 h-12 rounded-xl bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          className="mt-2 h-12 rounded-xl border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
           {type === "income" ? "Add Income" : "Add Expense"}
         </Button>

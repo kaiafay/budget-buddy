@@ -36,10 +36,10 @@ export function DaySheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent>
+      <DrawerContent className="glass-card border-0">
         <DrawerHeader className="px-5 pt-5">
-          <DrawerTitle className="text-lg">{formattedDate}</DrawerTitle>
-          <DrawerDescription>
+          <DrawerTitle className="text-lg text-white">{formattedDate}</DrawerTitle>
+          <DrawerDescription className="text-white/70">
             {transactions.length === 0
               ? "No transactions on this day"
               : `${transactions.length} transaction${transactions.length > 1 ? "s" : ""}`}
@@ -55,19 +55,19 @@ export function DaySheet({
                   className="flex items-center gap-3 rounded-xl px-3 py-2.5"
                 >
                   {t.amount > 0 ? (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(79,107,237,0.1)]">
-                      <DollarSign className="h-4 w-4 text-primary" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
+                      <DollarSign className="h-4 w-4 text-white" />
                     </div>
                   ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F1F5F9]">
-                      <ArrowDownLeft className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                      <ArrowDownLeft className="h-4 w-4 text-white/70" />
                     </div>
                   )}
                   <div className="flex flex-1 flex-col">
-                    <span className="text-sm font-medium text-foreground">
+                    <span className="text-sm font-medium text-white">
                       {t.label}
                       {t.recurring && (
-                        <span className="ml-1 text-xs text-muted-foreground">
+                        <span className="ml-1 text-xs text-white/70">
                           ↻
                         </span>
                       )}
@@ -76,8 +76,8 @@ export function DaySheet({
                   <span
                     className={
                       t.amount >= 0
-                        ? "text-sm font-semibold tabular-nums text-[#16A34A]"
-                        : "text-sm font-semibold tabular-nums text-[#DC2626]"
+                        ? "text-sm font-semibold tabular-nums text-emerald-300"
+                        : "text-sm font-semibold tabular-nums text-red-300"
                     }
                   >
                     {t.amount >= 0 ? "+" : "-"}$
@@ -90,15 +90,15 @@ export function DaySheet({
               ))}
 
               {transactions.length > 1 && (
-                <div className="mt-1 flex items-center justify-between border-t border-border px-3 pt-3">
-                  <span className="text-sm font-medium text-muted-foreground">
+                <div className="mt-1 flex items-center justify-between border-t border-white/20 px-3 pt-3">
+                  <span className="text-sm font-medium text-white/70">
                     Net total
                   </span>
                   <span
                     className={
                       dayTotal >= 0
-                        ? "text-sm font-semibold tabular-nums text-[#16A34A]"
-                        : "text-sm font-semibold tabular-nums text-[#DC2626]"
+                        ? "text-sm font-semibold tabular-nums text-emerald-300"
+                        : "text-sm font-semibold tabular-nums text-red-300"
                     }
                   >
                     {dayTotal >= 0 ? "+" : "-"}$
@@ -116,7 +116,7 @@ export function DaySheet({
         <DrawerFooter className="px-5 pb-6">
           <Button
             type="button"
-            className="h-11 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+            className="h-11 rounded-xl border border-white/20 bg-primary text-white hover:bg-primary/90"
             onClick={() => router.push(date ? `/add?date=${date}` : "/add")}
           >
             <Plus className="mr-2 h-4 w-4" />

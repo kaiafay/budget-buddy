@@ -38,9 +38,8 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       });
   }, []);
 
-  const { data, isLoading } = useSWR(
-    `calendar-month-${month}-${year}`,
-    () => fetchCalendarData(month, year),
+  const { data, isLoading } = useSWR(`calendar-month-${month}-${year}`, () =>
+    fetchCalendarData(month, year),
   );
 
   const accountName = data?.account?.name ?? "";
@@ -89,7 +88,14 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       month - 1,
       year,
     );
-  }, [data, carryForwardBalance, transactionsForProj, recurringRulesMapped, month, year]);
+  }, [
+    data,
+    carryForwardBalance,
+    transactionsForProj,
+    recurringRulesMapped,
+    month,
+    year,
+  ]);
 
   const transactions: Transaction[] = useMemo(() => {
     if (!data) return [];
@@ -104,7 +110,9 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       data.firstDayOfMonth,
       data.lastDayOfMonth,
     );
-    return [...monthTx, ...expanded].sort((a, b) => a.date.localeCompare(b.date));
+    return [...monthTx, ...expanded].sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
   }, [data, recurringRulesMapped]);
 
   const monthIncome = useMemo(
@@ -148,22 +156,18 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       {/* Top bar */}
       <header className="flex items-center justify-between px-5 pb-2 pt-4">
         <div>
-          <p className="text-base font-normal text-muted-foreground">
-            👋 {greeting}
-          </p>
-          <h1 className="text-xl font-semibold text-foreground">
-            {accountName}
-          </h1>
+          <p className="text-base font-normal text-white/70">👋 {greeting}</p>
+          <h1 className="text-xl font-semibold text-white">{accountName}</h1>
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+        <div className="glass flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white">
           {initials}
         </div>
       </header>
 
       {/* Balance hero card */}
       <div className="px-5 pb-2 pt-1">
-        <div className="flex flex-col gap-0.5 rounded-2xl bg-card p-4 shadow-sm">
-          <span className="text-xs text-muted-foreground">Current Balance</span>
+        <div className="glass-card flex flex-col gap-0.5 rounded-2xl p-4">
+          <span className="text-xs text-white/70">Current Balance</span>
           <span
             className={cn(
               "text-2xl font-bold tabular-nums",
@@ -180,18 +184,18 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
 
       {/* Income / Expenses row */}
       <div className="flex gap-2 px-5 pb-3">
-        <div className="flex flex-1 flex-col gap-0.5 rounded-2xl bg-card p-3 shadow-sm">
-          <span className="text-[10px] text-muted-foreground">Income</span>
-          <span className="text-sm font-semibold tabular-nums text-[#16A34A]">
+        <div className="glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
+          <span className="text-[10px] text-white/70">Income</span>
+          <span className="text-sm font-semibold tabular-nums text-emerald-300">
             +$
             {monthIncome.toLocaleString(undefined, {
               minimumFractionDigits: 2,
             })}
           </span>
         </div>
-        <div className="flex flex-1 flex-col gap-0.5 rounded-2xl bg-card p-3 shadow-sm">
-          <span className="text-[10px] text-muted-foreground">Expenses</span>
-          <span className="text-sm font-semibold tabular-nums text-[#DC2626]">
+        <div className="glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
+          <span className="text-[10px] text-white/70">Expenses</span>
+          <span className="text-sm font-semibold tabular-nums text-red-300">
             -$
             {Math.abs(monthExpenses).toLocaleString(undefined, {
               minimumFractionDigits: 2,
@@ -201,7 +205,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       </div>
 
       {/* Calendar */}
-      <div className="mt-1 mx-4 rounded-3xl bg-card overflow-hidden shadow-sm">
+      <div className="glass-card mt-1 mx-4 rounded-3xl overflow-hidden">
         <CalendarGrid
           balances={balances}
           transactions={transactions}
@@ -219,7 +223,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
         className="fixed bottom-20 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary shadow-lg transition-transform hover:scale-105 active:scale-95 sm:right-[calc(50%-14rem)]"
         aria-label="Add transaction"
       >
-        <Plus className="h-5 w-5 text-primary-foreground" />
+        <Plus className="h-5 w-5 text-white" />
       </Link>
     </div>
   );

@@ -78,17 +78,17 @@ export function CalendarGrid({
       >
         <button
           onClick={onPrevMonth}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Previous month"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <h2 className="text-lg font-semibold text-foreground">
+        <h2 className="text-lg font-semibold text-white">
           {MONTH_NAMES[balanceMonth - 1]} {balanceYear}
         </h2>
         <button
           onClick={onNextMonth}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Next month"
         >
           <ChevronRight className="h-5 w-5" />
@@ -100,7 +100,7 @@ export function CalendarGrid({
         {WEEKDAYS.map((d) => (
           <div
             key={d}
-            className="py-2 text-center text-xs font-medium text-muted-foreground"
+            className="py-2 text-center text-xs font-medium text-white/60"
           >
             {d}
           </div>
@@ -137,8 +137,8 @@ export function CalendarGrid({
             >
               <span
                 className={cn(
-                  "text-sm font-medium",
-                  isToday && "text-white",
+                  "text-sm font-medium text-white",
+                  isToday && "font-semibold",
                 )}
               >
                 {day}
@@ -148,10 +148,10 @@ export function CalendarGrid({
                   className={cn(
                     "text-[10px] leading-none font-medium tabular-nums",
                     isToday
-                      ? "text-white/80"
+                      ? "text-white/90"
                       : balance >= 0
-                        ? "text-[#22C55E]"
-                        : "text-[#EF4444]",
+                        ? "text-emerald-200"
+                        : "text-red-300",
                   )}
                 >
                   {balance >= 0 ? "" : "-"}$
