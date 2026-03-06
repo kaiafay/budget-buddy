@@ -151,12 +151,12 @@ export default function TransactionsPage() {
                   </div>
                   <span
                     className={
-                      t.amount > 0
+                      t.amount >= 0
                         ? "text-sm font-semibold tabular-nums text-[#16A34A]"
                         : "text-sm font-semibold tabular-nums text-[#DC2626]"
                     }
                   >
-                    {t.amount > 0 ? "+" : ""}$
+                    {t.amount >= 0 ? "+" : "-"}$
                     {Math.abs(t.amount).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,

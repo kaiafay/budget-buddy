@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { Plus } from "lucide-react";
+import { format } from "date-fns";
+import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 import type { Transaction, RecurringRule } from "@/lib/types";
 import { fetchCalendarData } from "@/lib/api";
 import {
@@ -19,8 +22,21 @@ interface CalendarViewProps {
 }
 
 export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const [month, setMonth] = useState(initialMonth);
   const [year, setYear] = useState(initialYear);
+  const [initials, setInitials] = useState("··");
+
+  useEffect(() => {
+    createClient()
+      .auth.getUser()
+      .then(({ data }) => {
+        const email = data.user?.email ?? "";
+        setInitials(email.slice(0, 2).toUpperCase());
+      });
+  }, []);
 
   const { data, isLoading } = useSWR(
     `calendar-month-${month}-${year}`,
@@ -106,6 +122,9 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
     [transactions],
   );
 
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const todayBalance = balances[todayStr] ?? carryForwardBalance;
+
   function onPrevMonth() {
     if (month === 1) {
       setMonth(12);
@@ -130,22 +149,40 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       <header className="flex items-center justify-between px-5 pb-2 pt-4">
         <div>
           <p className="text-base font-normal text-muted-foreground">
-            👋 Good morning
+            👋 {greeting}
           </p>
           <h1 className="text-xl font-semibold text-foreground">
             {accountName}
           </h1>
         </div>
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-          JD
+          {initials}
         </div>
       </header>
 
-      {/* Summary cards */}
-      <div className="flex gap-3 px-5 pb-2 pt-1">
+      {/* Balance hero card */}
+      <div className="px-5 pb-2 pt-1">
+        <div className="flex flex-col gap-0.5 rounded-2xl bg-card p-4 shadow-sm">
+          <span className="text-xs text-muted-foreground">Current Balance</span>
+          <span
+            className={cn(
+              "text-2xl font-bold tabular-nums",
+              todayBalance >= 0 ? "text-[#16A34A]" : "text-[#DC2626]",
+            )}
+          >
+            {todayBalance >= 0 ? "" : "-"}$
+            {Math.abs(todayBalance).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+            })}
+          </span>
+        </div>
+      </div>
+
+      {/* Income / Expenses row */}
+      <div className="flex gap-2 px-5 pb-3">
         <div className="flex flex-1 flex-col gap-0.5 rounded-2xl bg-card p-3 shadow-sm">
-          <span className="text-xs text-muted-foreground">Income</span>
-          <span className="text-lg font-semibold tabular-nums text-[#22C55E]">
+          <span className="text-[10px] text-muted-foreground">Income</span>
+          <span className="text-sm font-semibold tabular-nums text-[#16A34A]">
             +$
             {monthIncome.toLocaleString(undefined, {
               minimumFractionDigits: 2,
@@ -153,8 +190,8 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
           </span>
         </div>
         <div className="flex flex-1 flex-col gap-0.5 rounded-2xl bg-card p-3 shadow-sm">
-          <span className="text-xs text-muted-foreground">Expenses</span>
-          <span className="text-lg font-semibold tabular-nums text-[#EF4444]">
+          <span className="text-[10px] text-muted-foreground">Expenses</span>
+          <span className="text-sm font-semibold tabular-nums text-[#DC2626]">
             -$
             {Math.abs(monthExpenses).toLocaleString(undefined, {
               minimumFractionDigits: 2,
@@ -164,7 +201,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       </div>
 
       {/* Calendar */}
-      <div className="mt-1 rounded-t-3xl bg-card pt-1 shadow-sm">
+      <div className="mt-1 mx-4 rounded-3xl bg-card overflow-hidden shadow-sm">
         <CalendarGrid
           balances={balances}
           transactions={transactions}
