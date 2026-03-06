@@ -3,25 +3,46 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { CalendarGrid } from "@/components/calendar-grid";
-import { mockSettings, getTransactionsForMonth } from "@/lib/mock-data";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
-export function CalendarView() {
-  const today = new Date();
-  const [month] = useState(today.getMonth() + 1);
-  const [year] = useState(today.getFullYear());
+export type CalendarViewTransaction = {
+  id: string;
+  label: string;
+  amount: number;
+  type: "income" | "expense";
+  date: string;
+  category: string;
+};
 
-  const monthTransactions = useMemo(
-    () => getTransactionsForMonth(year, month),
-    [year, month],
+interface CalendarViewProps {
+  balances: Record<string, number>;
+  transactions: CalendarViewTransaction[];
+  accountName: string;
+  balanceYear: number;
+  balanceMonth: number;
+}
+
+export function CalendarView({
+  balances,
+  transactions,
+  accountName,
+  balanceYear,
+  balanceMonth,
+}: CalendarViewProps) {
+  const monthIncome = useMemo(
+    () =>
+      transactions
+        .filter((t) => t.type === "income")
+        .reduce((s, t) => s + t.amount, 0),
+    [transactions],
   );
-
-  const monthIncome = monthTransactions
-    .filter((t) => t.type === "income")
-    .reduce((s, t) => s + t.amount, 0);
-  const monthExpenses = monthTransactions
-    .filter((t) => t.type === "expense")
-    .reduce((s, t) => s + t.amount, 0);
+  const monthExpenses = useMemo(
+    () =>
+      transactions
+        .filter((t) => t.type === "expense")
+        .reduce((s, t) => s + t.amount, 0),
+    [transactions],
+  );
 
   return (
     <div className="flex flex-col">
@@ -32,7 +53,7 @@ export function CalendarView() {
             👋 Good morning
           </p>
           <h1 className="text-xl font-semibold text-foreground">
-            {mockSettings.accountName}
+            {accountName}
           </h1>
         </div>
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
@@ -64,7 +85,12 @@ export function CalendarView() {
 
       {/* Calendar */}
       <div className="mt-1 rounded-t-3xl bg-card pt-1 shadow-sm">
-        <CalendarGrid />
+        <CalendarGrid
+          balances={balances}
+          transactions={transactions}
+          balanceYear={balanceYear}
+          balanceMonth={balanceMonth}
+        />
       </div>
 
       {/* FAB */}

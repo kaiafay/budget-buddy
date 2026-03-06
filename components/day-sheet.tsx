@@ -14,13 +14,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { CategoryIcon } from "@/components/category-icon";
 import { cn } from "@/lib/utils";
-import type { Transaction } from "@/lib/mock-data";
+
+export interface DaySheetTransaction {
+  id: string;
+  label: string;
+  amount: number;
+  type: "income" | "expense";
+  date: string;
+  category: string;
+}
 
 interface DaySheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   date: string | null;
-  transactions: Transaction[];
+  transactions: DaySheetTransaction[];
 }
 
 export function DaySheet({

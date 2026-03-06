@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getDailyBalance, getTransactionsForDate } from "@/lib/mock-data";
-import { DaySheet } from "@/components/day-sheet";
+import { DaySheet, type DaySheetTransaction } from "@/components/day-sheet";
+import type { CalendarViewTransaction } from "@/components/calendar-view";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
@@ -22,47 +23,53 @@ const MONTH_NAMES = [
   "December",
 ];
 
-export function CalendarGrid() {
+interface CalendarGridProps {
+  balances: Record<string, number>;
+  transactions: CalendarViewTransaction[];
+  balanceYear: number;
+  balanceMonth: number;
+}
+
+export function CalendarGrid({
+  balances,
+  transactions,
+  balanceYear,
+  balanceMonth,
+}: CalendarGridProps) {
+  const router = useRouter();
   const today = new Date();
-  const [currentMonth, setCurrentMonth] = useState(today.getMonth() + 1); // 1-based
-  const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const dailyBalances = useMemo(
-    () => getDailyBalance(currentYear, currentMonth),
-    [currentYear, currentMonth],
-  );
+  const isViewingBalanceMonth = true;
 
-  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-  const firstDayOfWeek = new Date(currentYear, currentMonth - 1, 1).getDay();
+  const daysInMonth = new Date(balanceYear, balanceMonth, 0).getDate();
+  const firstDayOfWeek = new Date(balanceYear, balanceMonth - 1, 1).getDay();
 
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   function prevMonth() {
-    if (currentMonth === 1) {
-      setCurrentMonth(12);
-      setCurrentYear(currentYear - 1);
+    if (balanceMonth === 1) {
+      router.push(`/?month=12&year=${balanceYear - 1}`);
     } else {
-      setCurrentMonth(currentMonth - 1);
+      router.push(`/?month=${balanceMonth - 1}&year=${balanceYear}`);
     }
   }
 
   function nextMonth() {
-    if (currentMonth === 12) {
-      setCurrentMonth(1);
-      setCurrentYear(currentYear + 1);
+    if (balanceMonth === 12) {
+      router.push(`/?month=1&year=${balanceYear + 1}`);
     } else {
-      setCurrentMonth(currentMonth + 1);
+      router.push(`/?month=${balanceMonth + 1}&year=${balanceYear}`);
     }
   }
 
   function handleDayClick(day: number) {
-    const dateStr = `${currentYear}-${String(currentMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const dateStr = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     setSelectedDate(dateStr);
   }
 
-  const selectedTransactions = selectedDate
-    ? getTransactionsForDate(selectedDate)
+  const selectedTransactions: DaySheetTransaction[] = selectedDate
+    ? transactions.filter((t) => t.date === selectedDate)
     : [];
 
   return (
@@ -77,7 +84,7 @@ export function CalendarGrid() {
           <ChevronLeft className="h-5 w-5" />
         </button>
         <h2 className="text-lg font-semibold text-foreground">
-          {MONTH_NAMES[currentMonth - 1]} {currentYear}
+          {MONTH_NAMES[balanceMonth - 1]} {balanceYear}
         </h2>
         <button
           onClick={nextMonth}
@@ -110,8 +117,11 @@ export function CalendarGrid() {
         {/* Day cells */}
         {Array.from({ length: daysInMonth }).map((_, i) => {
           const day = i + 1;
-          const dateStr = `${currentYear}-${String(currentMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-          const balance = dailyBalances.get(day);
+          const dateStr = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          const balance =
+            isViewingBalanceMonth && balances[dateStr] !== undefined
+              ? balances[dateStr]
+              : undefined;
           const isToday = dateStr === todayStr;
           const isNegative = balance !== undefined && balance < 0;
 
@@ -125,7 +135,7 @@ export function CalendarGrid() {
                 !isToday && isNegative && "glass-cell-negative",
                 !isToday && "hover:opacity-90",
               )}
-              aria-label={`${MONTH_NAMES[currentMonth - 1]} ${day}`}
+              aria-label={`${MONTH_NAMES[balanceMonth - 1]} ${day}`}
             >
               <span
                 className={cn(
