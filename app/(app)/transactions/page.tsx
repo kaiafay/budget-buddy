@@ -1,42 +1,60 @@
-"use client";
-
-import { useMemo } from "react";
+import { redirect } from "next/navigation";
 import { format, parseISO } from "date-fns";
-import { mockTransactions } from "@/lib/mock-data";
-import { CategoryIcon } from "@/components/category-icon";
-import { cn } from "@/lib/utils";
+import { DollarSign, ArrowDownLeft } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+
+type TransactionRow = {
+  id: string;
+  label: string;
+  amount: number;
+  date: string;
+};
 
 type GroupedTransactions = {
   date: string;
   formatted: string;
-  transactions: typeof mockTransactions;
+  transactions: TransactionRow[];
 };
 
-export default function TransactionsPage() {
-  const grouped = useMemo(() => {
-    const sorted = [...mockTransactions].sort((a, b) =>
-      b.date.localeCompare(a.date),
-    );
+function groupTransactionsByDate(transactions: TransactionRow[]): GroupedTransactions[] {
+  const sorted = [...transactions].sort((a, b) =>
+    b.date.localeCompare(a.date),
+  );
 
-    const groups: GroupedTransactions[] = [];
-    let currentDate = "";
-    let currentGroup: GroupedTransactions | null = null;
+  const groups: GroupedTransactions[] = [];
+  let currentDate = "";
+  let currentGroup: GroupedTransactions | null = null;
 
-    for (const t of sorted) {
-      if (t.date !== currentDate) {
-        currentDate = t.date;
-        currentGroup = {
-          date: t.date,
-          formatted: format(parseISO(t.date), "EEEE, MMM d"),
-          transactions: [],
-        };
-        groups.push(currentGroup);
-      }
-      currentGroup!.transactions.push(t);
+  for (const t of sorted) {
+    if (t.date !== currentDate) {
+      currentDate = t.date;
+      currentGroup = {
+        date: t.date,
+        formatted: format(parseISO(t.date), "EEEE, MMM d"),
+        transactions: [],
+      };
+      groups.push(currentGroup);
     }
+    currentGroup!.transactions.push(t);
+  }
 
-    return groups;
-  }, []);
+  return groups;
+}
+
+export default async function TransactionsPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: transactions } = await supabase
+    .from("transactions")
+    .select("id, label, amount, date")
+    .eq("user_id", user.id)
+    .order("date", { ascending: false });
+
+  const grouped = groupTransactionsByDate(transactions ?? []);
 
   return (
     <div className="flex flex-col">
@@ -59,23 +77,29 @@ export default function TransactionsPage() {
                   key={t.id}
                   className="flex items-center gap-3 rounded-xl px-3 py-2.5"
                 >
-                  <CategoryIcon category={t.category} />
+                  {t.amount > 0 ? (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(79,107,237,0.1)]">
+                      <DollarSign className="h-4 w-4 text-primary" />
+                    </div>
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F1F5F9]">
+                      <ArrowDownLeft className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  )}
                   <div className="flex flex-1 flex-col">
                     <span className="text-sm font-medium text-foreground">
                       {t.label}
                     </span>
-                    <span className="text-xs capitalize text-muted-foreground">
-                      {t.category}
-                    </span>
                   </div>
                   <span
-                    className={cn(
-                      "text-sm font-semibold tabular-nums",
-                      t.type === "income" ? "text-[#22C55E]" : "text-[#EF4444]",
-                    )}
+                    className={
+                      t.amount > 0
+                        ? "text-sm font-semibold tabular-nums text-[#16A34A]"
+                        : "text-sm font-semibold tabular-nums text-[#DC2626]"
+                    }
                   >
-                    {t.type === "income" ? "+" : "-"}$
-                    {t.amount.toLocaleString(undefined, {
+                    {t.amount > 0 ? "+" : ""}$
+                    {Math.abs(t.amount).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
