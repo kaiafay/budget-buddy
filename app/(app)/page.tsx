@@ -5,6 +5,7 @@ import {
   addYears,
   isBefore,
   isAfter,
+  format,
 } from "date-fns";
 import { createClient } from "@/lib/supabase/server";
 import { getProjectedBalances } from "@/lib/projection";
@@ -88,9 +89,8 @@ export default async function HomePage({
     id: string;
     label: string;
     amount: number;
-    type: "income" | "expense";
     date: string;
-    category: string;
+    recurring?: boolean;
   }[] = [];
   let recurringRules: RecurringRuleRow[] = [];
 
@@ -144,11 +144,36 @@ export default async function HomePage({
         transactionsForSheet.push({
           id: row.id,
           label: row.label,
-          amount: Math.abs(amount),
-          type: amount >= 0 ? "income" : "expense",
+          amount,
           date: row.date,
-          category: (row as { category?: string }).category ?? "other",
         });
+      }
+    }
+
+    for (const rule of recurringRules) {
+      let cursor = new Date(rule.start_date);
+      const end = rule.end_date
+        ? new Date(rule.end_date)
+        : addYears(new Date(), 10);
+      while (
+        !isAfter(cursor, new Date(lastDayOfMonth)) &&
+        !isAfter(cursor, end)
+      ) {
+        const d = format(cursor, "yyyy-MM-dd");
+        if (d >= firstDayOfMonth && d <= lastDayOfMonth) {
+          transactionsForSheet.push({
+            id: `${rule.id}-${d}`,
+            label: rule.label,
+            amount: rule.amount,
+            date: d,
+            recurring: true,
+          });
+        }
+        if (rule.frequency === "weekly") cursor = addWeeks(cursor, 1);
+        else if (rule.frequency === "biweekly") cursor = addWeeks(cursor, 2);
+        else if (rule.frequency === "monthly") cursor = addMonths(cursor, 1);
+        else if (rule.frequency === "yearly") cursor = addYears(cursor, 1);
+        else break;
       }
     }
   } else {
@@ -167,6 +192,7 @@ export default async function HomePage({
     <CalendarView
       balances={balances}
       transactions={transactionsForSheet}
+      recurringRules={recurringRules}
       accountName={accountName}
       balanceYear={year}
       balanceMonth={month1Based}

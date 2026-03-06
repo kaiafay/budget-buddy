@@ -1,5 +1,12 @@
 import { redirect } from "next/navigation";
-import { format, parseISO } from "date-fns";
+import {
+  format,
+  parseISO,
+  addWeeks,
+  addMonths,
+  addYears,
+  isAfter,
+} from "date-fns";
 import { DollarSign, ArrowDownLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 
@@ -8,6 +15,16 @@ type TransactionRow = {
   label: string;
   amount: number;
   date: string;
+  recurring?: boolean;
+};
+
+type RecurringRuleRow = {
+  id: string;
+  start_date: string;
+  end_date: string | null;
+  amount: number;
+  label: string;
+  frequency: "weekly" | "biweekly" | "monthly" | "yearly";
 };
 
 type GroupedTransactions = {
@@ -48,13 +65,79 @@ export default async function TransactionsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: transactions } = await supabase
+  const { data: txRows } = await supabase
     .from("transactions")
     .select("id, label, amount, date")
     .eq("user_id", user.id)
     .order("date", { ascending: false });
 
-  const grouped = groupTransactionsByDate(transactions ?? []);
+  const transactionsList: TransactionRow[] = (txRows ?? []).map((row) => ({
+    id: row.id,
+    label: row.label,
+    amount: Number(row.amount),
+    date: row.date,
+  }));
+
+  const { data: account } = await supabase
+    .from("accounts")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (account?.id) {
+    const { data: rulesRows } = await supabase
+      .from("recurring_rules")
+      .select("id, start_date, end_date, amount, label, frequency")
+      .eq("account_id", account.id);
+
+    const recurringRules: RecurringRuleRow[] = (rulesRows ?? []).map((r) => ({
+      id: r.id,
+      start_date: r.start_date,
+      end_date: r.end_date ?? null,
+      amount: Number(r.amount),
+      label: r.label,
+      frequency: r.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+    }));
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const firstDayCurrent = `${currentYear}-${String(currentMonth).padStart(2, "0")}-01`;
+    const lastDayCurrent = new Date(currentYear, currentMonth, 0).getDate();
+    const lastDayOfCurrent = `${currentYear}-${String(currentMonth).padStart(2, "0")}-${String(lastDayCurrent).padStart(2, "0")}`;
+    const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+    const firstDayPrev = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
+
+    for (const rule of recurringRules) {
+      let cursor = new Date(rule.start_date);
+      const end = rule.end_date
+        ? new Date(rule.end_date)
+        : addYears(new Date(), 10);
+      while (
+        !isAfter(cursor, new Date(lastDayOfCurrent)) &&
+        !isAfter(cursor, end)
+      ) {
+        const d = format(cursor, "yyyy-MM-dd");
+        if (d >= firstDayPrev && d <= lastDayOfCurrent) {
+          transactionsList.push({
+            id: `${rule.id}-${d}`,
+            label: rule.label,
+            amount: rule.amount,
+            date: d,
+            recurring: true,
+          });
+        }
+        if (rule.frequency === "weekly") cursor = addWeeks(cursor, 1);
+        else if (rule.frequency === "biweekly") cursor = addWeeks(cursor, 2);
+        else if (rule.frequency === "monthly") cursor = addMonths(cursor, 1);
+        else if (rule.frequency === "yearly") cursor = addYears(cursor, 1);
+        else break;
+      }
+    }
+  }
+
+  const grouped = groupTransactionsByDate(transactionsList);
 
   return (
     <div className="flex flex-col">
@@ -89,6 +172,11 @@ export default async function TransactionsPage() {
                   <div className="flex flex-1 flex-col">
                     <span className="text-sm font-medium text-foreground">
                       {t.label}
+                      {t.recurring && (
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          ↻
+                        </span>
+                      )}
                     </span>
                   </div>
                   <span

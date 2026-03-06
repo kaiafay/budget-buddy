@@ -9,14 +9,23 @@ export type CalendarViewTransaction = {
   id: string;
   label: string;
   amount: number;
-  type: "income" | "expense";
   date: string;
-  category: string;
+  recurring?: boolean;
+};
+
+export type RecurringRule = {
+  id: string;
+  label: string;
+  amount: number;
+  frequency: "weekly" | "biweekly" | "monthly" | "yearly";
+  start_date: string;
+  end_date?: string | null;
 };
 
 interface CalendarViewProps {
   balances: Record<string, number>;
   transactions: CalendarViewTransaction[];
+  recurringRules: RecurringRule[];
   accountName: string;
   balanceYear: number;
   balanceMonth: number;
@@ -25,6 +34,7 @@ interface CalendarViewProps {
 export function CalendarView({
   balances,
   transactions,
+  recurringRules,
   accountName,
   balanceYear,
   balanceMonth,
@@ -32,14 +42,14 @@ export function CalendarView({
   const monthIncome = useMemo(
     () =>
       transactions
-        .filter((t) => t.type === "income")
+        .filter((t) => t.amount > 0)
         .reduce((s, t) => s + t.amount, 0),
     [transactions],
   );
   const monthExpenses = useMemo(
     () =>
       transactions
-        .filter((t) => t.type === "expense")
+        .filter((t) => t.amount < 0)
         .reduce((s, t) => s + t.amount, 0),
     [transactions],
   );
@@ -76,7 +86,7 @@ export function CalendarView({
           <span className="text-xs text-muted-foreground">Expenses</span>
           <span className="text-lg font-semibold tabular-nums text-[#EF4444]">
             -$
-            {monthExpenses.toLocaleString(undefined, {
+            {Math.abs(monthExpenses).toLocaleString(undefined, {
               minimumFractionDigits: 2,
             })}
           </span>
@@ -88,6 +98,7 @@ export function CalendarView({
         <CalendarGrid
           balances={balances}
           transactions={transactions}
+          recurringRules={recurringRules}
           balanceYear={balanceYear}
           balanceMonth={balanceMonth}
         />

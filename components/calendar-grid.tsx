@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,7 @@ const MONTH_NAMES = [
 interface CalendarGridProps {
   balances: Record<string, number>;
   transactions: CalendarViewTransaction[];
+  recurringRules: import("@/components/calendar-view").RecurringRule[];
   balanceYear: number;
   balanceMonth: number;
 }
@@ -33,6 +34,7 @@ interface CalendarGridProps {
 export function CalendarGrid({
   balances,
   transactions,
+  recurringRules: _recurringRules,
   balanceYear,
   balanceMonth,
 }: CalendarGridProps) {
@@ -68,9 +70,18 @@ export function CalendarGrid({
     setSelectedDate(dateStr);
   }
 
-  const selectedTransactions: DaySheetTransaction[] = selectedDate
-    ? transactions.filter((t) => t.date === selectedDate)
-    : [];
+  const selectedTransactions: DaySheetTransaction[] = useMemo(() => {
+    if (!selectedDate) return [];
+    return transactions
+      .filter((t) => t.date === selectedDate)
+      .map((t) => ({
+        id: t.id,
+        label: t.label,
+        amount: t.amount,
+        date: t.date,
+        recurring: t.recurring ?? false,
+      }));
+  }, [selectedDate, transactions]);
 
   return (
     <>

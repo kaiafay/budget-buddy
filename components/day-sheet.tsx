@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
-import { Plus } from "lucide-react";
+import { Plus, DollarSign, ArrowDownLeft } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -12,16 +12,13 @@ import {
   DrawerFooter,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { CategoryIcon } from "@/components/category-icon";
-import { cn } from "@/lib/utils";
 
 export interface DaySheetTransaction {
   id: string;
   label: string;
   amount: number;
-  type: "income" | "expense";
   date: string;
-  category: string;
+  recurring?: boolean;
 }
 
 interface DaySheetProps {
@@ -42,9 +39,7 @@ export function DaySheet({
     ? format(parseISO(date), "EEEE, MMMM d, yyyy")
     : "";
 
-  const dayTotal = transactions.reduce((sum, t) => {
-    return sum + (t.type === "income" ? t.amount : -t.amount);
-  }, 0);
+  const dayTotal = transactions.reduce((sum, t) => sum + t.amount, 0);
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -66,23 +61,34 @@ export function DaySheet({
                   key={t.id}
                   className="flex items-center gap-3 rounded-xl px-3 py-2.5"
                 >
-                  <CategoryIcon category={t.category} />
+                  {t.amount > 0 ? (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(79,107,237,0.1)]">
+                      <DollarSign className="h-4 w-4 text-primary" />
+                    </div>
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F1F5F9]">
+                      <ArrowDownLeft className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  )}
                   <div className="flex flex-1 flex-col">
                     <span className="text-sm font-medium text-foreground">
                       {t.label}
-                    </span>
-                    <span className="text-xs capitalize text-muted-foreground">
-                      {t.category}
+                      {t.recurring && (
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          ↻
+                        </span>
+                      )}
                     </span>
                   </div>
                   <span
-                    className={cn(
-                      "text-sm font-semibold tabular-nums",
-                      t.type === "income" ? "text-[#22C55E]" : "text-[#EF4444]",
-                    )}
+                    className={
+                      t.amount > 0
+                        ? "text-sm font-semibold tabular-nums text-[#16A34A]"
+                        : "text-sm font-semibold tabular-nums text-[#DC2626]"
+                    }
                   >
-                    {t.type === "income" ? "+" : "-"}$
-                    {t.amount.toLocaleString(undefined, {
+                    {t.amount > 0 ? "+" : ""}$
+                    {Math.abs(t.amount).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
@@ -96,12 +102,13 @@ export function DaySheet({
                     Net total
                   </span>
                   <span
-                    className={cn(
-                      "text-sm font-semibold tabular-nums",
-                      dayTotal >= 0 ? "text-[#22C55E]" : "text-[#EF4444]",
-                    )}
+                    className={
+                      dayTotal >= 0
+                        ? "text-sm font-semibold tabular-nums text-[#16A34A]"
+                        : "text-sm font-semibold tabular-nums text-[#DC2626]"
+                    }
                   >
-                    {dayTotal >= 0 ? "+" : "-"}$
+                    {dayTotal >= 0 ? "+" : ""}$
                     {Math.abs(dayTotal).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
