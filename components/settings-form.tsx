@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRouter } from "next/navigation";
 
 interface Props {
   initialName: string;
@@ -23,6 +24,7 @@ export default function SettingsForm({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [accountId, setAccountId] = useState(initialAccountId);
+  const router = useRouter();
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -156,8 +158,11 @@ export default function SettingsForm({
         <button
           type="button"
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          onClick={() => {
-            window.location.href = "/login";
+          onClick={async () => {
+            const supabase = createClient();
+            await supabase.auth.signOut();
+            router.push("/login");
+            router.refresh();
           }}
         >
           <LogOut className="h-4 w-4" />
