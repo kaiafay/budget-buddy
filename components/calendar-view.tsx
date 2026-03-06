@@ -156,7 +156,9 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       {/* Top bar */}
       <header className="flex items-center justify-between px-5 pb-2 pt-4">
         <div>
-          <p className="text-base font-normal text-white/70">👋 {greeting}</p>
+          <span className="flex items-center gap-1">
+            👋 <p className="text-base font-normal text-white/70">{greeting}</p>
+          </span>
           <h1 className="text-xl font-semibold text-white">{accountName}</h1>
         </div>
         <div className="glass flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white">
@@ -167,11 +169,13 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       {/* Balance hero card */}
       <div className="px-5 pb-2 pt-1">
         <div className="glass-card flex flex-col gap-0.5 rounded-2xl p-4">
-          <span className="text-xs text-white/70">Current Balance</span>
+          <span className="text-xs text-white/85">Current Balance</span>
           <span
             className={cn(
               "text-2xl font-bold tabular-nums",
-              todayBalance >= 0 ? "text-[#16A34A]" : "text-[#DC2626]",
+              todayBalance >= 0
+                ? "amount-text text-[var(--amount-positive)]"
+                : "amount-text-negative text-[var(--amount-negative)]",
             )}
           >
             {todayBalance >= 0 ? "" : "-"}$
@@ -185,8 +189,8 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       {/* Income / Expenses row */}
       <div className="flex gap-2 px-5 pb-3">
         <div className="glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
-          <span className="text-[10px] text-white/70">Income</span>
-          <span className="text-sm font-semibold tabular-nums text-emerald-300">
+          <span className="text-[10px] text-white/85">Income</span>
+          <span className="amount-text text-sm font-semibold tabular-nums text-[var(--amount-positive)]">
             +$
             {monthIncome.toLocaleString(undefined, {
               minimumFractionDigits: 2,
@@ -194,8 +198,8 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
           </span>
         </div>
         <div className="glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
-          <span className="text-[10px] text-white/70">Expenses</span>
-          <span className="text-sm font-semibold tabular-nums text-red-300">
+          <span className="text-[10px] text-white/85">Expenses</span>
+          <span className="text-sm font-semibold tabular-nums text-[var(--amount-negative)]">
             -$
             {Math.abs(monthExpenses).toLocaleString(undefined, {
               minimumFractionDigits: 2,

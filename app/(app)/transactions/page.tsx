@@ -146,8 +146,8 @@ export default function TransactionsPage() {
                   <span
                     className={
                       t.amount >= 0
-                        ? "text-sm font-semibold tabular-nums text-emerald-300"
-                        : "text-sm font-semibold tabular-nums text-red-300"
+                        ? "amount-text text-sm font-semibold tabular-nums text-[var(--amount-positive)]"
+                        : "text-sm font-semibold tabular-nums text-[var(--amount-negative)]"
                     }
                   >
                     {t.amount >= 0 ? "+" : "-"}$

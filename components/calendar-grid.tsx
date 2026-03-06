@@ -72,7 +72,7 @@ export function CalendarGrid({
     const list =
       monthKey === currentMonthKey
         ? transactions
-        : transactionsByMonthRef.current[monthKey] ?? [];
+        : (transactionsByMonthRef.current[monthKey] ?? []);
     return list
       .filter((t) => t.date === effectiveDate)
       .map((t) => ({
@@ -165,10 +165,10 @@ export function CalendarGrid({
                   className={cn(
                     "text-[10px] leading-none font-medium tabular-nums",
                     isToday
-                      ? "text-white/90"
+                      ? "amount-text text-white/90"
                       : balance >= 0
-                        ? "text-emerald-200"
-                        : "text-red-300",
+                        ? "amount-text text-[var(--amount-positive)]"
+                        : "amount-text-negative text-[var(--amount-negative)]",
                   )}
                 >
                   {balance >= 0 ? "" : "-"}$
