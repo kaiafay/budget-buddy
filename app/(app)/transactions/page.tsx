@@ -1,14 +1,11 @@
-import { redirect } from "next/navigation";
-import {
-  format,
-  parseISO,
-  addWeeks,
-  addMonths,
-  addYears,
-  isAfter,
-} from "date-fns";
+"use client";
+
+import { useMemo } from "react";
+import { format, parseISO } from "date-fns";
 import { DollarSign, ArrowDownLeft } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import useSWR from "swr";
+import { fetchTransactions } from "@/lib/api";
+import { expandRecurringForDateRange, type RecurringRuleRow } from "@/lib/projection";
 
 type TransactionRow = {
   id: string;
@@ -18,22 +15,15 @@ type TransactionRow = {
   recurring?: boolean;
 };
 
-type RecurringRuleRow = {
-  id: string;
-  start_date: string;
-  end_date: string | null;
-  amount: number;
-  label: string;
-  frequency: "weekly" | "biweekly" | "monthly" | "yearly";
-};
-
 type GroupedTransactions = {
   date: string;
   formatted: string;
   transactions: TransactionRow[];
 };
 
-function groupTransactionsByDate(transactions: TransactionRow[]): GroupedTransactions[] {
+function groupTransactionsByDate(
+  transactions: TransactionRow[],
+): GroupedTransactions[] {
   const sorted = [...transactions].sort((a, b) =>
     b.date.localeCompare(a.date),
   );
@@ -58,47 +48,36 @@ function groupTransactionsByDate(transactions: TransactionRow[]): GroupedTransac
   return groups;
 }
 
-export default async function TransactionsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+function TransactionsLoadingSkeleton() {
+  return (
+    <div className="flex flex-col animate-pulse px-5 pt-6 gap-6">
+      <div className="flex flex-col gap-2">
+        <div className="h-5 w-32 rounded-full bg-muted" />
+        <div className="h-3 w-48 rounded-full bg-muted" />
+      </div>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="flex flex-col gap-2">
+          <div className="h-3 w-24 rounded-full bg-muted" />
+          <div className="flex flex-col gap-1 rounded-2xl bg-card p-2 shadow-sm">
+            {Array.from({ length: 2 }).map((_, j) => (
+              <div key={j} className="flex items-center gap-3 px-3 py-2.5">
+                <div className="h-9 w-9 rounded-xl bg-muted" />
+                <div className="flex-1 h-4 rounded-full bg-muted" />
+                <div className="h-4 w-16 rounded-full bg-muted" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  const { data: txRows } = await supabase
-    .from("transactions")
-    .select("id, label, amount, date")
-    .eq("user_id", user.id)
-    .order("date", { ascending: false });
+export default function TransactionsPage() {
+  const { data, isLoading } = useSWR("transactions", fetchTransactions);
 
-  const transactionsList: TransactionRow[] = (txRows ?? []).map((row) => ({
-    id: row.id,
-    label: row.label,
-    amount: Number(row.amount),
-    date: row.date,
-  }));
-
-  const { data: account } = await supabase
-    .from("accounts")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (account?.id) {
-    const { data: rulesRows } = await supabase
-      .from("recurring_rules")
-      .select("id, start_date, end_date, amount, label, frequency")
-      .eq("account_id", account.id);
-
-    const recurringRules: RecurringRuleRow[] = (rulesRows ?? []).map((r) => ({
-      id: r.id,
-      start_date: r.start_date,
-      end_date: r.end_date ?? null,
-      amount: Number(r.amount),
-      label: r.label,
-      frequency: r.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
-    }));
-
+  const transactionsList: TransactionRow[] = useMemo(() => {
+    if (!data) return [];
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
@@ -109,35 +88,39 @@ export default async function TransactionsPage() {
     const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
     const firstDayPrev = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
 
-    for (const rule of recurringRules) {
-      let cursor = new Date(rule.start_date);
-      const end = rule.end_date
-        ? new Date(rule.end_date)
-        : addYears(new Date(), 10);
-      while (
-        !isAfter(cursor, new Date(lastDayOfCurrent)) &&
-        !isAfter(cursor, end)
-      ) {
-        const d = format(cursor, "yyyy-MM-dd");
-        if (d >= firstDayPrev && d <= lastDayOfCurrent) {
-          transactionsList.push({
-            id: `${rule.id}-${d}`,
-            label: rule.label,
-            amount: rule.amount,
-            date: d,
-            recurring: true,
-          });
-        }
-        if (rule.frequency === "weekly") cursor = addWeeks(cursor, 1);
-        else if (rule.frequency === "biweekly") cursor = addWeeks(cursor, 2);
-        else if (rule.frequency === "monthly") cursor = addMonths(cursor, 1);
-        else if (rule.frequency === "yearly") cursor = addYears(cursor, 1);
-        else break;
-      }
-    }
-  }
+    const txRows = (data.transactions ?? []).map((row) => ({
+      id: row.id,
+      label: row.label,
+      amount: Number(row.amount),
+      date: row.date,
+    }));
 
-  const grouped = groupTransactionsByDate(transactionsList);
+    const rules: RecurringRuleRow[] = (data.recurringRules ?? []).map((r) => ({
+      id: r.id,
+      start_date: r.start_date,
+      end_date: r.end_date ?? null,
+      amount: Number(r.amount),
+      label: r.label,
+      frequency: r.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+    }));
+
+    const expanded = expandRecurringForDateRange(
+      rules,
+      firstDayPrev,
+      lastDayOfCurrent,
+    );
+
+    return [...txRows, ...expanded];
+  }, [data]);
+
+  const grouped = useMemo(
+    () => groupTransactionsByDate(transactionsList),
+    [transactionsList],
+  );
+
+  if (isLoading) {
+    return <TransactionsLoadingSkeleton />;
+  }
 
   return (
     <div className="flex flex-col">

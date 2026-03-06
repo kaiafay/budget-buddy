@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CalendarIcon, Repeat } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { mutate } from "swr";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,7 +96,10 @@ export default function AddTransactionPage() {
         date: format(date, "yyyy-MM-dd"),
       });
     }
-    router.refresh();
+    const currentMonth = date.getMonth() + 1;
+    const currentYear = date.getFullYear();
+    mutate(`calendar-month-${currentMonth}-${currentYear}`);
+    mutate("transactions");
     router.back();
   }
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DaySheet, type DaySheetTransaction } from "@/components/day-sheet";
@@ -29,6 +28,9 @@ interface CalendarGridProps {
   recurringRules: import("@/components/calendar-view").RecurringRule[];
   balanceYear: number;
   balanceMonth: number;
+  onPrevMonth: () => void;
+  onNextMonth: () => void;
+  isLoading?: boolean;
 }
 
 export function CalendarGrid({
@@ -37,8 +39,10 @@ export function CalendarGrid({
   recurringRules: _recurringRules,
   balanceYear,
   balanceMonth,
+  onPrevMonth,
+  onNextMonth,
+  isLoading = false,
 }: CalendarGridProps) {
-  const router = useRouter();
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -48,22 +52,6 @@ export function CalendarGrid({
   const firstDayOfWeek = new Date(balanceYear, balanceMonth - 1, 1).getDay();
 
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
-  function prevMonth() {
-    if (balanceMonth === 1) {
-      router.push(`/?month=12&year=${balanceYear - 1}`);
-    } else {
-      router.push(`/?month=${balanceMonth - 1}&year=${balanceYear}`);
-    }
-  }
-
-  function nextMonth() {
-    if (balanceMonth === 12) {
-      router.push(`/?month=1&year=${balanceYear + 1}`);
-    } else {
-      router.push(`/?month=${balanceMonth + 1}&year=${balanceYear}`);
-    }
-  }
 
   function handleDayClick(day: number) {
     const dateStr = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -86,9 +74,14 @@ export function CalendarGrid({
   return (
     <>
       {/* Month header */}
-      <div className="flex items-center justify-between px-5 pb-4 pt-6">
+      <div
+        className={cn(
+          "flex items-center justify-between px-5 pb-4 pt-6",
+          isLoading && "opacity-60 transition-opacity",
+        )}
+      >
         <button
-          onClick={prevMonth}
+          onClick={onPrevMonth}
           className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           aria-label="Previous month"
         >
@@ -98,7 +91,7 @@ export function CalendarGrid({
           {MONTH_NAMES[balanceMonth - 1]} {balanceYear}
         </h2>
         <button
-          onClick={nextMonth}
+          onClick={onNextMonth}
           className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           aria-label="Next month"
         >

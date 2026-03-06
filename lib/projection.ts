@@ -75,3 +75,67 @@ export function getProjectedBalances(
 
   return balances;
 }
+
+export type RecurringRuleRow = {
+  id: string;
+  start_date: string;
+  end_date: string | null;
+  amount: number;
+  label: string;
+  frequency: "weekly" | "biweekly" | "monthly" | "yearly";
+};
+
+export function sumRecurringBeforeDate(
+  rules: RecurringRuleRow[],
+  firstDayOfMonth: string,
+): number {
+  const monthStart = new Date(firstDayOfMonth);
+  let sum = 0;
+  for (const rule of rules) {
+    let cursor = new Date(rule.start_date);
+    const end = rule.end_date
+      ? new Date(rule.end_date)
+      : addYears(new Date(), 10);
+    while (isBefore(cursor, monthStart) && !isAfter(cursor, end)) {
+      sum += rule.amount;
+      if (rule.frequency === "weekly") cursor = addWeeks(cursor, 1);
+      else if (rule.frequency === "biweekly") cursor = addWeeks(cursor, 2);
+      else if (rule.frequency === "monthly") cursor = addMonths(cursor, 1);
+      else if (rule.frequency === "yearly") cursor = addYears(cursor, 1);
+      else break;
+    }
+  }
+  return sum;
+}
+
+export function expandRecurringForDateRange(
+  rules: RecurringRuleRow[],
+  startDate: string,
+  endDate: string,
+): { id: string; label: string; amount: number; date: string; recurring: true }[] {
+  const result: { id: string; label: string; amount: number; date: string; recurring: true }[] = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  for (const rule of rules) {
+    let cursor = new Date(rule.start_date);
+    const ruleEnd = rule.end_date ? new Date(rule.end_date) : addYears(end, 1);
+    while (!isAfter(cursor, end) && !isAfter(cursor, ruleEnd)) {
+      const d = format(cursor, "yyyy-MM-dd");
+      if (d >= startDate && d <= endDate) {
+        result.push({
+          id: `${rule.id}-${d}`,
+          label: rule.label,
+          amount: rule.amount,
+          date: d,
+          recurring: true,
+        });
+      }
+      if (rule.frequency === "weekly") cursor = addWeeks(cursor, 1);
+      else if (rule.frequency === "biweekly") cursor = addWeeks(cursor, 2);
+      else if (rule.frequency === "monthly") cursor = addMonths(cursor, 1);
+      else if (rule.frequency === "yearly") cursor = addYears(cursor, 1);
+      else break;
+    }
+  }
+  return result;
+}
