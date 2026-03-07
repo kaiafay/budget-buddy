@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       });
   }, []);
 
+  const { mutate } = useSWRConfig();
   const { data, isLoading } = useSWR(
     `calendar-month-${month}-${year}`,
     () => fetchCalendarData(month, year),
@@ -309,6 +310,14 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
           <DayTransactionsContent
             date={effectiveDate}
             transactions={daySheetTransactions}
+            recurringRules={daySheetRecurringMapped}
+            onMutate={() => {
+              mutate(`calendar-month-${month}-${year}`);
+              if (needDaySheetMonth) {
+                mutate(`calendar-month-${effMonth}-${effYear}`);
+              }
+              mutate("transactions");
+            }}
           />
         )}
       </div>

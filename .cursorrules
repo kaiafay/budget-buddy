@@ -14,6 +14,7 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - TypeScript throughout
 - date-fns for date manipulation
 - Lucide React for icons
+- react-swipeable for swipe gesture handling
 
 ## Supabase Schema
 
@@ -74,6 +75,8 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - Mutations use the Supabase browser client (lib/supabase/client.ts) and call mutate() from SWR after success to invalidate cache
 - mutate() is the primary cache invalidation method — not router.refresh()
 - Auth protection uses proxy.ts (Next.js 16) instead of middleware.ts
+- Mutation helpers live in lib/transactions-mutations.ts — never inline Supabase mutation logic in components
+- After any mutation, always call mutate() on both "transactions" and the current calendar key `calendar-month-${month}-${year}`
 
 ## Design System
 
@@ -103,6 +106,7 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - lib/api.ts — SWR data fetching (fetchCalendarData, fetchTransactions)
 - lib/types.ts — shared TypeScript types (Transaction, RecurringRule, RecurringException, Account, GroupedTransactions)
 - lib/projection.ts — balance projection engine
+- lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, updateRecurringRule, updateRecurringRuleFromDate)
 - proxy.ts — auth middleware (Next.js 16); redirects unauthenticated users to /login, authenticated users away from /login
 
 ## Key Rules
@@ -113,6 +117,10 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - Always handle the case where a user has no account yet
 - Keep prompts surgical — only change what's asked, nothing else
 - Never revert the SWR data fetching pattern back to server-side fetching
+- Recurring rule edits always use updateRecurringRuleFromDate — never updateRecurringRule directly from UI. This ensures past occurrences are preserved and only future ones are updated
+- Swipe gestures use react-swipeable with preventScrollOnSwipe: true — always include this to avoid conflicting with vertical scroll
+- Recurring transaction synthetic id format: `${ruleId}-${date}` — parse with id.slice(0, -11) for ruleId and id.slice(-10) for date
+- recurring_exceptions with type 'skip' are used to hide individual occurrences — never use a cancelling transaction for this purpose
 
 ## Code Cleanliness Rules
 

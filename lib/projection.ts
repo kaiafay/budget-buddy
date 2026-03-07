@@ -11,6 +11,7 @@ import {
   format,
   isBefore,
   isAfter,
+  parseISO,
   startOfMonth,
   endOfMonth,
 } from "date-fns";
@@ -59,8 +60,8 @@ export function getProjectedBalances(
 
   // Expand recurring rules into individual days (respecting exceptions)
   for (const rule of recurringRules) {
-    let cursor = new Date(rule.start_date);
-    const end = rule.end_date ? new Date(rule.end_date) : addYears(monthEnd, 1);
+    let cursor = parseISO(rule.start_date);
+    const end = rule.end_date ? parseISO(rule.end_date) : addYears(monthEnd, 1);
     while (!isAfter(cursor, monthEnd) && !isAfter(cursor, end)) {
       if (!isBefore(cursor, monthStart)) {
         const d = format(cursor, "yyyy-MM-dd");
@@ -98,12 +99,12 @@ export function sumRecurringBeforeDate(
   firstDayOfMonth: string,
   exceptions?: RecurringException[],
 ): number {
-  const monthStart = new Date(firstDayOfMonth);
+  const monthStart = parseISO(firstDayOfMonth);
   let sum = 0;
   for (const rule of rules) {
-    let cursor = new Date(rule.start_date);
+    let cursor = parseISO(rule.start_date);
     const end = rule.end_date
-      ? new Date(rule.end_date)
+      ? parseISO(rule.end_date)
       : addYears(new Date(), 10);
     while (isBefore(cursor, monthStart) && !isAfter(cursor, end)) {
       const d = format(cursor, "yyyy-MM-dd");
@@ -128,10 +129,10 @@ export function expandRecurringForDateRange(
   exceptions?: RecurringException[],
 ): { id: string; label: string; amount: number; date: string; recurring: true }[] {
   const result: { id: string; label: string; amount: number; date: string; recurring: true }[] = [];
-  const end = new Date(endDate);
+  const end = parseISO(endDate);
   for (const rule of rules) {
-    let cursor = new Date(rule.start_date);
-    const ruleEnd = rule.end_date ? new Date(rule.end_date) : addYears(end, 1);
+    let cursor = parseISO(rule.start_date);
+    const ruleEnd = rule.end_date ? parseISO(rule.end_date) : addYears(end, 1);
     while (!isAfter(cursor, end) && !isAfter(cursor, ruleEnd)) {
       const d = format(cursor, "yyyy-MM-dd");
       if (d >= startDate && d <= endDate) {

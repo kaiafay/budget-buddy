@@ -54,7 +54,9 @@ export async function fetchCalendarData(
         .eq("user_id", user.id),
       supabase
         .from("recurring_exceptions")
-        .select("id, rule_id, exception_date, type, modified_amount, modified_label")
+        .select(
+          "id, rule_id, exception_date, type, modified_amount, modified_label",
+        )
         .eq("user_id", user.id),
     ]);
 
@@ -98,7 +100,9 @@ export async function fetchTransactions(): Promise<{
       .eq("user_id", user.id),
     supabase
       .from("recurring_exceptions")
-      .select("id, rule_id, exception_date, type, modified_amount, modified_label")
+      .select(
+        "id, rule_id, exception_date, type, modified_amount, modified_label",
+      )
       .eq("user_id", user.id),
   ]);
 
@@ -111,4 +115,53 @@ export async function fetchTransactions(): Promise<{
     recurringRules: (rulesRes.data ?? []) as RecurringRule[],
     exceptions: (exceptionsRes.data ?? []) as RecurringException[],
   };
+}
+
+export async function fetchTransaction(
+  id: string,
+): Promise<{ id: string; label: string; amount: number; date: string } | null> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("id, label, amount, date")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw new Error(error.message);
+  }
+  return data as { id: string; label: string; amount: number; date: string };
+}
+
+export async function fetchRecurringRule(
+  id: string,
+): Promise<RecurringRule | null> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data, error } = await supabase
+    .from("recurring_rules")
+    .select("id, label, amount, frequency, start_date, end_date")
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .single();
+  if (error) {
+    if (error.code === "PGRST116") return null;
+    throw new Error(error.message);
+  }
+  return {
+    id: data.id,
+    label: data.label,
+    amount: Number(data.amount),
+    frequency: data.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+    start_date: data.start_date,
+    end_date: data.end_date ?? null,
+  } as RecurringRule;
 }

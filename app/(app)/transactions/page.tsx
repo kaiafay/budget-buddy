@@ -1,12 +1,125 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
-import { DollarSign, ArrowDownLeft } from "lucide-react";
-import useSWR from "swr";
+import { useSwipeable } from "react-swipeable";
+import { DollarSign, ArrowDownLeft, Pencil, Trash2 } from "lucide-react";
+import useSWR, { useSWRConfig } from "swr";
 import type { Transaction, GroupedTransactions } from "@/lib/types";
 import { fetchTransactions } from "@/lib/api";
 import { expandRecurringForDateRange } from "@/lib/projection";
+import {
+  deleteTransaction,
+  skipRecurringOccurrence,
+} from "@/lib/transactions-mutations";
+
+const ROW_ACTIONS_WIDTH = 136;
+
+function SwipeableTransactionRow({
+  t,
+  isOpen,
+  onOpen,
+  onClose,
+  onDelete,
+  onEdit,
+}: {
+  t: Transaction;
+  isOpen: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  onDelete: () => void;
+  onEdit: () => void;
+}) {
+  const swipeable = useSwipeable({
+    onSwipedLeft: onOpen,
+    onSwipedRight: onClose,
+    preventScrollOnSwipe: true,
+  });
+  return (
+    <div className="relative overflow-hidden rounded-xl" ref={swipeable.ref}>
+      <div
+        className="relative flex items-center transition-transform duration-200 ease-out"
+        style={{
+          transform: isOpen
+            ? `translateX(-${ROW_ACTIONS_WIDTH}px)`
+            : "translateX(0)",
+        }}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5">
+          {t.amount > 0 ? (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/20">
+              <DollarSign className="h-4 w-4 text-white" />
+            </div>
+          ) : (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
+              <ArrowDownLeft className="h-4 w-4 text-white/70" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <span className="text-sm font-medium text-white">
+              {t.label}
+              {t.recurring && (
+                <span className="ml-1 text-xs text-white/70">↻</span>
+              )}
+            </span>
+          </div>
+          <span
+            className={
+              t.amount >= 0
+                ? "amount-text shrink-0 text-sm font-semibold tabular-nums text-[var(--amount-positive)]"
+                : "shrink-0 text-sm font-semibold tabular-nums text-[var(--amount-negative)]"
+            }
+          >
+            {t.amount >= 0 ? "+" : "-"}$
+            {Math.abs(t.amount).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </span>
+        </div>
+
+        <div
+          className="absolute flex items-center gap-2 pr-2"
+          style={{
+            right: `-${ROW_ACTIONS_WIDTH}px`,
+            top: 0,
+            height: "100%",
+          }}
+        >
+          <button
+            type="button"
+            onClick={onDelete}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white"
+            style={{
+              background: "rgba(220,38,38,0.85)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              border: "1px solid rgba(255,255,255,0.2)",
+            }}
+            aria-label="Delete"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white"
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              border: "1px solid rgba(255,255,255,0.3)",
+            }}
+            aria-label="Edit"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function groupTransactionsByDate(
   transactions: Transaction[],
@@ -34,7 +147,10 @@ function groupTransactionsByDate(
 }
 
 export default function TransactionsPage() {
+  const router = useRouter();
+  const { mutate } = useSWRConfig();
   const { data } = useSWR("transactions", fetchTransactions);
+  const [openedRowId, setOpenedRowId] = useState<string | null>(null);
 
   const transactionsList: Transaction[] = useMemo(() => {
     if (!data) return [];
@@ -79,8 +195,44 @@ export default function TransactionsPage() {
     [transactionsList],
   );
 
+  async function handleDelete(t: Transaction) {
+    if (t.recurring) {
+      const ruleId = t.id.slice(0, -11);
+      const exceptionDate = t.date;
+      const { error } = await skipRecurringOccurrence(ruleId, exceptionDate);
+      if (!error) {
+        setOpenedRowId(null);
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
+        mutate(`calendar-month-${month}-${year}`);
+        mutate("transactions");
+      }
+    } else {
+      const { error } = await deleteTransaction(t.id);
+      if (!error) {
+        setOpenedRowId(null);
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
+        mutate(`calendar-month-${month}-${year}`);
+        mutate("transactions");
+      }
+    }
+  }
+
+  function handleEdit(t: Transaction) {
+    setOpenedRowId(null);
+    if (t.recurring) {
+      const ruleId = t.id.slice(0, -11);
+      router.push(`/add?edit=rule:${ruleId}&date=${t.date}`);
+    } else {
+      router.push(`/add?edit=${t.id}`);
+    }
+  }
+
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col overflow-x-hidden">
       <header className="page-enter-1 px-5 pb-4 pt-6">
         <h1 className="text-xl font-semibold text-white">Transactions</h1>
         <p className="text-sm text-white/70">All your recent activity</p>
@@ -100,43 +252,17 @@ export default function TransactionsPage() {
             <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-white/60">
               {group.formatted}
             </h2>
-            <div className="glass-card flex flex-col gap-1 rounded-2xl p-2">
+            <div className="glass-card flex flex-col gap-1 overflow-visible rounded-2xl p-2">
               {group.transactions.map((t) => (
-                <div
+                <SwipeableTransactionRow
                   key={t.id}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5"
-                >
-                  {t.amount > 0 ? (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
-                      <DollarSign className="h-4 w-4 text-white" />
-                    </div>
-                  ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
-                      <ArrowDownLeft className="h-4 w-4 text-white/70" />
-                    </div>
-                  )}
-                  <div className="flex flex-1 flex-col">
-                    <span className="text-sm font-medium text-white">
-                      {t.label}
-                      {t.recurring && (
-                        <span className="ml-1 text-xs text-white/70">↻</span>
-                      )}
-                    </span>
-                  </div>
-                  <span
-                    className={
-                      t.amount >= 0
-                        ? "amount-text text-sm font-semibold tabular-nums text-[var(--amount-positive)]"
-                        : "text-sm font-semibold tabular-nums text-[var(--amount-negative)]"
-                    }
-                  >
-                    {t.amount >= 0 ? "+" : "-"}$
-                    {Math.abs(t.amount).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-                </div>
+                  t={t}
+                  isOpen={openedRowId === t.id}
+                  onOpen={() => setOpenedRowId(t.id)}
+                  onClose={() => setOpenedRowId(null)}
+                  onDelete={() => handleDelete(t)}
+                  onEdit={() => handleEdit(t)}
+                />
               ))}
             </div>
           </section>
