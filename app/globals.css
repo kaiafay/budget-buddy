@@ -149,7 +149,7 @@
 .wave-emoji {
   display: inline-block;
   transform-origin: 70% 70%;
-  animation: wave-on-load 1.2s ease-in-out 0.3s 1;
+  animation: wave-on-load 1.4s ease-in-out 0.7s 1;
 }
 
 @keyframes wave-on-load {
@@ -157,10 +157,10 @@
     transform: rotate(0deg);
   }
   33% {
-    transform: rotate(6deg);
+    transform: rotate(14deg);
   }
   66% {
-    transform: rotate(-3deg);
+    transform: rotate(-6deg);
   }
   100% {
     transform: rotate(0deg);
