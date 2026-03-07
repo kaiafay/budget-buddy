@@ -138,7 +138,7 @@ export function CalendarGrid({
                       ? "amount-text text-white/90"
                       : balance >= 0
                         ? "amount-text text-[var(--amount-positive)]"
-                        : "amount-text-negative text-[var(--amount-negative)]",
+                        : "text-[var(--amount-negative)]",
                   )}
                 >
                   {balance >= 0 ? "" : "-"}$

@@ -242,7 +242,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
               "text-2xl font-bold tabular-nums",
               todayBalance >= 0
                 ? "amount-text text-[var(--amount-positive)]"
-                : "amount-text-negative text-[var(--amount-negative)]",
+                : "text-[var(--amount-negative)]",
             )}
           >
             {todayBalance >= 0 ? "" : "-"}$

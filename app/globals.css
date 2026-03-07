@@ -94,26 +94,10 @@
   box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
 }
 
-.glass-nav {
-  background: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border-top: 1px solid rgba(255, 255, 255, 0.5);
-}
-
 /* Opaque nav — solid primary, no overlay issues */
 .nav-opaque {
   background: #4f6bed;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-/* Overlay glass — higher opacity for day sheet / overlays (better readability) */
-.glass-card-overlay {
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
 }
 
 /* Subtle text shadow for overlay text (improves contrast on glass) */
@@ -231,16 +215,6 @@
   opacity: 0;
   transform: translateY(8px);
   animation: greetingEnter 0.6s ease 0.2s forwards;
-}
-.page-enter-5 {
-  opacity: 0;
-  transform: translateY(8px);
-  animation: greetingEnter 0.6s ease 0.25s forwards;
-}
-.page-enter-6 {
-  opacity: 0;
-  transform: translateY(8px);
-  animation: greetingEnter 0.6s ease 0.3s forwards;
 }
 
 /* Transactions list staggered enter (delay via --enter-delay) */
