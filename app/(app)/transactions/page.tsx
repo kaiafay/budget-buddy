@@ -68,6 +68,7 @@ export default function TransactionsPage() {
       rules,
       firstDayPrev,
       lastDayOfCurrent,
+      data.exceptions ?? [],
     );
 
     return [...txRows, ...expanded];

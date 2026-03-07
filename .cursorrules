@@ -47,6 +47,17 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - end_date: date (nullable)
 - created_at: timestamptz
 
+### recurring_exceptions
+
+- id: uuid (primary key)
+- user_id: uuid (references auth.users)
+- rule_id: uuid (references recurring_rules)
+- exception_date: date (format: yyyy-MM-dd)
+- type: text ('skip' | 'modified')
+- modified_amount: numeric (nullable — only used when type = 'modified')
+- modified_label: text (nullable — only used when type = 'modified')
+- created_at: timestamptz
+
 ## Supabase Client Usage
 
 - Browser/client components: import { createClient } from "@/lib/supabase/client"
@@ -90,7 +101,7 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - components/ui/ — shadcn primitives (do not edit)
 - lib/supabase/ — Supabase client helpers
 - lib/api.ts — SWR data fetching (fetchCalendarData, fetchTransactions)
-- lib/types.ts — shared TypeScript types (Transaction, RecurringRule, Account, GroupedTransactions)
+- lib/types.ts — shared TypeScript types (Transaction, RecurringRule, RecurringException, Account, GroupedTransactions)
 - lib/projection.ts — balance projection engine
 - proxy.ts — auth middleware (Next.js 16); redirects unauthenticated users to /login, authenticated users away from /login
 

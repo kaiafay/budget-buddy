@@ -70,6 +70,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
     const sumRecurringBefore = sumRecurringBeforeDate(
       recurringRulesMapped,
       data.firstDayOfMonth,
+      data.exceptions ?? [],
     );
     return accountStarting + sumTxBefore + sumRecurringBefore;
   }, [data, recurringRulesMapped]);
@@ -93,6 +94,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       recurringRulesMapped,
       month - 1,
       year,
+      data.exceptions ?? [],
     );
   }, [
     data,
@@ -115,6 +117,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       recurringRulesMapped,
       data.firstDayOfMonth,
       data.lastDayOfMonth,
+      data.exceptions ?? [],
     );
     return [...monthTx, ...expanded].sort((a, b) =>
       a.date.localeCompare(b.date),
@@ -186,6 +189,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       first,
       last,
       effectiveDate,
+      daySheetMonthSource.exceptions ?? [],
     );
   }, [
     daySheetMonthSource,
