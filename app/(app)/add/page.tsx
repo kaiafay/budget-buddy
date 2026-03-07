@@ -128,7 +128,7 @@ export default function AddTransactionPage() {
   return (
     <div className="flex flex-col">
       {/* Header */}
-      <header className="flex items-center gap-3 px-5 pb-4 pt-6">
+      <header className="page-enter-1 flex items-center gap-3 px-5 pb-4 pt-6">
         <button
           onClick={() => router.back()}
           className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white"
@@ -140,6 +140,7 @@ export default function AddTransactionPage() {
       </header>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 px-5 pb-8">
+        <div className="page-enter-2 flex flex-col gap-5">
         {/* Type toggle */}
         <div className="flex gap-2 rounded-2xl bg-white/10 p-1">
           <button
@@ -272,7 +273,9 @@ export default function AddTransactionPage() {
             </div>
           )}
         </div>
+        </div>
 
+        <div className="page-enter-3 flex flex-col gap-2">
         {noAccount && (
           <p className="text-sm text-destructive">
             Please set up your account in Settings first.
@@ -292,6 +295,7 @@ export default function AddTransactionPage() {
         >
           {type === "income" ? "Add Income" : "Add Expense"}
         </Button>
+        </div>
       </form>
     </div>
   );

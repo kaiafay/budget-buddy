@@ -211,6 +211,38 @@
   animation: greetingEnter 0.6s ease 0.35s forwards;
 }
 
+/* Reusable page enter (same animation, staggered delays for Add / Settings / Transactions) */
+.page-enter-1 {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease forwards;
+}
+.page-enter-2 {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease 0.1s forwards;
+}
+.page-enter-3 {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease 0.15s forwards;
+}
+.page-enter-4 {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease 0.2s forwards;
+}
+.page-enter-5 {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease 0.25s forwards;
+}
+.page-enter-6 {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease 0.3s forwards;
+}
+
 /* Calendar month-change directional slide */
 .calendar-slide-from-left {
   animation: calendarSlideFromLeft 0.3s ease-out forwards;

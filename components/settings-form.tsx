@@ -77,7 +77,7 @@ export default function SettingsForm({
 
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-5 px-5 pb-8">
-      <div className="glass-card flex flex-col gap-4 rounded-2xl p-4">
+      <div className="page-enter-2 glass-card flex flex-col gap-4 rounded-2xl p-4">
         <div className="flex items-center gap-3 pb-1">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent">
             <User className="h-4 w-4 text-primary" />
@@ -104,7 +104,7 @@ export default function SettingsForm({
         </div>
       </div>
 
-      <div className="glass-card flex flex-col gap-4 rounded-2xl p-4">
+      <div className="page-enter-3 glass-card flex flex-col gap-4 rounded-2xl p-4">
         <div className="flex items-center gap-3 pb-1">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#DCFCE7]">
             <DollarSign className="h-4 w-4 text-[#16A34A]" />
@@ -136,6 +136,7 @@ export default function SettingsForm({
         </div>
       </div>
 
+      <div className="page-enter-4 flex flex-col gap-2">
       {error && (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -170,6 +171,7 @@ export default function SettingsForm({
           <LogOut className="h-4 w-4" />
           Sign out
         </button>
+      </div>
       </div>
     </form>
   );
