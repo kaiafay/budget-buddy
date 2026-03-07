@@ -1,10 +1,7 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { Transaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { DayTransactionsContent } from "@/components/day-sheet";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
@@ -24,65 +21,36 @@ const MONTH_NAMES = [
 
 interface CalendarGridProps {
   balances: Record<string, number>;
-  transactions: Transaction[];
   balanceYear: number;
   balanceMonth: number;
   onPrevMonth: () => void;
   onNextMonth: () => void;
   isLoading?: boolean;
+  selectedDate: string | null;
+  onSelectedDateChange: (date: string) => void;
 }
 
 export function CalendarGrid({
   balances,
-  transactions,
   balanceYear,
   balanceMonth,
   onPrevMonth,
   onNextMonth,
   isLoading = false,
+  selectedDate,
+  onSelectedDateChange,
 }: CalendarGridProps) {
   const today = new Date();
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const transactionsByMonthRef = useRef<Record<string, Transaction[]>>({});
 
   const daysInMonth = new Date(balanceYear, balanceMonth, 0).getDate();
   const firstDayOfWeek = new Date(balanceYear, balanceMonth - 1, 1).getDay();
 
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  const currentMonthKey = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}`;
-  const firstDayOfMonth = `${currentMonthKey}-01`;
-
-  useEffect(() => {
-    transactionsByMonthRef.current[currentMonthKey] = transactions;
-  }, [currentMonthKey, transactions]);
 
   function handleDayClick(day: number) {
     const dateStr = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    setSelectedDate(dateStr);
+    onSelectedDateChange(dateStr);
   }
-
-  const effectiveDate = useMemo(() => {
-    if (selectedDate) return selectedDate;
-    const todayInCurrentMonth = todayStr.slice(0, 7) === currentMonthKey;
-    return todayInCurrentMonth ? todayStr : firstDayOfMonth;
-  }, [selectedDate, todayStr, currentMonthKey, firstDayOfMonth]);
-
-  const effectiveTransactions: Transaction[] = useMemo(() => {
-    const monthKey = effectiveDate.slice(0, 7);
-    const list =
-      monthKey === currentMonthKey
-        ? transactions
-        : (transactionsByMonthRef.current[monthKey] ?? []);
-    return list
-      .filter((t) => t.date === effectiveDate)
-      .map((t) => ({
-        id: t.id,
-        label: t.label,
-        amount: t.amount,
-        date: t.date,
-        recurring: t.recurring ?? false,
-      }));
-  }, [effectiveDate, currentMonthKey, transactions]);
 
   return (
     <>
@@ -138,6 +106,7 @@ export function CalendarGrid({
           const balance =
             balances[dateStr] !== undefined ? balances[dateStr] : undefined;
           const isToday = dateStr === todayStr;
+          const isSelected = dateStr === selectedDate;
           const isNegative = balance !== undefined && balance < 0;
 
           return (
@@ -147,6 +116,7 @@ export function CalendarGrid({
               className={cn(
                 "glass-cell flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl transition-colors",
                 isToday && "glass-cell-today",
+                isSelected && "ring-2 ring-white/50 ring-inset",
                 !isToday && isNegative && "glass-cell-negative",
                 !isToday && "hover:opacity-90",
               )}
@@ -182,12 +152,6 @@ export function CalendarGrid({
           );
         })}
       </div>
-
-      {/* Day transactions: selected day (from cache if different month), or today / first of month */}
-      <DayTransactionsContent
-        date={effectiveDate}
-        transactions={effectiveTransactions}
-      />
     </>
   );
 }

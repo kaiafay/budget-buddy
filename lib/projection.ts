@@ -114,3 +114,39 @@ export function expandRecurringForDateRange(
   }
   return result;
 }
+
+/**
+ * Returns transactions for a single date from month data (one-time + expanded recurring).
+ */
+export function getTransactionsForDate(
+  monthTransactions: { id: string; label: string; amount: number; date: string }[],
+  recurringRules: RecurringRule[],
+  firstDayOfMonth: string,
+  lastDayOfMonth: string,
+  date: string,
+): Transaction[] {
+  const monthTx = monthTransactions.map((t) => ({
+    id: t.id,
+    label: t.label,
+    amount: t.amount,
+    date: t.date,
+    recurring: false as const,
+  }));
+  const expanded = expandRecurringForDateRange(
+    recurringRules,
+    firstDayOfMonth,
+    lastDayOfMonth,
+  );
+  const combined = [...monthTx, ...expanded].sort((a, b) =>
+    a.date.localeCompare(b.date),
+  );
+  return combined
+    .filter((t) => t.date === date)
+    .map((t) => ({
+      id: t.id,
+      label: t.label,
+      amount: t.amount,
+      date: t.date,
+      recurring: t.recurring ?? false,
+    }));
+}

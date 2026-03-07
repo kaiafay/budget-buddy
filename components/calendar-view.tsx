@@ -13,8 +13,10 @@ import {
   getProjectedBalances,
   sumRecurringBeforeDate,
   expandRecurringForDateRange,
+  getTransactionsForDate,
 } from "@/lib/projection";
 import { CalendarGrid } from "@/components/calendar-grid";
+import { DayTransactionsContent } from "@/components/day-sheet";
 
 interface CalendarViewProps {
   initialMonth: number;
@@ -30,6 +32,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
   const [slideDirection, setSlideDirection] = useState<"prev" | "next" | null>(
     null,
   );
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [initials, setInitials] = useState("··");
 
   useEffect(() => {
@@ -138,6 +141,62 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayBalance = balances[todayStr] ?? carryForwardBalance;
 
+  const firstDayOfMonth = `${year}-${String(month).padStart(2, "0")}-01`;
+  const currentMonthKey = `${year}-${String(month).padStart(2, "0")}`;
+  const effectiveDate =
+    selectedDate ??
+    (todayStr.slice(0, 7) === currentMonthKey ? todayStr : firstDayOfMonth);
+
+  const effMonth = effectiveDate ? parseInt(effectiveDate.slice(5, 7), 10) : 0;
+  const effYear = effectiveDate ? parseInt(effectiveDate.slice(0, 4), 10) : 0;
+  const needDaySheetMonth =
+    effectiveDate && (effMonth !== month || effYear !== year);
+
+  const { data: daySheetMonthData, isLoading: daySheetMonthLoading } = useSWR(
+    needDaySheetMonth ? `calendar-month-${effMonth}-${effYear}` : null,
+    () => fetchCalendarData(effMonth, effYear),
+    { keepPreviousData: true },
+  );
+
+  const daySheetMonthSource = needDaySheetMonth ? daySheetMonthData : data;
+  const daySheetRecurringMapped: RecurringRule[] = useMemo(
+    () =>
+      (daySheetMonthSource?.recurringRules ?? []).map((r) => ({
+        id: r.id,
+        start_date: r.start_date,
+        end_date: r.end_date ?? null,
+        amount: Number(r.amount),
+        label: r.label,
+        frequency: r.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+      })),
+    [daySheetMonthSource?.recurringRules],
+  );
+  const daySheetTransactions: Transaction[] = useMemo(() => {
+    if (!daySheetMonthSource) return [];
+    const [y, m] = effectiveDate.split("-").map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    const first = `${y}-${String(m).padStart(2, "0")}-01`;
+    const last = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+    return getTransactionsForDate(
+      (daySheetMonthSource.transactions ?? []).map((t) => ({
+        id: t.id,
+        label: t.label,
+        amount: Number(t.amount),
+        date: t.date,
+      })),
+      daySheetRecurringMapped,
+      first,
+      last,
+      effectiveDate,
+    );
+  }, [
+    daySheetMonthSource,
+    daySheetRecurringMapped,
+    effectiveDate,
+  ]);
+
+  const daySheetLoading = needDaySheetMonth && daySheetMonthLoading;
+
   function onPrevMonth() {
     setSlideDirection("prev");
     if (month === 1) {
@@ -229,14 +288,27 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
         >
           <CalendarGrid
             balances={balances}
-            transactions={transactions}
             balanceYear={year}
             balanceMonth={month}
             onPrevMonth={onPrevMonth}
             onNextMonth={onNextMonth}
             isLoading={isLoading}
+            selectedDate={selectedDate}
+            onSelectedDateChange={setSelectedDate}
           />
         </div>
+        {daySheetLoading ? (
+          <div className="border-t border-white/20 px-5 pb-6 pt-4">
+            <p className="text-overlay text-xs text-white/70">
+              Loading…
+            </p>
+          </div>
+        ) : (
+          <DayTransactionsContent
+            date={effectiveDate}
+            transactions={daySheetTransactions}
+          />
+        )}
       </div>
 
       {/* FAB */}
