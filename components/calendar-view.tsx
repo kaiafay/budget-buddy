@@ -27,6 +27,9 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const [month, setMonth] = useState(initialMonth);
   const [year, setYear] = useState(initialYear);
+  const [slideDirection, setSlideDirection] = useState<"prev" | "next" | null>(
+    null,
+  );
   const [initials, setInitials] = useState("··");
 
   useEffect(() => {
@@ -38,8 +41,10 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       });
   }, []);
 
-  const { data, isLoading } = useSWR(`calendar-month-${month}-${year}`, () =>
-    fetchCalendarData(month, year),
+  const { data, isLoading } = useSWR(
+    `calendar-month-${month}-${year}`,
+    () => fetchCalendarData(month, year),
+    { keepPreviousData: true },
   );
 
   const accountName = data?.account?.name ?? "";
@@ -134,6 +139,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
   const todayBalance = balances[todayStr] ?? carryForwardBalance;
 
   function onPrevMonth() {
+    setSlideDirection("prev");
     if (month === 1) {
       setMonth(12);
       setYear((y) => y - 1);
@@ -143,6 +149,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
   }
 
   function onNextMonth() {
+    setSlideDirection("next");
     if (month === 12) {
       setMonth(1);
       setYear((y) => y + 1);
@@ -156,18 +163,21 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       {/* Top bar */}
       <header className="flex items-center justify-between px-5 pb-2 pt-4">
         <div>
-          <span className="flex items-center gap-1">
-            👋 <p className="text-base font-normal text-white/70">{greeting}</p>
+          <span className="flex items-center gap-1 greeting-enter">
+            <span className="wave-emoji">👋</span>{" "}
+            <p className="text-base font-normal text-white/70">{greeting}</p>
           </span>
-          <h1 className="text-xl font-semibold text-white">{accountName}</h1>
+          <h1 className="account-enter min-h-7 text-xl font-semibold text-white">
+            {accountName || "\u00A0"}
+          </h1>
         </div>
-        <div className="glass flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white">
+        <div className="glass account-enter flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white">
           {initials}
         </div>
       </header>
 
       {/* Balance hero card */}
-      <div className="px-5 pb-2 pt-1">
+      <div className="balance-card-1 px-5 pb-2 pt-1">
         <div className="glass-card flex flex-col gap-0.5 rounded-2xl p-4">
           <span className="text-xs text-white/85">Current Balance</span>
           <span
@@ -188,7 +198,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
 
       {/* Income / Expenses row */}
       <div className="flex gap-2 px-5 pb-3">
-        <div className="glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
+        <div className="balance-card-2 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
           <span className="text-[10px] text-white/85">Income</span>
           <span className="amount-text text-sm font-semibold tabular-nums text-[var(--amount-positive)]">
             +$
@@ -197,7 +207,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
             })}
           </span>
         </div>
-        <div className="glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
+        <div className="balance-card-3 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
           <span className="text-[10px] text-white/85">Expenses</span>
           <span className="text-sm font-semibold tabular-nums text-[var(--amount-negative)]">
             -$
@@ -209,16 +219,24 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       </div>
 
       {/* Calendar */}
-      <div className="glass-card mt-1 mx-4 rounded-3xl overflow-hidden">
-        <CalendarGrid
-          balances={balances}
-          transactions={transactions}
-          balanceYear={year}
-          balanceMonth={month}
-          onPrevMonth={onPrevMonth}
-          onNextMonth={onNextMonth}
-          isLoading={isLoading}
-        />
+      <div className="calendar-enter glass-card mt-1 mx-4 overflow-hidden rounded-3xl">
+        <div
+          key={`${year}-${month}`}
+          className={cn(
+            slideDirection === "next" && "calendar-slide-from-left",
+            slideDirection === "prev" && "calendar-slide-from-right",
+          )}
+        >
+          <CalendarGrid
+            balances={balances}
+            transactions={transactions}
+            balanceYear={year}
+            balanceMonth={month}
+            onPrevMonth={onPrevMonth}
+            onNextMonth={onNextMonth}
+            isLoading={isLoading}
+          />
+        </div>
       </div>
 
       {/* FAB */}

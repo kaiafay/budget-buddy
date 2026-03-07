@@ -146,6 +146,102 @@
   border: 1px solid rgba(255, 255, 255, 0.25);
 }
 
+.wave-emoji {
+  display: inline-block;
+  transform-origin: 70% 70%;
+  animation: wave-on-load 1.2s ease-in-out 0.3s 1;
+}
+
+@keyframes wave-on-load {
+  0% {
+    transform: rotate(0deg);
+  }
+  33% {
+    transform: rotate(6deg);
+  }
+  66% {
+    transform: rotate(-3deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.greeting-enter {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease forwards;
+}
+
+@keyframes greetingEnter {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.account-enter {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease 0.1s forwards;
+}
+
+.balance-card-1 {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease 0.2s forwards;
+}
+
+.balance-card-2 {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease 0.25s forwards;
+}
+
+.balance-card-3 {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease 0.3s forwards;
+}
+
+/* Calendar initial enter (runs once on mount; outer wrapper only) */
+.calendar-enter {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease 0.35s forwards;
+}
+
+/* Calendar month-change directional slide */
+.calendar-slide-from-left {
+  animation: calendarSlideFromLeft 0.3s ease-out forwards;
+}
+
+.calendar-slide-from-right {
+  animation: calendarSlideFromRight 0.3s ease-out forwards;
+}
+
+@keyframes calendarSlideFromLeft {
+  from {
+    opacity: 0.7;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes calendarSlideFromRight {
+  from {
+    opacity: 0.7;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
