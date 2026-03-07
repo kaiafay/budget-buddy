@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import Link from "next/link";
 import useSWR from "swr";
-import { Plus } from "lucide-react";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -310,15 +308,6 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
           />
         )}
       </div>
-
-      {/* FAB */}
-      <Link
-        href="/add"
-        className="fixed bottom-20 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary shadow-lg transition-transform hover:scale-105 active:scale-95 sm:right-[calc(50%-14rem)]"
-        aria-label="Add transaction"
-      >
-        <Plus className="h-5 w-5 text-white" />
-      </Link>
     </div>
   );
 }

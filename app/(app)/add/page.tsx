@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CalendarIcon, Repeat } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -38,7 +38,7 @@ function getInitialDate(
   }
 }
 
-export default function AddTransactionPage() {
+function AddTransactionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [label, setLabel] = useState("");
@@ -298,5 +298,13 @@ export default function AddTransactionPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function AddPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <AddTransactionPage />
+    </Suspense>
   );
 }
