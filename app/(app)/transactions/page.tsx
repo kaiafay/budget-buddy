@@ -34,7 +34,7 @@ function groupTransactionsByDate(
 }
 
 export default function TransactionsPage() {
-  const { data, isLoading } = useSWR("transactions", fetchTransactions);
+  const { data } = useSWR("transactions", fetchTransactions);
 
   const transactionsList: Transaction[] = useMemo(() => {
     if (!data) return [];
@@ -85,13 +85,17 @@ export default function TransactionsPage() {
         <p className="text-sm text-white/70">All your recent activity</p>
       </header>
 
-      <div className="page-enter-2 flex flex-col gap-6 px-5 pb-6">
-        {isLoading ? (
-          <p className="text-sm text-white/70">Loading…</p>
-        ) : (
-          <>
-        {grouped.map((group) => (
-          <section key={group.date}>
+      <div className="flex flex-col gap-6 px-5 pb-6">
+        {grouped.map((group, index) => (
+          <section
+            key={group.date}
+            className="transaction-group-enter"
+            style={
+              {
+                "--enter-delay": `${0.1 + Math.min(index, 6) * 0.05}s`,
+              } as React.CSSProperties
+            }
+          >
             <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-white/60">
               {group.formatted}
             </h2>
@@ -136,8 +140,6 @@ export default function TransactionsPage() {
             </div>
           </section>
         ))}
-          </>
-        )}
       </div>
     </div>
   );
