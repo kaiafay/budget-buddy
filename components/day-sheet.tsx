@@ -1,26 +1,192 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
-import { Plus, DollarSign, ArrowDownLeft } from "lucide-react";
+import {
+  Plus,
+  DollarSign,
+  ArrowDownLeft,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { Transaction } from "@/lib/types";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerFooter,
+  DrawerClose,
+} from "@/components/ui/drawer";
+import {
+  deleteTransaction,
+  skipRecurringOccurrence,
+  endRecurringRuleFuture,
+  updateTransaction,
+  updateRecurringRuleFromDate,
+} from "@/lib/transactions-mutations";
+import type { Transaction, RecurringRule } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+function getRecurringRuleIdAndDate(id: string): {
+  ruleId: string;
+  date: string;
+} {
+  const date = id.slice(-10);
+  const ruleId = id.slice(0, -11);
+  return { ruleId, date };
+}
 
 export interface DayTransactionsContentProps {
   date: string;
   transactions: Transaction[];
+  recurringRules: RecurringRule[];
+  onMutate: () => void;
 }
 
 /**
  * Inline day transactions block: "Month Day" header, count, list, net total, Add button.
  * Used below the calendar (today when no selection, selected day when selected).
+ * Tapping a transaction opens a drawer with Edit / Skip occurrence / Delete all future / Delete.
  */
 export function DayTransactionsContent({
   date,
   transactions,
+  recurringRules,
+  onMutate,
 }: DayTransactionsContentProps) {
   const monthDay = format(parseISO(date), "MMMM d");
   const dayTotal = transactions.reduce((sum, t) => sum + t.amount, 0);
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<Transaction | null>(null);
+  const [drawerMode, setDrawerMode] = useState<"actions" | "edit">("actions");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editLabel, setEditLabel] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editType, setEditType] = useState<"expense" | "income">("expense");
+  const [editDate, setEditDate] = useState<Date | undefined>(undefined);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editFrequency, setEditFrequency] = useState<
+    "weekly" | "biweekly" | "monthly" | "yearly"
+  >("monthly");
+
+  function openDrawer(t: Transaction) {
+    setSelectedTransaction(t);
+    setDrawerMode("actions");
+    setEditError(null);
+    setEditLabel(t.label);
+    setEditAmount(Math.abs(t.amount).toFixed(2));
+    setEditType(t.amount >= 0 ? "income" : "expense");
+    setEditDate(parseISO(t.date));
+    if (t.recurring) {
+      const { ruleId } = getRecurringRuleIdAndDate(t.id);
+      const rule = recurringRules.find((r) => r.id === ruleId);
+      setEditFrequency(rule?.frequency ?? "monthly");
+    }
+    setDrawerOpen(true);
+  }
+
+  function closeDrawer() {
+    setDrawerOpen(false);
+    setSelectedTransaction(null);
+    setDrawerMode("actions");
+  }
+
+  async function handleSkipOccurrence() {
+    if (!selectedTransaction?.recurring) return;
+    const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
+      selectedTransaction.id,
+    );
+    const { error } = await skipRecurringOccurrence(ruleId, occurrenceDate);
+    if (error) {
+      setEditError(error.message);
+      return;
+    }
+    onMutate();
+    closeDrawer();
+  }
+
+  async function handleDeleteAllFuture() {
+    if (!selectedTransaction?.recurring) return;
+    const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
+      selectedTransaction.id,
+    );
+    const { error } = await endRecurringRuleFuture(ruleId, occurrenceDate);
+    if (error) {
+      setEditError(error.message);
+      return;
+    }
+    onMutate();
+    closeDrawer();
+  }
+
+  async function handleDeleteOneTime() {
+    if (!selectedTransaction || selectedTransaction.recurring) return;
+    const { error } = await deleteTransaction(selectedTransaction.id);
+    if (error) {
+      setEditError(error.message);
+      return;
+    }
+    onMutate();
+    closeDrawer();
+  }
+
+  async function handleSaveEdit() {
+    if (!selectedTransaction) return;
+    setEditError(null);
+    const amountNum = parseFloat(editAmount);
+    if (Number.isNaN(amountNum) || amountNum <= 0) {
+      setEditError("Enter a valid amount");
+      return;
+    }
+    const finalAmount = editType === "expense" ? -amountNum : amountNum;
+    if (!editDate) {
+      setEditError("Pick a date");
+      return;
+    }
+    const dateStr = format(editDate, "yyyy-MM-dd");
+
+    if (selectedTransaction.recurring) {
+      const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
+        selectedTransaction.id,
+      );
+      const { error } = await updateRecurringRuleFromDate(
+        ruleId,
+        occurrenceDate,
+        {
+          label: editLabel.trim(),
+          amount: finalAmount,
+          frequency: editFrequency,
+        },
+      );
+      if (error) {
+        setEditError(error.message);
+        return;
+      }
+    } else {
+      const { error } = await updateTransaction(selectedTransaction.id, {
+        label: editLabel.trim(),
+        amount: finalAmount,
+        date: dateStr,
+      });
+      if (error) {
+        setEditError(error.message);
+        return;
+      }
+    }
+    onMutate();
+    closeDrawer();
+  }
 
   return (
     <div className="border-t border-white/20 px-5 pb-6 pt-4">
@@ -37,9 +203,11 @@ export function DayTransactionsContent({
         {transactions.length > 0 && (
           <>
             {transactions.map((t) => (
-              <div
+              <button
                 key={t.id}
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+                type="button"
+                onClick={() => openDrawer(t)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/5 active:bg-white/10"
               >
                 {t.amount > 0 ? (
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
@@ -73,7 +241,7 @@ export function DayTransactionsContent({
                     maximumFractionDigits: 2,
                   })}
                 </span>
-              </div>
+              </button>
             ))}
 
             {transactions.length > 1 && (
@@ -109,6 +277,234 @@ export function DayTransactionsContent({
           Add transaction
         </Link>
       </Button>
+
+      <Drawer open={drawerOpen} onOpenChange={(open) => !open && closeDrawer()}>
+        <DrawerContent
+          className="border-white/20 text-white"
+          style={{ background: "linear-gradient(135deg, #4f6bed, #5b5bd6)" }}
+        >
+          {drawerMode === "actions" && selectedTransaction && (
+            <>
+              <DrawerHeader>
+                <DrawerTitle className="text-lg text-white">
+                  {selectedTransaction.label}
+                </DrawerTitle>
+              </DrawerHeader>
+              <div className="flex flex-col gap-2 px-4 pb-4">
+                <Button
+                  variant="outline"
+                  className="h-11 justify-start rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20"
+                  onClick={() => setDrawerMode("edit")}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+                {selectedTransaction.recurring ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="h-11 justify-start rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20"
+                      onClick={handleSkipOccurrence}
+                    >
+                      Delete this occurrence
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="h-11 justify-start rounded-xl"
+                      onClick={handleDeleteAllFuture}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete all future occurrences
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="destructive"
+                    className="h-11 justify-start rounded-xl"
+                    onClick={handleDeleteOneTime}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete transaction
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+
+          {drawerMode === "edit" && selectedTransaction && (
+            <>
+              <DrawerHeader>
+                <DrawerTitle className="text-lg text-white">
+                  Edit transaction
+                </DrawerTitle>
+              </DrawerHeader>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSaveEdit();
+                }}
+                className="flex flex-col gap-4 px-4 pb-4"
+              >
+                <div className="flex gap-2 rounded-2xl bg-white/10 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setEditType("expense")}
+                    className={cn(
+                      "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
+                      editType === "expense"
+                        ? "bg-white/25 text-white"
+                        : "text-white/50",
+                    )}
+                  >
+                    Expense
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditType("income")}
+                    className={cn(
+                      "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
+                      editType === "income"
+                        ? "bg-white/25 text-white"
+                        : "text-white/50",
+                    )}
+                  >
+                    Income
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-medium text-white/70">
+                    Amount
+                  </Label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-white/70">
+                      $
+                    </span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      className="h-12 rounded-xl border-white/20 bg-white/10 pl-8 text-lg font-semibold tabular-nums text-white"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-medium text-white/70">
+                    Label
+                  </Label>
+                  <Input
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    className="h-11 rounded-xl border-white/20 bg-white/10 text-white"
+                    required
+                  />
+                </div>
+                {selectedTransaction.recurring && (
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-sm font-medium text-white/70">
+                      Frequency
+                    </Label>
+                    <div className="flex flex-wrap gap-2">
+                      {(
+                        ["weekly", "biweekly", "monthly", "yearly"] as const
+                      ).map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => setEditFrequency(f)}
+                          className={cn(
+                            "rounded-xl border px-3 py-2 text-xs font-medium capitalize transition-all",
+                            editFrequency === f
+                              ? "border-white/40 bg-white/25 text-white"
+                              : "border-white/20 bg-white/10 text-white/50",
+                          )}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-medium text-white/70">
+                    Date
+                  </Label>
+                  {selectedTransaction.recurring ? (
+                    <div className="flex h-11 items-center rounded-xl border border-white/20 bg-white/10 px-4 text-sm text-white/70">
+                      {editDate ? format(editDate, "MMM d, yyyy") : ""}
+                    </div>
+                  ) : (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11 w-full justify-start rounded-xl border-white/20 bg-white/10 text-left font-normal text-white"
+                        >
+                          {editDate
+                            ? format(editDate, "MMM d, yyyy")
+                            : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={editDate}
+                          onSelect={setEditDate}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+                {editError && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {editError}
+                  </p>
+                )}
+                <DrawerFooter className="flex flex-col gap-2 px-0 pb-0 pt-2">
+                  <Button
+                    type="submit"
+                    className="h-11 rounded-xl border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    Save changes
+                  </Button>
+                  {selectedTransaction.recurring && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="h-11 rounded-xl"
+                      onClick={handleDeleteAllFuture}
+                    >
+                      Delete all future occurrences
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-11 rounded-xl text-white/70 hover:bg-white/10 hover:text-white"
+                    onClick={() => setDrawerMode("actions")}
+                  >
+                    Cancel
+                  </Button>
+                </DrawerFooter>
+              </form>
+            </>
+          )}
+          <div className="absolute right-4 top-4">
+            <DrawerClose asChild>
+              <button
+                type="button"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 hover:bg-white/10 hover:text-white"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </DrawerClose>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

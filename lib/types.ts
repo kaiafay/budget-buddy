@@ -15,6 +15,15 @@ export type RecurringRule = {
   end_date?: string | null;
 };
 
+export type RecurringException = {
+  id: string;
+  rule_id: string;
+  exception_date: string;
+  type: "skip" | "modified";
+  modified_amount?: number | null;
+  modified_label?: string | null;
+};
+
 export type Account = {
   id: string;
   name: string;

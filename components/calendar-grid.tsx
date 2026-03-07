@@ -1,5 +1,6 @@
 "use client";
 
+import { useSwipeable } from "react-swipeable";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,13 +48,19 @@ export function CalendarGrid({
 
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
+  const swipeable = useSwipeable({
+    onSwipedLeft: onNextMonth,
+    onSwipedRight: onPrevMonth,
+    preventScrollOnSwipe: true,
+  });
+
   function handleDayClick(day: number) {
     const dateStr = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     onSelectedDateChange(dateStr);
   }
 
   return (
-    <>
+    <div ref={swipeable.ref}>
       {/* Month header */}
       <div
         className={cn(
@@ -152,6 +159,6 @@ export function CalendarGrid({
           );
         })}
       </div>
-    </>
+    </div>
   );
 }

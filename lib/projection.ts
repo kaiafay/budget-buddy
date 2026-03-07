@@ -1,4 +1,8 @@
-import type { Transaction, RecurringRule } from "@/lib/types";
+import type {
+  RecurringException,
+  RecurringRule,
+  Transaction,
+} from "@/lib/types";
 import {
   addDays,
   addWeeks,
@@ -7,6 +11,7 @@ import {
   format,
   isBefore,
   isAfter,
+  parseISO,
   startOfMonth,
   endOfMonth,
 } from "date-fns";
@@ -22,12 +27,24 @@ function addFrequency(
   return date;
 }
 
+function getExceptionByRuleAndDate(
+  exceptions: RecurringException[] | undefined,
+  ruleId: string,
+  dateStr: string,
+): RecurringException | undefined {
+  if (!exceptions?.length) return undefined;
+  return exceptions.find(
+    (e) => e.rule_id === ruleId && e.exception_date === dateStr,
+  );
+}
+
 export function getProjectedBalances(
   startingBalance: number,
   transactions: Transaction[],
   recurringRules: RecurringRule[],
   month: number,
   year: number,
+  exceptions?: RecurringException[],
 ): Record<string, number> {
   const monthStart = startOfMonth(new Date(year, month));
   const monthEnd = endOfMonth(new Date(year, month));
@@ -41,14 +58,23 @@ export function getProjectedBalances(
     deltas[d] = (deltas[d] ?? 0) + t.amount;
   }
 
-  // Expand recurring rules into individual days
+  // Expand recurring rules into individual days (respecting exceptions)
   for (const rule of recurringRules) {
-    let cursor = new Date(rule.start_date);
-    const end = rule.end_date ? new Date(rule.end_date) : addYears(monthEnd, 1);
+    let cursor = parseISO(rule.start_date);
+    const end = rule.end_date ? parseISO(rule.end_date) : addYears(monthEnd, 1);
     while (!isAfter(cursor, monthEnd) && !isAfter(cursor, end)) {
       if (!isBefore(cursor, monthStart)) {
         const d = format(cursor, "yyyy-MM-dd");
-        deltas[d] = (deltas[d] ?? 0) + rule.amount;
+        const ex = getExceptionByRuleAndDate(exceptions, rule.id, d);
+        if (ex?.type === "skip") {
+          cursor = addFrequency(cursor, rule.frequency);
+          continue;
+        }
+        const amount =
+          ex?.type === "modified" && ex.modified_amount != null
+            ? Number(ex.modified_amount)
+            : rule.amount;
+        deltas[d] = (deltas[d] ?? 0) + amount;
       }
       cursor = addFrequency(cursor, rule.frequency);
     }
@@ -71,16 +97,25 @@ export function getProjectedBalances(
 export function sumRecurringBeforeDate(
   rules: RecurringRule[],
   firstDayOfMonth: string,
+  exceptions?: RecurringException[],
 ): number {
-  const monthStart = new Date(firstDayOfMonth);
+  const monthStart = parseISO(firstDayOfMonth);
   let sum = 0;
   for (const rule of rules) {
-    let cursor = new Date(rule.start_date);
+    let cursor = parseISO(rule.start_date);
     const end = rule.end_date
-      ? new Date(rule.end_date)
+      ? parseISO(rule.end_date)
       : addYears(new Date(), 10);
     while (isBefore(cursor, monthStart) && !isAfter(cursor, end)) {
-      sum += rule.amount;
+      const d = format(cursor, "yyyy-MM-dd");
+      const ex = getExceptionByRuleAndDate(exceptions, rule.id, d);
+      if (ex?.type !== "skip") {
+        const amount =
+          ex?.type === "modified" && ex.modified_amount != null
+            ? Number(ex.modified_amount)
+            : rule.amount;
+        sum += amount;
+      }
       cursor = addFrequency(cursor, rule.frequency);
     }
   }
@@ -91,20 +126,33 @@ export function expandRecurringForDateRange(
   rules: RecurringRule[],
   startDate: string,
   endDate: string,
+  exceptions?: RecurringException[],
 ): { id: string; label: string; amount: number; date: string; recurring: true }[] {
   const result: { id: string; label: string; amount: number; date: string; recurring: true }[] = [];
-  const start = new Date(startDate);
-  const end = new Date(endDate);
+  const end = parseISO(endDate);
   for (const rule of rules) {
-    let cursor = new Date(rule.start_date);
-    const ruleEnd = rule.end_date ? new Date(rule.end_date) : addYears(end, 1);
+    let cursor = parseISO(rule.start_date);
+    const ruleEnd = rule.end_date ? parseISO(rule.end_date) : addYears(end, 1);
     while (!isAfter(cursor, end) && !isAfter(cursor, ruleEnd)) {
       const d = format(cursor, "yyyy-MM-dd");
       if (d >= startDate && d <= endDate) {
+        const ex = getExceptionByRuleAndDate(exceptions, rule.id, d);
+        if (ex?.type === "skip") {
+          cursor = addFrequency(cursor, rule.frequency);
+          continue;
+        }
+        const amount =
+          ex?.type === "modified" && ex.modified_amount != null
+            ? Number(ex.modified_amount)
+            : rule.amount;
+        const label =
+          ex?.type === "modified" && ex.modified_label != null
+            ? ex.modified_label
+            : rule.label;
         result.push({
           id: `${rule.id}-${d}`,
-          label: rule.label,
-          amount: rule.amount,
+          label,
+          amount,
           date: d,
           recurring: true,
         });
@@ -124,6 +172,7 @@ export function getTransactionsForDate(
   firstDayOfMonth: string,
   lastDayOfMonth: string,
   date: string,
+  exceptions?: RecurringException[],
 ): Transaction[] {
   const monthTx = monthTransactions.map((t) => ({
     id: t.id,
@@ -136,6 +185,7 @@ export function getTransactionsForDate(
     recurringRules,
     firstDayOfMonth,
     lastDayOfMonth,
+    exceptions,
   );
   const combined = [...monthTx, ...expanded].sort((a, b) =>
     a.date.localeCompare(b.date),
