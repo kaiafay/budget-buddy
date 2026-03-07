@@ -10,6 +10,7 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - Tailwind CSS v4 (no tailwind.config.ts — configured via CSS variables in app/globals.css)
 - shadcn/ui components in components/ui/
 - Supabase for auth and database
+- SWR for client-side data fetching
 - TypeScript throughout
 - date-fns for date manipulation
 - Lucide React for icons
@@ -52,31 +53,24 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - Server components: import { createClient } from "@/lib/supabase/server" (always await it)
 - Never use the service_role key — only anon key in frontend code
 - Always use .eq("user_id", user.id) for RLS — never fetch data without filtering by user
+- Server client is only used in app/(app)/settings/page.tsx — all other pages use SWR via lib/api.ts
+- Default to SWR + browser client for new pages unless the page is settings-like (simple single fetch, no reactivity needed)
 
 ## Architecture Rules
 
-- Server components fetch data — no useEffect for data fetching unless absolutely necessary
-- Client components handle interactivity only (forms, UI state, router)
-- Pattern: server component fetches data → passes as props to client component
-- After mutations, call router.refresh() to re-run server components
-- Use lib/supabase/server.ts for all server-side fetches
-- Use lib/supabase/client.ts for all client-side mutations
+- The app uses SWR for client-side data fetching via lib/api.ts
+- fetchCalendarData and fetchTransactions are the two main data fetching functions (used with useSWR)
+- Mutations use the Supabase browser client (lib/supabase/client.ts) and call mutate() from SWR after success to invalidate cache
+- mutate() is the primary cache invalidation method — not router.refresh()
+- Auth protection uses proxy.ts (Next.js 16) instead of middleware.ts
 
 ## Design System
 
-- Font: Inter
-- Background: #F0F4F8
-- Card background: #FFFFFF
-- Primary: #4F6BED (indigo-blue)
-- Positive amounts: #16A34A (green)
-- Negative amounts: #DC2626 (red)
-- Text primary: #0F172A
-- Text secondary: #64748B
-- Text muted: #94A3B8
-- Border: #E2E8F0
-- Border radius: cards 16px, cells 12px, buttons 8px
-- Shadows: 0 1px 4px rgba(0,0,0,0.06)
-- Tailwind color tokens: bg-background, bg-card, text-foreground, text-muted-foreground, text-primary, border-border
+- Font: Inter (--font-sans in @theme inline)
+- CSS variables (:root): --background (#f0f4f8), --foreground (#0f172a), --card (#ffffff), --card-foreground (#0f172a), --popover, --popover-foreground, --primary (#4f6bed), --primary-foreground (#ffffff), --secondary (#f1f5f9), --secondary-foreground, --muted (#f1f5f9), --muted-foreground (#64748b), --accent (#eef2ff), --accent-foreground (#4f6bed), --destructive (#dc2626), --destructive-foreground, --success (#16a34a), --success-foreground, --amount-positive (#4ade80), --amount-negative (#e11d48), --border (#e2e8f0), --input, --ring (#4f6bed), --radius (1rem)
+- Tailwind color tokens: bg-background, bg-card, text-foreground, text-muted-foreground, text-primary, border-border, etc. (mapped in @theme inline)
+- Glass utilities: .glass, .glass-card (blur); .nav-opaque (solid primary nav); .text-overlay, .amount-text (text shadows on glass); .glass-cell, .glass-cell-today, .glass-cell-negative (calendar cells, no blur on cells)
+- Animation classes: .animated-gradient (gradientShift keyframes); .wave-emoji (wave-on-load); .greeting-enter, .account-enter, .balance-card-1/2/3, .calendar-enter, .page-enter-1 through .page-enter-4, .transaction-group-enter (greetingEnter); .calendar-slide-from-left, .calendar-slide-from-right (month-change slide)
 
 ## Component Rules
 
@@ -86,6 +80,7 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - Amounts are already signed in the DB (negative = expense) — never store type/category
 - Date format for DB: yyyy-MM-dd (use date-fns format())
 - Date format for display: use date-fns format() with human-readable patterns
+- The FAB in calendar-view.tsx uses createPortal to render under document.body — never wrap it in a transformed ancestor
 
 ## File Structure
 
@@ -94,8 +89,10 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - components/ — shared components
 - components/ui/ — shadcn primitives (do not edit)
 - lib/supabase/ — Supabase client helpers
+- lib/api.ts — SWR data fetching (fetchCalendarData, fetchTransactions)
+- lib/types.ts — shared TypeScript types (Transaction, RecurringRule, Account, GroupedTransactions)
 - lib/projection.ts — balance projection engine
-- lib/mock-data.ts — old mock data (ignore, will be removed)
+- proxy.ts — auth middleware (Next.js 16); redirects unauthenticated users to /login, authenticated users away from /login
 
 ## Key Rules
 
@@ -104,3 +101,46 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - Never add categories or type fields — amounts are signed
 - Always handle the case where a user has no account yet
 - Keep prompts surgical — only change what's asked, nothing else
+- Never revert the SWR data fetching pattern back to server-side fetching
+
+## Code Cleanliness Rules
+
+These rules apply to every change Cursor makes. No exceptions.
+
+### Imports
+
+- Never add an import that isn't used in the file
+- When removing a feature or component, remove its import too
+- Do not import types that are already available from @/lib/types
+
+### CSS / Tailwind
+
+- Never add a CSS class to globals.css without using it in a .tsx file in the same change
+- When removing a component or styling pattern, remove its CSS class from globals.css too
+- Prefer Tailwind utility classes over custom CSS classes unless the style is reused 3+ times
+- Never add inline styles unless backdrop-filter or other CSS properties aren't supported by Tailwind
+
+### Props & Types
+
+- Never define a prop in an interface that isn't used by the component
+- When refactoring a component, remove props that are no longer needed from both the interface and all call sites
+- Never duplicate a type that already exists in @/lib/types — import it instead
+
+### Dead Code
+
+- Never leave commented-out code in files
+- Never leave TODO comments without an associated issue or note in the PR
+- When replacing a pattern (e.g. skeleton loading → animations), remove the old pattern entirely in the same change
+- Never leave console.log statements in committed code
+
+### Component Rules
+
+- Never create a new component for something used only once — inline it instead
+- Never leave a component file that isn't imported anywhere
+- When removing a page or route, remove its loading.tsx, error.tsx, and any associated components too
+
+### General
+
+- Every change should leave the codebase cleaner than before
+- If a refactor requires touching more than 5 files, flag it and list the files before making changes
+- Never silently fix unrelated code while making a targeted change — flag it separately instead

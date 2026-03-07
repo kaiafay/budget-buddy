@@ -11,9 +11,7 @@ import { expandRecurringForDateRange } from "@/lib/projection";
 function groupTransactionsByDate(
   transactions: Transaction[],
 ): GroupedTransactions[] {
-  const sorted = [...transactions].sort((a, b) =>
-    b.date.localeCompare(a.date),
-  );
+  const sorted = [...transactions].sort((a, b) => b.date.localeCompare(a.date));
 
   const groups: GroupedTransactions[] = [];
   let currentDate = "";
@@ -35,33 +33,8 @@ function groupTransactionsByDate(
   return groups;
 }
 
-function TransactionsLoadingSkeleton() {
-  return (
-    <div className="flex flex-col animate-pulse px-5 pt-6 gap-6">
-      <div className="flex flex-col gap-2">
-        <div className="h-5 w-32 rounded-full bg-muted" />
-        <div className="h-3 w-48 rounded-full bg-muted" />
-      </div>
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="flex flex-col gap-2">
-          <div className="h-3 w-24 rounded-full bg-muted" />
-          <div className="flex flex-col gap-1 rounded-2xl bg-card p-2 shadow-sm">
-            {Array.from({ length: 2 }).map((_, j) => (
-              <div key={j} className="flex items-center gap-3 px-3 py-2.5">
-                <div className="h-9 w-9 rounded-xl bg-muted" />
-                <div className="flex-1 h-4 rounded-full bg-muted" />
-                <div className="h-4 w-16 rounded-full bg-muted" />
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function TransactionsPage() {
-  const { data, isLoading } = useSWR("transactions", fetchTransactions);
+  const { data } = useSWR("transactions", fetchTransactions);
 
   const transactionsList: Transaction[] = useMemo(() => {
     if (!data) return [];
@@ -105,58 +78,58 @@ export default function TransactionsPage() {
     [transactionsList],
   );
 
-  if (isLoading) {
-    return <TransactionsLoadingSkeleton />;
-  }
-
   return (
-    <div className="flex flex-col">
-      <header className="px-5 pb-4 pt-6">
-        <h1 className="text-xl font-semibold text-foreground">Transactions</h1>
-        <p className="text-sm text-muted-foreground">
-          All your recent activity
-        </p>
+    <div className="flex min-h-screen flex-col">
+      <header className="page-enter-1 px-5 pb-4 pt-6">
+        <h1 className="text-xl font-semibold text-white">Transactions</h1>
+        <p className="text-sm text-white/70">All your recent activity</p>
       </header>
 
       <div className="flex flex-col gap-6 px-5 pb-6">
-        {grouped.map((group) => (
-          <section key={group.date}>
-            <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {grouped.map((group, index) => (
+          <section
+            key={group.date}
+            className="transaction-group-enter"
+            style={
+              {
+                "--enter-delay": `${0.1 + Math.min(index, 6) * 0.05}s`,
+              } as React.CSSProperties
+            }
+          >
+            <h2 className="pb-2 text-xs font-medium uppercase tracking-wide text-white/60">
               {group.formatted}
             </h2>
-            <div className="flex flex-col gap-1 rounded-2xl bg-card p-2 shadow-sm">
+            <div className="glass-card flex flex-col gap-1 rounded-2xl p-2">
               {group.transactions.map((t) => (
                 <div
                   key={t.id}
                   className="flex items-center gap-3 rounded-xl px-3 py-2.5"
                 >
                   {t.amount > 0 ? (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(79,107,237,0.1)]">
-                      <DollarSign className="h-4 w-4 text-primary" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
+                      <DollarSign className="h-4 w-4 text-white" />
                     </div>
                   ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F1F5F9]">
-                      <ArrowDownLeft className="h-4 w-4 text-muted-foreground" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                      <ArrowDownLeft className="h-4 w-4 text-white/70" />
                     </div>
                   )}
                   <div className="flex flex-1 flex-col">
-                    <span className="text-sm font-medium text-foreground">
+                    <span className="text-sm font-medium text-white">
                       {t.label}
                       {t.recurring && (
-                        <span className="ml-1 text-xs text-muted-foreground">
-                          ↻
-                        </span>
+                        <span className="ml-1 text-xs text-white/70">↻</span>
                       )}
                     </span>
                   </div>
                   <span
                     className={
-                      t.amount > 0
-                        ? "text-sm font-semibold tabular-nums text-[#16A34A]"
-                        : "text-sm font-semibold tabular-nums text-[#DC2626]"
+                      t.amount >= 0
+                        ? "amount-text text-sm font-semibold tabular-nums text-[var(--amount-positive)]"
+                        : "text-sm font-semibold tabular-nums text-[var(--amount-negative)]"
                     }
                   >
-                    {t.amount > 0 ? "+" : ""}$
+                    {t.amount >= 0 ? "+" : "-"}$
                     {Math.abs(t.amount).toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,

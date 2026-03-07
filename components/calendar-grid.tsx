@@ -1,10 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { Transaction } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { DaySheet } from "@/components/day-sheet";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
@@ -24,25 +21,26 @@ const MONTH_NAMES = [
 
 interface CalendarGridProps {
   balances: Record<string, number>;
-  transactions: Transaction[];
   balanceYear: number;
   balanceMonth: number;
   onPrevMonth: () => void;
   onNextMonth: () => void;
   isLoading?: boolean;
+  selectedDate: string | null;
+  onSelectedDateChange: (date: string) => void;
 }
 
 export function CalendarGrid({
   balances,
-  transactions,
   balanceYear,
   balanceMonth,
   onPrevMonth,
   onNextMonth,
   isLoading = false,
+  selectedDate,
+  onSelectedDateChange,
 }: CalendarGridProps) {
   const today = new Date();
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const daysInMonth = new Date(balanceYear, balanceMonth, 0).getDate();
   const firstDayOfWeek = new Date(balanceYear, balanceMonth - 1, 1).getDay();
@@ -51,21 +49,8 @@ export function CalendarGrid({
 
   function handleDayClick(day: number) {
     const dateStr = `${balanceYear}-${String(balanceMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    setSelectedDate(dateStr);
+    onSelectedDateChange(dateStr);
   }
-
-  const selectedTransactions: Transaction[] = useMemo(() => {
-    if (!selectedDate) return [];
-    return transactions
-      .filter((t) => t.date === selectedDate)
-      .map((t) => ({
-        id: t.id,
-        label: t.label,
-        amount: t.amount,
-        date: t.date,
-        recurring: t.recurring ?? false,
-      }));
-  }, [selectedDate, transactions]);
 
   return (
     <>
@@ -78,17 +63,17 @@ export function CalendarGrid({
       >
         <button
           onClick={onPrevMonth}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Previous month"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <h2 className="text-lg font-semibold text-foreground">
+        <h2 className="text-lg font-semibold text-white">
           {MONTH_NAMES[balanceMonth - 1]} {balanceYear}
         </h2>
         <button
           onClick={onNextMonth}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white"
           aria-label="Next month"
         >
           <ChevronRight className="h-5 w-5" />
@@ -100,7 +85,7 @@ export function CalendarGrid({
         {WEEKDAYS.map((d) => (
           <div
             key={d}
-            className="py-2 text-center text-xs font-medium text-muted-foreground"
+            className="py-2 text-center text-xs font-medium text-white/60"
           >
             {d}
           </div>
@@ -121,6 +106,7 @@ export function CalendarGrid({
           const balance =
             balances[dateStr] !== undefined ? balances[dateStr] : undefined;
           const isToday = dateStr === todayStr;
+          const isSelected = dateStr === selectedDate;
           const isNegative = balance !== undefined && balance < 0;
 
           return (
@@ -130,6 +116,7 @@ export function CalendarGrid({
               className={cn(
                 "glass-cell flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl transition-colors",
                 isToday && "glass-cell-today",
+                isSelected && "ring-2 ring-white/50 ring-inset",
                 !isToday && isNegative && "glass-cell-negative",
                 !isToday && "hover:opacity-90",
               )}
@@ -137,8 +124,8 @@ export function CalendarGrid({
             >
               <span
                 className={cn(
-                  "text-sm font-medium",
-                  isToday && "text-white",
+                  "text-sm font-medium text-white",
+                  isToday && "font-semibold",
                 )}
               >
                 {day}
@@ -148,10 +135,10 @@ export function CalendarGrid({
                   className={cn(
                     "text-[10px] leading-none font-medium tabular-nums",
                     isToday
-                      ? "text-white/80"
+                      ? "amount-text text-white/90"
                       : balance >= 0
-                        ? "text-[#22C55E]"
-                        : "text-[#EF4444]",
+                        ? "amount-text text-[var(--amount-positive)]"
+                        : "text-[var(--amount-negative)]",
                   )}
                 >
                   {balance >= 0 ? "" : "-"}$
@@ -165,16 +152,6 @@ export function CalendarGrid({
           );
         })}
       </div>
-
-      {/* Day bottom sheet */}
-      <DaySheet
-        open={selectedDate !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedDate(null);
-        }}
-        date={selectedDate}
-        transactions={selectedTransactions}
-      />
     </>
   );
 }

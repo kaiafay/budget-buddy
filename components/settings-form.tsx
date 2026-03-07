@@ -77,19 +77,19 @@ export default function SettingsForm({
 
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-5 px-5 pb-8">
-      <div className="flex flex-col gap-4 rounded-2xl bg-card p-4 shadow-sm">
+      <div className="page-enter-2 glass-card flex flex-col gap-4 rounded-2xl p-4">
         <div className="flex items-center gap-3 pb-1">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent">
             <User className="h-4 w-4 text-primary" />
           </div>
-          <span className="text-sm font-medium text-foreground">
+          <span className="text-sm font-medium text-white">
             Account Details
           </span>
         </div>
         <div className="flex flex-col gap-2">
           <Label
             htmlFor="accountName"
-            className="text-xs font-medium text-muted-foreground"
+            className="text-xs font-medium text-white/70"
           >
             Account Name
           </Label>
@@ -98,30 +98,30 @@ export default function SettingsForm({
             type="text"
             value={accountName}
             onChange={(e) => setAccountName(e.target.value)}
-            className="h-11 rounded-xl border-border bg-background"
+            className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
             placeholder="e.g. Main Checking"
           />
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 rounded-2xl bg-card p-4 shadow-sm">
+      <div className="page-enter-3 glass-card flex flex-col gap-4 rounded-2xl p-4">
         <div className="flex items-center gap-3 pb-1">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#DCFCE7]">
             <DollarSign className="h-4 w-4 text-[#16A34A]" />
           </div>
-          <span className="text-sm font-medium text-foreground">
+          <span className="text-sm font-medium text-white">
             Starting Balance
           </span>
         </div>
         <div className="flex flex-col gap-2">
           <Label
             htmlFor="balance"
-            className="text-xs font-medium text-muted-foreground"
+            className="text-xs font-medium text-white/70"
           >
             Amount
           </Label>
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-white/70">
               $
             </span>
             <Input
@@ -130,12 +130,13 @@ export default function SettingsForm({
               step="0.01"
               value={startingBalance}
               onChange={(e) => setStartingBalance(e.target.value)}
-              className="h-11 rounded-xl border-border bg-background pl-8 tabular-nums"
+              className="h-11 rounded-xl border-white/20 bg-white/10 pl-8 tabular-nums text-white placeholder:text-white/40"
             />
           </div>
         </div>
       </div>
 
+      <div className="page-enter-4 flex flex-col gap-2">
       {error && (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -149,7 +150,7 @@ export default function SettingsForm({
 
       <Button
         type="submit"
-        className="h-11 rounded-xl bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        className="h-11 rounded-xl border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
       >
         {saved ? "Saved!" : "Save Changes"}
       </Button>
@@ -157,11 +158,12 @@ export default function SettingsForm({
       <div className="pt-4">
         <button
           type="button"
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-medium text-white/70 transition-colors hover:bg-secondary hover:text-foreground"
           onClick={async () => {
             const supabase = createClient();
             const { error: signOutError } = await supabase.auth.signOut();
-            if (signOutError) console.error("Sign out failed:", signOutError.message);
+            if (signOutError)
+              console.error("Sign out failed:", signOutError.message);
             router.push("/login");
             router.refresh();
           }}
@@ -169,6 +171,7 @@ export default function SettingsForm({
           <LogOut className="h-4 w-4" />
           Sign out
         </button>
+      </div>
       </div>
     </form>
   );

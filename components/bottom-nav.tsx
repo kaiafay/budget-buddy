@@ -16,7 +16,7 @@ export function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card"
+      className="nav-opaque fixed bottom-0 left-0 right-0 z-50"
       role="navigation"
       aria-label="Main navigation"
     >
@@ -28,10 +28,8 @@ export function BottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-0.5 px-4 py-1 text-xs transition-colors",
-                isActive
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground",
+                "text-overlay flex flex-col items-center gap-0.5 px-4 py-1 text-xs transition-colors",
+                isActive ? "text-white" : "text-white/50",
               )}
               aria-current={isActive ? "page" : undefined}
             >
