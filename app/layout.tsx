@@ -9,27 +9,15 @@ export const metadata: Metadata = {
   title: 'Budget Buddy',
   description: 'A simple, beautiful budget calendar app',
   generator: 'v0.app',
+  manifest: '/manifest.json',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/icons/icon-192.png',
+    apple: '/icons/apple-touch-icon.png',
   },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#4F46E5',
+  themeColor: '#4f6bed',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
