@@ -12,7 +12,9 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   icons: {
     icon: '/icons/icon-192.png',
-    apple: '/icons/apple-touch-icon.png',
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }
+    ],
   },
 }
 
@@ -31,6 +33,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" sizes="180x180" type="image/png" />
+      </head>
       <body className="font-sans antialiased">
         {children}
         <Analytics />
