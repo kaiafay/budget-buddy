@@ -94,7 +94,7 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - Amounts are already signed in the DB (negative = expense) — never store type/category
 - Date format for DB: yyyy-MM-dd (use date-fns format())
 - Date format for display: use date-fns format() with human-readable patterns
-- The FAB in calendar-view.tsx uses createPortal to render under document.body — never wrap it in a transformed ancestor
+- The FAB lives in app/(app)/layout.tsx and is positioned with bottom-[calc(56px+env(safe-area-inset-bottom,0px)+12px)] — never move it inside a transformed ancestor
 
 ## File Structure
 
@@ -121,6 +121,10 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - Swipe gestures use react-swipeable with preventScrollOnSwipe: true — always include this to avoid conflicting with vertical scroll
 - Recurring transaction synthetic id format: `${ruleId}-${date}` — parse with id.slice(0, -11) for ruleId and id.slice(-10) for date
 - recurring_exceptions with type 'skip' are used to hide individual occurrences — never use a cancelling transaction for this purpose
+- PWA layout uses a flex column shell (animated-gradient, min-h-screen, flex flex-col) with an inner scrollable div (flex-1, overflow-y-auto). Never use h-fill-available, min-h-fill-available, or overflow: hidden on html/body — these cause PWA layout bugs on iOS
+- Safe area insets are applied once: pt-[env(safe-area-inset-top,0px)] on the content div, pb-[calc(56px+env(safe-area-inset-bottom,0px))] on the content div, pb-[env(safe-area-inset-bottom,0px)] on the nav inner div, and pb-[env(safe-area-inset-bottom,0px)] on any bottom drawer/sheet
+- Nav height is always 56px (--nav-height: 56px) — safe area is handled separately, never baked into --nav-height
+- Never apply safe area padding more than once on the same visual element — stacking causes nav/drawer to be too tall on iPhone
 
 ## Code Cleanliness Rules
 

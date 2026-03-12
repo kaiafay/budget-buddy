@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
+import { useSWRConfig } from "swr";
 
 interface Props {
   initialName: string;
@@ -25,6 +26,7 @@ export default function SettingsForm({
   const [error, setError] = useState<string | null>(null);
   const [accountId, setAccountId] = useState(initialAccountId);
   const router = useRouter();
+  const { mutate } = useSWRConfig();
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -162,10 +164,12 @@ export default function SettingsForm({
           onClick={async () => {
             const supabase = createClient();
             const { error: signOutError } = await supabase.auth.signOut();
-            if (signOutError)
-              console.error("Sign out failed:", signOutError.message);
+            if (signOutError) return;
+            mutate("transactions");
+            mutate(
+              `calendar-month-${new Date().getMonth() + 1}-${new Date().getFullYear()}`,
+            );
             router.push("/login");
-            router.refresh();
           }}
         >
           <LogOut className="h-4 w-4" />
