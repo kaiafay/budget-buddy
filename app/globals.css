@@ -28,8 +28,8 @@
   --input: #e2e8f0;
   --ring: #4f6bed;
   --radius: 1rem;
-  --nav-bottom: 12px;
-  --nav-height: calc(56px + env(safe-area-inset-bottom, var(--nav-bottom)));
+  --nav-height: 56px;
+  --nav-bottom: 0px;
   --fab-gap: 12px;
 }
 
@@ -255,7 +255,6 @@
     min-height: -webkit-fill-available;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    overflow: hidden;
   }
   body {
     margin: 0;
@@ -267,7 +266,6 @@
     overscroll-behavior: none;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    overflow: hidden;
   }
   html::-webkit-scrollbar,
   body::-webkit-scrollbar {
@@ -276,15 +274,6 @@
     height: 0;
     background: transparent;
   }
-}
-
-.min-h-fill-available {
-  min-height: -webkit-fill-available;
-  min-height: 100dvh;
-}
-.h-fill-available {
-  height: -webkit-fill-available;
-  height: 100dvh;
 }
 
 /* Hide scrollbar while keeping scroll (app scroll container) */

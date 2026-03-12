@@ -16,11 +16,11 @@ export function BottomNav() {
 
   return (
     <nav
-      className="nav-opaque fixed bottom-0 left-0 right-0 z-50 pb-[env(safe-area-inset-bottom,var(--nav-bottom))]"
+      className="nav-opaque fixed bottom-0 left-0 right-0 z-50"
       role="navigation"
       aria-label="Main navigation"
     >
-      <div className="mx-auto flex max-w-lg items-center justify-around py-2">
+      <div className="mx-auto flex max-w-lg items-center justify-around py-2 pb-[env(safe-area-inset-bottom,0px)]">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
