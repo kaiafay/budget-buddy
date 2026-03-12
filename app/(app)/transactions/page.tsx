@@ -232,7 +232,7 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col overflow-x-hidden">
+    <div className="flex flex-col overflow-x-hidden">
       <header className="page-enter-1 px-5 pb-4 pt-6">
         <h1 className="text-xl font-semibold text-white">Transactions</h1>
         <p className="text-sm text-white/70">All your recent activity</p>

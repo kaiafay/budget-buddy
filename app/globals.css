@@ -28,6 +28,9 @@
   --input: #e2e8f0;
   --ring: #4f6bed;
   --radius: 1rem;
+  --nav-bottom: 12px;
+  --nav-height: 75px;
+  --fab-gap: 12px;
 }
 
 @theme inline {
@@ -97,7 +100,7 @@
 /* Opaque nav — solid primary, no overlay issues */
 .nav-opaque {
   background: #4f6bed;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Subtle text shadow for overlay text (improves contrast on glass) */
@@ -111,7 +114,6 @@
 .amount-text {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
 }
-
 
 .wave-emoji {
   display: inline-block;
@@ -260,9 +262,30 @@
   }
 }
 
+.min-h-fill-available {
+  min-height: -webkit-fill-available;
+  min-height: 100dvh;
+}
+.h-fill-available {
+  height: -webkit-fill-available;
+  height: 100dvh;
+}
+
 @media (display-mode: standalone) {
-  .min-h-fill-available {
-    min-height: -webkit-fill-available;
-    min-height: 100dvh;
+  :root {
+    --nav-bottom: 20px;
+    --nav-height: 83px;
   }
+}
+
+/* Hide scrollbar while keeping scroll (app scroll container) */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+  background: transparent;
 }

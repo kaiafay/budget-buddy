@@ -234,7 +234,7 @@ function AddTransactionPage() {
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col pb-6">
       {/* Header */}
       <header className="page-enter-1 flex items-center gap-3 px-5 pb-4 pt-6">
         <button
@@ -438,7 +438,7 @@ function AddTransactionPage() {
 
 export default function AddPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen" />}>
+    <Suspense fallback={<div />}>
       <AddTransactionPage />
     </Suspense>
   );

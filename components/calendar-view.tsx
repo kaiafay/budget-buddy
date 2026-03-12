@@ -192,11 +192,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       effectiveDate,
       daySheetMonthSource.exceptions ?? [],
     );
-  }, [
-    daySheetMonthSource,
-    daySheetRecurringMapped,
-    effectiveDate,
-  ]);
+  }, [daySheetMonthSource, daySheetRecurringMapped, effectiveDate]);
 
   const daySheetLoading = needDaySheetMonth && daySheetMonthLoading;
 
@@ -221,7 +217,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col pb-6">
       {/* Top bar */}
       <header className="flex items-center justify-between px-5 pb-2 pt-4">
         <div>
@@ -302,9 +298,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
         </div>
         {daySheetLoading ? (
           <div className="border-t border-white/20 px-5 pb-6 pt-4">
-            <p className="text-overlay text-xs text-white/70">
-              Loading…
-            </p>
+            <p className="text-overlay text-xs text-white/70">Loading…</p>
           </div>
         ) : (
           <DayTransactionsContent
