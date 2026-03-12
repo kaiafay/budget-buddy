@@ -114,25 +114,21 @@ export function CalendarGrid({
             balances[dateStr] !== undefined ? balances[dateStr] : undefined;
           const isToday = dateStr === todayStr;
           const isSelected = dateStr === selectedDate;
-          const isNegative = balance !== undefined && balance < 0;
 
           return (
             <button
               key={day}
               onClick={() => handleDayClick(day)}
-              className={cn(
-                "glass-cell flex aspect-square flex-col items-center justify-center gap-0.5 rounded-xl transition-colors",
-                isToday && "glass-cell-today",
-                isSelected && "ring-2 ring-white/50 ring-inset",
-                !isToday && isNegative && "glass-cell-negative",
-                !isToday && "hover:opacity-90",
-              )}
+              className="flex aspect-square flex-col items-center justify-center gap-1"
               aria-label={`${MONTH_NAMES[balanceMonth - 1]} ${day}`}
             >
               <span
                 className={cn(
-                  "text-sm font-medium text-white",
-                  isToday && "font-semibold",
+                  "flex h-6 w-6 items-center justify-center rounded-full text-sm",
+                  isToday
+                    ? "bg-white/35 font-semibold text-white"
+                    : "font-medium text-white/80",
+                  isSelected && "ring-2 ring-white/50",
                 )}
               >
                 {day}
@@ -148,7 +144,7 @@ export function CalendarGrid({
                         : "text-[var(--amount-negative)]",
                   )}
                 >
-                  {balance >= 0 ? "" : "-"}$
+                  {balance < 0 && "-"}
                   {Math.abs(balance).toLocaleString(undefined, {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 0,
