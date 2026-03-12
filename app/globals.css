@@ -245,11 +245,24 @@
     -webkit-font-smoothing: antialiased;
   }
   html {
+    margin: 0;
+    padding: 0;
     background: #4f6bed;
+    overscroll-behavior: none;
   }
   body {
-    @apply bg-background text-foreground;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    @apply text-foreground;
     font-family: "Inter", system-ui, sans-serif;
     overscroll-behavior: none;
+  }
+}
+
+@media (display-mode: standalone) {
+  .min-h-fill-available {
+    min-height: -webkit-fill-available;
+    min-height: 100dvh;
   }
 }

@@ -16,7 +16,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         revalidateOnReconnect: false,
       }}
     >
-      <div className="animated-gradient mx-auto min-h-screen max-w-lg">
+      <div className="animated-gradient min-h-fill-available mx-auto min-h-screen max-w-lg">
         <div className="animate-in fade-in duration-200 pt-[env(safe-area-inset-top)] pb-[calc(5rem+env(safe-area-inset-bottom,0px))]">{children}</div>
         {pathname === "/" && (
           <Link
