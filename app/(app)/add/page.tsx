@@ -1,12 +1,14 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useMemo, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CalendarIcon, Repeat } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import useSWR from "swr";
 import { mutate } from "swr";
 import { createClient } from "@/lib/supabase/client";
-import { fetchTransaction, fetchRecurringRule } from "@/lib/api";
+import { fetchTransaction, fetchRecurringRule, fetchCategories } from "@/lib/api";
+import { CategoryIcon } from "@/components/category-icons";
 import {
   createTransaction,
   createRecurringRule,
@@ -57,6 +59,8 @@ function AddTransactionPage() {
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<"expense" | "income">("expense");
+  const NO_CATEGORY_VALUE = "__none__";
+  const [categoryId, setCategoryId] = useState<string | null>(null);
   const [date, setDate] = useState<Date | undefined>(() =>
     getInitialDate(searchParams),
   );
@@ -66,6 +70,13 @@ function AddTransactionPage() {
   const [noAccount, setNoAccount] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(!!isEditMode);
+
+  const { data: categories = [] } = useSWR("categories", fetchCategories);
+  const sortedCategories = useMemo(() => {
+    const expenseFirst = [...categories].filter((c) => c.type === "expense").sort((a, b) => a.name.localeCompare(b.name));
+    const incomeFirst = [...categories].filter((c) => c.type === "income").sort((a, b) => a.name.localeCompare(b.name));
+    return type === "expense" ? [...expenseFirst, ...incomeFirst] : [...incomeFirst, ...expenseFirst];
+  }, [categories, type]);
 
   useEffect(() => {
     async function loadAccount() {
@@ -101,6 +112,7 @@ function AddTransactionPage() {
             setLabel(tx.label);
             setAmount(Math.abs(Number(tx.amount)).toFixed(2));
             setType(Number(tx.amount) >= 0 ? "income" : "expense");
+            setCategoryId(tx.category_id ?? null);
             setDate(parseISO(tx.date));
           }
         })
@@ -114,6 +126,7 @@ function AddTransactionPage() {
             setLabel(rule.label);
             setAmount(Math.abs(rule.amount).toFixed(2));
             setType(rule.amount >= 0 ? "income" : "expense");
+            setCategoryId(rule.category_id ?? null);
             const occurrenceDate = searchParams.get("date");
             setDate(
               occurrenceDate
@@ -143,6 +156,7 @@ function AddTransactionPage() {
         label: label.trim(),
         amount: finalAmount,
         date: dateStr,
+        category_id: categoryId,
       });
       if (updateError) {
         setError(updateError.message);
@@ -167,6 +181,7 @@ function AddTransactionPage() {
           label: label.trim(),
           amount: finalAmount,
           frequency: frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+          category_id: categoryId,
         },
       );
       if (updateError) {
@@ -188,6 +203,7 @@ function AddTransactionPage() {
         amount: finalAmount,
         frequency: frequency as "weekly" | "biweekly" | "monthly" | "yearly",
         startDate: dateStr,
+        category_id: categoryId,
       });
       if (insertError) {
         setError(insertError.message);
@@ -199,6 +215,7 @@ function AddTransactionPage() {
         label: label.trim(),
         amount: finalAmount,
         date: dateStr,
+        category_id: categoryId,
       });
       if (insertError) {
         setError(insertError.message);
@@ -318,6 +335,44 @@ function AddTransactionPage() {
               className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
               required
             />
+          </div>
+
+          {/* Category */}
+          <div className="flex flex-col gap-2">
+            <Label className="text-sm font-medium text-white/70">
+              Category
+            </Label>
+            <Select
+              value={categoryId ?? NO_CATEGORY_VALUE}
+              onValueChange={(v) =>
+                setCategoryId(v === NO_CATEGORY_VALUE ? null : v)
+              }
+            >
+              <SelectTrigger
+                className={cn(
+                  "h-11 min-h-[2.75rem] w-full justify-start rounded-xl border-white/20 bg-white/10 text-left font-normal text-white",
+                  !categoryId && "text-white/60",
+                )}
+              >
+                <SelectValue placeholder="No category" />
+              </SelectTrigger>
+              <SelectContent className="text-popover-foreground">
+                <SelectItem value={NO_CATEGORY_VALUE}>
+                  <span className="text-muted-foreground">No category</span>
+                </SelectItem>
+                {sortedCategories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    <span className="flex items-center gap-2 text-popover-foreground">
+                      <CategoryIcon
+                        iconName={cat.icon}
+                        className="h-4 w-4 text-muted-foreground"
+                      />
+                      {cat.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Date */}
