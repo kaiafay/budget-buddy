@@ -59,6 +59,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
         amount: Number(r.amount),
         label: r.label,
         frequency: r.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+        category_id: r.category_id ?? null,
       })),
     [data?.recurringRules],
   );
@@ -113,6 +114,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       label: t.label,
       amount: Number(t.amount),
       date: t.date,
+      category_id: t.category_id ?? null,
     }));
     const expanded = expandRecurringForDateRange(
       recurringRulesMapped,
@@ -170,6 +172,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
         amount: Number(r.amount),
         label: r.label,
         frequency: r.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+        category_id: r.category_id ?? null,
       })),
     [daySheetMonthSource?.recurringRules],
   );
@@ -185,6 +188,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
         label: t.label,
         amount: Number(t.amount),
         date: t.date,
+        category_id: t.category_id ?? null,
       })),
       daySheetRecurringMapped,
       first,

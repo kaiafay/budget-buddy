@@ -212,3 +212,29 @@ export async function fetchRecurringRule(
     category_id: data.category_id ?? null,
   } as RecurringRule;
 }
+
+export async function fetchCategoryUsageCount(
+  categoryId: string,
+): Promise<{ transactions: number; rules: number }> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const [txRes, rulesRes] = await Promise.all([
+    supabase
+      .from("transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("category_id", categoryId),
+    supabase
+      .from("recurring_rules")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("category_id", categoryId),
+  ]);
+  return {
+    transactions: txRes.count ?? 0,
+    rules: rulesRes.count ?? 0,
+  };
+}
