@@ -349,10 +349,7 @@ function AddTransactionPage() {
               }
             >
               <SelectTrigger
-                className={cn(
-                  "h-11 min-h-[2.75rem] w-full justify-start rounded-xl border-white/20 bg-white/10 text-left font-normal text-white",
-                  !categoryId && "text-white/60",
-                )}
+                className="h-11 min-h-[2.75rem] w-full justify-start rounded-xl border-white/20 bg-white/10 text-left font-normal text-white data-[placeholder]:text-white placeholder:text-white/40"
               >
                 <SelectValue placeholder="No category" />
               </SelectTrigger>

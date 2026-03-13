@@ -325,7 +325,7 @@ export function DayTransactionsContent({
 
       <Drawer open={drawerOpen} onOpenChange={(open) => !open && closeDrawer()}>
         <DrawerContent
-          className="border-white/20 text-white pb-[env(safe-area-inset-bottom,0px)]"
+          className="flex flex-col border-white/20 text-white pb-[env(safe-area-inset-bottom,0px)] min-h-0"
           style={{ background: "linear-gradient(135deg, #4f6bed, #5b5bd6)" }}
         >
           {drawerMode === "actions" && selectedTransaction && (
@@ -377,7 +377,7 @@ export function DayTransactionsContent({
           )}
 
           {drawerMode === "edit" && selectedTransaction && (
-            <>
+            <div className="overflow-y-auto flex-1 min-h-0">
               <DrawerHeader>
                 <DrawerTitle className="text-lg text-white">
                   Edit transaction
@@ -459,10 +459,7 @@ export function DayTransactionsContent({
                     }
                   >
                     <SelectTrigger
-                      className={cn(
-                        "h-11 min-h-[2.75rem] w-full justify-start rounded-xl border-white/20 bg-white/10 text-left font-normal text-white",
-                        !editCategoryId && "text-white/60",
-                      )}
+                      className="h-11 min-h-[2.75rem] w-full justify-start rounded-xl border-white/20 bg-white/10 text-left font-normal text-white data-[placeholder]:text-white placeholder:text-white/40"
                     >
                       <SelectValue placeholder="No category" />
                     </SelectTrigger>
@@ -573,7 +570,7 @@ export function DayTransactionsContent({
                   </Button>
                 </DrawerFooter>
               </form>
-            </>
+            </div>
           )}
           <div className="absolute right-4 top-4">
             <DrawerClose asChild>
