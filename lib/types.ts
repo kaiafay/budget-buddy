@@ -1,9 +1,17 @@
+export type Category = {
+  id: string;
+  name: string;
+  icon: string;
+  type: "expense" | "income";
+};
+
 export type Transaction = {
   id: string;
   label: string;
   amount: number;
   date: string;
   recurring?: boolean;
+  category_id?: string | null;
 };
 
 export type RecurringRule = {
@@ -13,6 +21,7 @@ export type RecurringRule = {
   frequency: "weekly" | "biweekly" | "monthly" | "yearly";
   start_date: string;
   end_date?: string | null;
+  category_id?: string | null;
 };
 
 export type RecurringException = {
