@@ -118,6 +118,17 @@ export async function fetchTransactions(): Promise<{
   };
 }
 
+const DEFAULT_CATEGORIES: { name: string; icon: string; type: "expense" | "income" }[] = [
+  { name: "Groceries", icon: "ShoppingCart", type: "expense" },
+  { name: "Food & Dining", icon: "UtensilsCrossed", type: "expense" },
+  { name: "Transport", icon: "Car", type: "expense" },
+  { name: "Bills", icon: "FileText", type: "expense" },
+  { name: "Entertainment", icon: "Ticket", type: "expense" },
+  { name: "Salary", icon: "Briefcase", type: "income" },
+  { name: "Freelance", icon: "Laptop", type: "income" },
+  { name: "Gifts", icon: "Gift", type: "expense" },
+];
+
 export async function fetchCategories(): Promise<Category[]> {
   const supabase = createClient();
   const {
@@ -130,7 +141,26 @@ export async function fetchCategories(): Promise<Category[]> {
     .eq("user_id", user.id)
     .order("name", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []) as Category[];
+  const categories = (data ?? []) as Category[];
+  if (categories.length === 0) {
+    const rows = DEFAULT_CATEGORIES.map((c) => ({
+      user_id: user.id,
+      name: c.name,
+      icon: c.icon,
+      type: c.type,
+    }));
+    await supabase
+      .from("categories")
+      .upsert(rows, { onConflict: "user_id,name", ignoreDuplicates: true });
+    const { data: reselect, error: reselectError } = await supabase
+      .from("categories")
+      .select("id, name, icon, type")
+      .eq("user_id", user.id)
+      .order("name", { ascending: true });
+    if (reselectError) throw new Error(reselectError.message);
+    return (reselect ?? []) as Category[];
+  }
+  return categories;
 }
 
 export async function fetchTransaction(
