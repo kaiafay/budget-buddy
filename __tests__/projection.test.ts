@@ -365,6 +365,44 @@ describe("expandRecurringForDateRange", () => {
     expect(result.map((r) => r.date)).toEqual(["2026-03-15"]);
   });
 
+  it("passes through category_id from rule to each occurrence", () => {
+    const result = expandRecurringForDateRange(
+      [
+        {
+          id: "r1",
+          label: "Rent",
+          amount: -100,
+          frequency: "monthly",
+          start_date: "2026-03-01",
+          category_id: "cat-rent",
+        },
+      ],
+      "2026-03-01",
+      "2026-03-31",
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].category_id).toBe("cat-rent");
+    expect(result[0].recurring).toBe(true);
+  });
+
+  it("includes null category_id when rule has no category", () => {
+    const result = expandRecurringForDateRange(
+      [
+        {
+          id: "r1",
+          label: "Rent",
+          amount: -100,
+          frequency: "monthly",
+          start_date: "2026-03-01",
+        },
+      ],
+      "2026-03-01",
+      "2026-03-31",
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].category_id).toBeNull();
+  });
+
   it("rule starts before range — only occurrences within range returned", () => {
     const result = expandRecurringForDateRange(
       [
@@ -618,6 +656,51 @@ describe("getTransactionsForDate", () => {
     expect(result).toHaveLength(1);
     expect(result[0].amount).toBe(-550);
     expect(result[0].label).toBe("Rent (increased)");
+    expect(result[0].recurring).toBe(true);
+  });
+
+  it("passes through category_id for one-time transactions", () => {
+    const monthTx = [
+      {
+        id: "t1",
+        label: "Coffee",
+        amount: -5,
+        date: "2026-03-10",
+        category_id: "cat-food",
+      },
+    ];
+    const result = getTransactionsForDate(
+      monthTx,
+      [],
+      "2026-03-01",
+      "2026-03-31",
+      "2026-03-10",
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].category_id).toBe("cat-food");
+    expect(result[0].recurring).toBe(false);
+  });
+
+  it("passes through category_id from rule for recurring occurrences", () => {
+    const rules: RecurringRule[] = [
+      {
+        id: "r1",
+        label: "Subscription",
+        amount: -100,
+        frequency: "monthly",
+        start_date: "2026-03-10",
+        category_id: "cat-sub",
+      },
+    ];
+    const result = getTransactionsForDate(
+      [],
+      rules,
+      "2026-03-01",
+      "2026-03-31",
+      "2026-03-10",
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].category_id).toBe("cat-sub");
     expect(result[0].recurring).toBe(true);
   });
 });
