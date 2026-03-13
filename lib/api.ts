@@ -1,5 +1,6 @@
 import type {
   Account,
+  Category,
   RecurringException,
   RecurringRule,
   Transaction,
@@ -43,14 +44,14 @@ export async function fetchCalendarData(
         .lt("date", firstDayOfMonth),
       supabase
         .from("transactions")
-        .select("id, label, amount, date")
+        .select("id, label, amount, date, category_id")
         .eq("user_id", user.id)
         .gte("date", firstDayOfMonth)
         .lte("date", lastDayOfMonth)
         .order("date", { ascending: true }),
       supabase
         .from("recurring_rules")
-        .select("id, start_date, end_date, amount, label, frequency")
+        .select("id, start_date, end_date, amount, label, frequency, category_id")
         .eq("user_id", user.id),
       supabase
         .from("recurring_exceptions")
@@ -91,12 +92,12 @@ export async function fetchTransactions(): Promise<{
   const [txRes, rulesRes, exceptionsRes] = await Promise.all([
     supabase
       .from("transactions")
-      .select("id, label, amount, date")
+      .select("id, label, amount, date, category_id")
       .eq("user_id", user.id)
       .order("date", { ascending: false }),
     supabase
       .from("recurring_rules")
-      .select("id, start_date, end_date, amount, label, frequency")
+      .select("id, start_date, end_date, amount, label, frequency, category_id")
       .eq("user_id", user.id),
     supabase
       .from("recurring_exceptions")
@@ -117,9 +118,24 @@ export async function fetchTransactions(): Promise<{
   };
 }
 
+export async function fetchCategories(): Promise<Category[]> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data, error } = await supabase
+    .from("categories")
+    .select("id, name, icon, type")
+    .eq("user_id", user.id)
+    .order("name", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Category[];
+}
+
 export async function fetchTransaction(
   id: string,
-): Promise<{ id: string; label: string; amount: number; date: string } | null> {
+): Promise<{ id: string; label: string; amount: number; date: string; category_id: string | null } | null> {
   const supabase = createClient();
   const {
     data: { user },
@@ -127,7 +143,7 @@ export async function fetchTransaction(
   if (!user) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("transactions")
-    .select("id, label, amount, date")
+    .select("id, label, amount, date, category_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -135,7 +151,7 @@ export async function fetchTransaction(
     if (error.code === "PGRST116") return null;
     throw new Error(error.message);
   }
-  return data as { id: string; label: string; amount: number; date: string };
+  return data as { id: string; label: string; amount: number; date: string; category_id: string | null };
 }
 
 export async function fetchRecurringRule(
@@ -148,7 +164,7 @@ export async function fetchRecurringRule(
   if (!user) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("recurring_rules")
-    .select("id, label, amount, frequency, start_date, end_date")
+    .select("id, label, amount, frequency, start_date, end_date, category_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -163,5 +179,6 @@ export async function fetchRecurringRule(
     frequency: data.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
     start_date: data.start_date,
     end_date: data.end_date ?? null,
+    category_id: data.category_id ?? null,
   } as RecurringRule;
 }
