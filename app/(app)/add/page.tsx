@@ -326,9 +326,9 @@ function AddTransactionPage() {
             <Popover>
               <PopoverTrigger asChild>
                 <Button
-                  variant="outline"
+                  variant="glass"
                   className={cn(
-                    "h-11 w-full justify-start rounded-xl border-white/20 bg-white/10 text-left font-normal text-white placeholder:text-white/40",
+                    "h-11 w-full justify-start text-left font-normal text-white placeholder:text-white/40",
                     !date && "text-white/60",
                   )}
                 >
@@ -408,7 +408,7 @@ function AddTransactionPage() {
           <Button
             type="submit"
             disabled={!accountId || editLoading}
-            className="mt-2 h-12 rounded-xl border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="mt-2 h-12 border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             {editLoading
               ? "Loading…"
@@ -424,7 +424,7 @@ function AddTransactionPage() {
             <Button
               type="button"
               variant="destructive"
-              className="mt-2 h-12 rounded-xl"
+              className="mt-2 h-12"
               onClick={handleDeleteAllFuture}
             >
               Delete all future occurrences

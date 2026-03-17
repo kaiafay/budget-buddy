@@ -270,7 +270,7 @@ export function DayTransactionsContent({
 
       <Button
         asChild
-        className="mt-4 h-11 w-full rounded-xl border border-white/20 bg-primary text-white hover:bg-primary/90"
+        className="mt-4 h-11 w-full border border-white/20 bg-primary text-white hover:bg-primary/90"
       >
         <Link href={`/add?date=${date}`}>
           <Plus className="mr-2 h-4 w-4" />
@@ -293,7 +293,7 @@ export function DayTransactionsContent({
               <div className="flex flex-col gap-2 px-4 pb-4">
                 <Button
                   variant="outline"
-                  className="h-11 justify-start rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20"
+                  className="h-11 justify-start border-white/20 bg-white/10 text-white hover:bg-white/20"
                   onClick={() => setDrawerMode("edit")}
                 >
                   <Pencil className="mr-2 h-4 w-4" />
@@ -303,14 +303,14 @@ export function DayTransactionsContent({
                   <>
                     <Button
                       variant="outline"
-                      className="h-11 justify-start rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20"
+                      className="h-11 justify-start border-white/20 bg-white/10 text-white hover:bg-white/20"
                       onClick={handleSkipOccurrence}
                     >
                       Delete this occurrence
                     </Button>
                     <Button
                       variant="destructive"
-                      className="h-11 justify-start rounded-xl"
+                      className="h-11 justify-start"
                       onClick={handleDeleteAllFuture}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
@@ -320,7 +320,7 @@ export function DayTransactionsContent({
                 ) : (
                   <Button
                     variant="destructive"
-                    className="h-11 justify-start rounded-xl"
+                    className="h-11 justify-start"
                     onClick={handleDeleteOneTime}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -441,7 +441,7 @@ export function DayTransactionsContent({
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-11 w-full justify-start rounded-xl border-white/20 bg-white/10 text-left font-normal text-white"
+                          className="h-11 w-full justify-start border-white/20 bg-white/10 text-left font-normal text-white"
                         >
                           {editDate
                             ? format(editDate, "MMM d, yyyy")
@@ -466,7 +466,7 @@ export function DayTransactionsContent({
                 <DrawerFooter className="flex flex-col gap-2 px-0 pb-0 pt-2">
                   <Button
                     type="submit"
-                    className="h-11 rounded-xl border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90"
+                    className="h-11 border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90"
                   >
                     Save changes
                   </Button>
@@ -474,7 +474,7 @@ export function DayTransactionsContent({
                     <Button
                       type="button"
                       variant="destructive"
-                      className="h-11 rounded-xl"
+                      className="h-11"
                       onClick={handleDeleteAllFuture}
                     >
                       Delete all future occurrences
@@ -483,7 +483,7 @@ export function DayTransactionsContent({
                   <Button
                     type="button"
                     variant="ghost"
-                    className="h-11 rounded-xl text-white/70 hover:bg-white/10 hover:text-white"
+                    className="h-11 text-white/70 hover:bg-white/10 hover:text-white"
                     onClick={() => setDrawerMode("actions")}
                   >
                     Cancel

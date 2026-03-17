@@ -133,7 +133,7 @@ export default function LoginPage() {
 
           <Button
             type="submit"
-            className="mt-2 h-11 w-full rounded-xl bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="mt-2 h-11 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             {mode === "signin" ? "Sign in" : "Sign up"}
           </Button>
