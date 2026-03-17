@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
+import useSWR from "swr";
 import {
   Plus,
   DollarSign,
@@ -21,6 +22,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Drawer,
   DrawerContent,
   DrawerHeader,
@@ -28,6 +36,8 @@ import {
   DrawerFooter,
   DrawerClose,
 } from "@/components/ui/drawer";
+import { CategoryIcon, getCategoryColor } from "@/components/category-icons";
+import { fetchCategories } from "@/lib/api";
 import {
   deleteTransaction,
   skipRecurringOccurrence,
@@ -79,6 +89,21 @@ export function DayTransactionsContent({
   const [editFrequency, setEditFrequency] = useState<
     "weekly" | "biweekly" | "monthly" | "yearly"
   >("monthly");
+  const NO_CATEGORY_VALUE = "__none__";
+  const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
+
+  const { data: categories = [] } = useSWR("categories", fetchCategories);
+  const sortedCategories = useMemo(() => {
+    const expenseFirst = [...categories]
+      .filter((c) => c.type === "expense")
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const incomeFirst = [...categories]
+      .filter((c) => c.type === "income")
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return editType === "expense"
+      ? [...expenseFirst, ...incomeFirst]
+      : [...incomeFirst, ...expenseFirst];
+  }, [categories, editType]);
 
   function openDrawer(t: Transaction) {
     setSelectedTransaction(t);
@@ -88,6 +113,7 @@ export function DayTransactionsContent({
     setEditAmount(Math.abs(t.amount).toFixed(2));
     setEditType(t.amount >= 0 ? "income" : "expense");
     setEditDate(parseISO(t.date));
+    setEditCategoryId(t.category_id ?? null);
     if (t.recurring) {
       const { ruleId } = getRecurringRuleIdAndDate(t.id);
       const rule = recurringRules.find((r) => r.id === ruleId);
@@ -167,6 +193,7 @@ export function DayTransactionsContent({
           label: editLabel.trim(),
           amount: finalAmount,
           frequency: editFrequency,
+          category_id: editCategoryId,
         },
       );
       if (error) {
@@ -178,6 +205,7 @@ export function DayTransactionsContent({
         label: editLabel.trim(),
         amount: finalAmount,
         date: dateStr,
+        category_id: editCategoryId,
       });
       if (error) {
         setEditError(error.message);
@@ -202,22 +230,36 @@ export function DayTransactionsContent({
       <div className="mt-3 flex flex-col gap-1">
         {transactions.length > 0 && (
           <>
-            {transactions.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => openDrawer(t)}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/5 active:bg-white/10"
-              >
-                {t.amount > 0 ? (
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
-                    <DollarSign className="h-4 w-4 text-white" />
-                  </div>
-                ) : (
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
-                    <ArrowDownLeft className="h-4 w-4 text-white/70" />
-                  </div>
-                )}
+            {transactions.map((t) => {
+              const category = t.category_id
+                ? categories.find((c) => c.id === t.category_id)
+                : null;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => openDrawer(t)}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/5 active:bg-white/10"
+                >
+                  {category ? (
+                    <div
+                      className="flex h-9 w-9 items-center justify-center rounded-xl"
+                      style={{ background: getCategoryColor(category.icon) }}
+                    >
+                      <CategoryIcon
+                        iconName={category.icon}
+                        className={t.amount > 0 ? "h-4 w-4 text-white" : "h-4 w-4 text-white/70"}
+                      />
+                    </div>
+                  ) : t.amount > 0 ? (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
+                      <DollarSign className="h-4 w-4 text-white" />
+                    </div>
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
+                      <ArrowDownLeft className="h-4 w-4 text-white/70" />
+                    </div>
+                  )}
                 <div className="flex flex-1 flex-col">
                   <span className="text-overlay text-sm font-medium text-white">
                     {t.label}
@@ -242,7 +284,8 @@ export function DayTransactionsContent({
                   })}
                 </span>
               </button>
-            ))}
+              );
+            })}
 
             {transactions.length > 1 && (
               <div className="mt-1 flex items-center justify-between border-t border-white/20 px-3 pt-3">
@@ -280,7 +323,7 @@ export function DayTransactionsContent({
 
       <Drawer open={drawerOpen} onOpenChange={(open) => !open && closeDrawer()}>
         <DrawerContent
-          className="border-white/20 text-white pb-[env(safe-area-inset-bottom,0px)]"
+          className="flex flex-col border-white/20 text-white pb-[env(safe-area-inset-bottom,0px)] min-h-0"
           style={{ background: "linear-gradient(135deg, #4f6bed, #5b5bd6)" }}
         >
           {drawerMode === "actions" && selectedTransaction && (
@@ -332,7 +375,7 @@ export function DayTransactionsContent({
           )}
 
           {drawerMode === "edit" && selectedTransaction && (
-            <>
+            <div className="overflow-y-auto flex-1 min-h-0">
               <DrawerHeader>
                 <DrawerTitle className="text-lg text-white">
                   Edit transaction
@@ -400,6 +443,42 @@ export function DayTransactionsContent({
                     className="h-11 rounded-xl border-white/20 bg-white/10 text-white"
                     required
                   />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label className="text-sm font-medium text-white/70">
+                    Category
+                  </Label>
+                  <Select
+                    value={editCategoryId ?? NO_CATEGORY_VALUE}
+                    onValueChange={(v) =>
+                      setEditCategoryId(
+                        v === NO_CATEGORY_VALUE ? null : v,
+                      )
+                    }
+                  >
+                    <SelectTrigger
+                      data-no-category={editCategoryId == null}
+                      className="h-11 w-full rounded-xl border-white/20 bg-white/10 text-white [&_[data-slot=select-value]_span]:text-white [&_[data-slot=select-value]_svg]:text-white/70 data-[no-category=true]:[&_[data-slot=select-value]_span]:text-white/40 [&>svg]:hidden"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="text-popover-foreground">
+                      <SelectItem value={NO_CATEGORY_VALUE}>
+                        <span className="text-muted-foreground">No category</span>
+                      </SelectItem>
+                      {sortedCategories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          <span className="flex items-center gap-2 text-popover-foreground">
+                            <CategoryIcon
+                              iconName={cat.icon}
+                              className="h-4 w-4 text-muted-foreground"
+                            />
+                            {cat.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 {selectedTransaction.recurring && (
                   <div className="flex flex-col gap-2">
@@ -490,7 +569,7 @@ export function DayTransactionsContent({
                   </Button>
                 </DrawerFooter>
               </form>
-            </>
+            </div>
           )}
           <div className="absolute right-4 top-4">
             <DrawerClose asChild>

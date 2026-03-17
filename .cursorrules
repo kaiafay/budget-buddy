@@ -119,7 +119,6 @@ components/ui/ contains shadcn primitives that you own and can modify.
 
 - Mobile-first always — design for 390px width, scale up for desktop
 - Never change layout or styling unless explicitly asked
-- Never add categories or type fields — amounts are signed
 - Always handle the case where a user has no account yet
 - Keep prompts surgical — only change what's asked, nothing else
 - Never revert the SWR data fetching pattern back to server-side fetching

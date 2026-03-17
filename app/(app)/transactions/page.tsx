@@ -6,8 +6,9 @@ import { format, parseISO } from "date-fns";
 import { useSwipeable } from "react-swipeable";
 import { DollarSign, ArrowDownLeft, Pencil, Trash2 } from "lucide-react";
 import useSWR, { useSWRConfig } from "swr";
-import type { Transaction, GroupedTransactions } from "@/lib/types";
-import { fetchTransactions } from "@/lib/api";
+import type { Category, Transaction, GroupedTransactions } from "@/lib/types";
+import { fetchTransactions, fetchCategories } from "@/lib/api";
+import { CategoryIcon, getCategoryColor } from "@/components/category-icons";
 import { expandRecurringForDateRange } from "@/lib/projection";
 import {
   deleteTransaction,
@@ -18,6 +19,7 @@ const ROW_ACTIONS_WIDTH = 136;
 
 function SwipeableTransactionRow({
   t,
+  category,
   isOpen,
   onOpen,
   onClose,
@@ -25,6 +27,7 @@ function SwipeableTransactionRow({
   onEdit,
 }: {
   t: Transaction;
+  category?: Category | null;
   isOpen: boolean;
   onOpen: () => void;
   onClose: () => void;
@@ -52,7 +55,17 @@ function SwipeableTransactionRow({
         }}
       >
         <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5">
-          {t.amount > 0 ? (
+          {category ? (
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              style={{ background: getCategoryColor(category.icon) }}
+            >
+              <CategoryIcon
+                iconName={category.icon}
+                className="h-4 w-4 text-white"
+              />
+            </div>
+          ) : t.amount > 0 ? (
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/20">
               <DollarSign className="h-4 w-4 text-white" />
             </div>
@@ -155,6 +168,7 @@ export default function TransactionsPage() {
   const router = useRouter();
   const { mutate } = useSWRConfig();
   const { data } = useSWR("transactions", fetchTransactions);
+  const { data: categories = [] } = useSWR("categories", fetchCategories);
   const [openedRowId, setOpenedRowId] = useState<string | null>(null);
 
   const transactionsList: Transaction[] = useMemo(() => {
@@ -174,6 +188,7 @@ export default function TransactionsPage() {
       label: row.label,
       amount: Number(row.amount),
       date: row.date,
+      category_id: row.category_id ?? null,
     }));
 
     const rules = (data.recurringRules ?? []).map((r) => ({
@@ -183,6 +198,7 @@ export default function TransactionsPage() {
       amount: Number(r.amount),
       label: r.label,
       frequency: r.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+      category_id: r.category_id ?? null,
     }));
 
     const expanded = expandRecurringForDateRange(
@@ -262,6 +278,11 @@ export default function TransactionsPage() {
                 <SwipeableTransactionRow
                   key={t.id}
                   t={t}
+                  category={
+                    t.category_id
+                      ? categories.find((c) => c.id === t.category_id) ?? null
+                      : null
+                  }
                   isOpen={openedRowId === t.id}
                   onOpen={() => setOpenedRowId(t.id)}
                   onClose={() => setOpenedRowId(null)}

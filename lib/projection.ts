@@ -127,8 +127,8 @@ export function expandRecurringForDateRange(
   startDate: string,
   endDate: string,
   exceptions?: RecurringException[],
-): { id: string; label: string; amount: number; date: string; recurring: true }[] {
-  const result: { id: string; label: string; amount: number; date: string; recurring: true }[] = [];
+): { id: string; label: string; amount: number; date: string; recurring: true; category_id: string | null }[] {
+  const result: { id: string; label: string; amount: number; date: string; recurring: true; category_id: string | null }[] = [];
   const end = parseISO(endDate);
   for (const rule of rules) {
     let cursor = parseISO(rule.start_date);
@@ -155,6 +155,7 @@ export function expandRecurringForDateRange(
           amount,
           date: d,
           recurring: true,
+          category_id: rule.category_id ?? null,
         });
       }
       cursor = addFrequency(cursor, rule.frequency);
@@ -167,7 +168,7 @@ export function expandRecurringForDateRange(
  * Returns transactions for a single date from month data (one-time + expanded recurring).
  */
 export function getTransactionsForDate(
-  monthTransactions: { id: string; label: string; amount: number; date: string }[],
+  monthTransactions: { id: string; label: string; amount: number; date: string; category_id?: string | null }[],
   recurringRules: RecurringRule[],
   firstDayOfMonth: string,
   lastDayOfMonth: string,
@@ -180,6 +181,7 @@ export function getTransactionsForDate(
     amount: t.amount,
     date: t.date,
     recurring: false as const,
+    category_id: t.category_id ?? null,
   }));
   const expanded = expandRecurringForDateRange(
     recurringRules,
@@ -198,5 +200,6 @@ export function getTransactionsForDate(
       amount: t.amount,
       date: t.date,
       recurring: t.recurring ?? false,
+      category_id: t.category_id ?? null,
     }));
 }
