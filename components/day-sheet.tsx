@@ -36,7 +36,7 @@ import {
   DrawerFooter,
   DrawerClose,
 } from "@/components/ui/drawer";
-import { CategoryIcon } from "@/components/category-icons";
+import { CategoryIcon, getCategoryColor } from "@/components/category-icons";
 import { fetchCategories } from "@/lib/api";
 import {
   deleteTransaction,
@@ -243,10 +243,8 @@ export function DayTransactionsContent({
                 >
                   {category ? (
                     <div
-                      className={cn(
-                        "flex h-9 w-9 items-center justify-center rounded-xl",
-                        t.amount > 0 ? "bg-white/20" : "bg-white/10",
-                      )}
+                      className="flex h-9 w-9 items-center justify-center rounded-xl"
+                      style={{ background: getCategoryColor(category.icon) }}
                     >
                       <CategoryIcon
                         iconName={category.icon}

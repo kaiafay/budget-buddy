@@ -91,6 +91,54 @@ const CATEGORY_ICON_MAP: Record<string, LucideIcon> = {
 
 const FALLBACK_ICON = Tag;
 
+const CATEGORY_COLORS: Record<string, string> = {
+  Baby: "rgba(251, 191, 209, 0.35)",
+  Banknote: "rgba(134, 239, 172, 0.35)",
+  Bike: "rgba(125, 211, 252, 0.35)",
+  Book: "rgba(196, 181, 253, 0.35)",
+  Briefcase: "rgba(148, 163, 184, 0.35)",
+  Bus: "rgba(103, 232, 249, 0.35)",
+  Car: "rgba(253, 186, 116, 0.35)",
+  Cat: "rgba(249, 168, 212, 0.35)",
+  Coffee: "rgba(217, 119, 6, 0.35)",
+  CreditCard: "rgba(99, 102, 241, 0.35)",
+  DollarSign: "rgba(52, 211, 153, 0.35)",
+  Dog: "rgba(251, 146, 60, 0.35)",
+  FileText: "rgba(148, 163, 184, 0.35)",
+  Film: "rgba(167, 139, 250, 0.35)",
+  Fuel: "rgba(234, 179, 8, 0.35)",
+  Gamepad2: "rgba(139, 92, 246, 0.35)",
+  Gift: "rgba(244, 114, 182, 0.35)",
+  GraduationCap: "rgba(96, 165, 250, 0.35)",
+  HandCoins: "rgba(74, 222, 128, 0.35)",
+  Heart: "rgba(248, 113, 113, 0.35)",
+  Home: "rgba(129, 140, 248, 0.35)",
+  Laptop: "rgba(94, 234, 212, 0.35)",
+  Music: "rgba(192, 132, 252, 0.35)",
+  Package: "rgba(180, 160, 120, 0.35)",
+  Phone: "rgba(52, 211, 153, 0.35)",
+  PiggyBank: "rgba(251, 191, 36, 0.35)",
+  Plane: "rgba(56, 189, 248, 0.35)",
+  Receipt: "rgba(148, 163, 184, 0.35)",
+  Shirt: "rgba(249, 115, 22, 0.35)",
+  Shield: "rgba(99, 102, 241, 0.35)",
+  ShoppingBag: "rgba(236, 72, 153, 0.35)",
+  ShoppingCart: "rgba(251, 146, 60, 0.35)",
+  Stethoscope: "rgba(248, 113, 113, 0.35)",
+  Tag: "rgba(167, 167, 230, 0.35)",
+  Ticket: "rgba(196, 181, 253, 0.35)",
+  Train: "rgba(103, 232, 249, 0.35)",
+  Users: "rgba(129, 140, 248, 0.35)",
+  UtensilsCrossed: "rgba(251, 191, 36, 0.35)",
+  Wallet: "rgba(99, 102, 241, 0.35)",
+  Wifi: "rgba(56, 189, 248, 0.35)",
+  Zap: "rgba(234, 179, 8, 0.35)",
+};
+
+export function getCategoryColor(iconName: string): string {
+  return CATEGORY_COLORS[iconName] ?? "rgba(148, 163, 184, 0.35)";
+}
+
 export function CategoryIcon({
   iconName,
   className,
@@ -103,5 +151,5 @@ export function CategoryIcon({
 }
 
 export const ALLOWED_CATEGORY_ICON_NAMES = Object.keys(
-  CATEGORY_ICON_MAP
+  CATEGORY_ICON_MAP,
 ).sort() as readonly string[];

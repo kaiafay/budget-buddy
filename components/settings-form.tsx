@@ -36,6 +36,7 @@ import {
 import {
   CategoryIcon,
   ALLOWED_CATEGORY_ICON_NAMES,
+  getCategoryColor,
 } from "@/components/category-icons";
 import { fetchCategories, fetchCategoryUsageCount } from "@/lib/api";
 import {
@@ -288,7 +289,10 @@ export default function SettingsForm({
                 key={cat.id}
                 className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5"
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: getCategoryColor(cat.icon) }}
+                >
                   <CategoryIcon
                     iconName={cat.icon}
                     className="h-4 w-4 text-white/80"
