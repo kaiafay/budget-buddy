@@ -35,9 +35,14 @@ function SwipeableTransactionRow({
     onSwipedLeft: onOpen,
     onSwipedRight: onClose,
     preventScrollOnSwipe: true,
+    trackMouse: true,
   });
   return (
-    <div className="relative overflow-hidden rounded-xl" ref={swipeable.ref}>
+    <div
+        className="relative overflow-hidden rounded-xl"
+        ref={swipeable.ref}
+        onMouseDown={swipeable.onMouseDown}
+      >
       <div
         className="relative flex items-center transition-transform duration-200 ease-out"
         style={{

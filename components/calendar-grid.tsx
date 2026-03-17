@@ -52,6 +52,7 @@ export function CalendarGrid({
     onSwipedLeft: onNextMonth,
     onSwipedRight: onPrevMonth,
     preventScrollOnSwipe: true,
+    trackMouse: true,
   });
 
   function handleDayClick(day: number) {
@@ -60,7 +61,7 @@ export function CalendarGrid({
   }
 
   return (
-    <div ref={swipeable.ref}>
+    <div ref={swipeable.ref} onMouseDown={swipeable.onMouseDown}>
       {/* Month header */}
       <div
         className={cn(
