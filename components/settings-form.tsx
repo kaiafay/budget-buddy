@@ -139,43 +139,43 @@ export default function SettingsForm({
       </div>
 
       <div className="page-enter-4 flex flex-col gap-2">
-      {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      )}
-      {saved && (
-        <p className="text-sm text-green-600" role="status">
-          Settings saved
-        </p>
-      )}
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+        {saved && (
+          <p className="text-sm text-green-600" role="status">
+            Settings saved
+          </p>
+        )}
 
-      <Button
-        type="submit"
-        className="h-11 rounded-xl border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
-      >
-        {saved ? "Saved!" : "Save Changes"}
-      </Button>
-
-      <div className="pt-4">
-        <button
-          type="button"
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-medium text-white/70 transition-colors hover:bg-secondary hover:text-foreground"
-          onClick={async () => {
-            const supabase = createClient();
-            const { error: signOutError } = await supabase.auth.signOut();
-            if (signOutError) return;
-            mutate("transactions");
-            mutate(
-              `calendar-month-${new Date().getMonth() + 1}-${new Date().getFullYear()}`,
-            );
-            router.push("/login");
-          }}
+        <Button
+          type="submit"
+          className="h-11 border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
-          <LogOut className="h-4 w-4" />
-          Sign out
-        </button>
-      </div>
+          {saved ? "Saved!" : "Save Changes"}
+        </Button>
+
+        <div className="pt-4">
+          <button
+            type="button"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-medium text-white/70 transition-colors hover:bg-secondary hover:text-foreground"
+            onClick={async () => {
+              const supabase = createClient();
+              const { error: signOutError } = await supabase.auth.signOut();
+              if (signOutError) return;
+              mutate("transactions");
+              mutate(
+                `calendar-month-${new Date().getMonth() + 1}-${new Date().getFullYear()}`,
+              );
+              router.push("/login");
+            }}
+          >
+            <LogOut className="h-4 w-4" />
+            Sign out
+          </button>
+        </div>
       </div>
     </form>
   );

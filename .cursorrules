@@ -88,7 +88,13 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 
 ## Component Rules
 
-- Never modify files in components/ui/ — those are shadcn primitives
+components/ui/ contains shadcn primitives that you own and can modify.
+
+- Edit components/ui/ directly for global changes that should affect all usages (e.g. adding tap states to all buttons)
+- Use className overrides at the usage site for context-specific styling (e.g. white text only on glass backgrounds)
+- Always add a comment when editing a shadcn component so changes are easy to identify if the component is ever re-added via shadcn CLI
+- Never make broad changes to components/ui/ without explicit instruction — always review diffs carefully
+
 - Icons: always use lucide-react
 - Amount display: always use Math.abs(amount) for display, determine +/- from sign of amount
 - Amounts are already signed in the DB (negative = expense) — never store type/category
