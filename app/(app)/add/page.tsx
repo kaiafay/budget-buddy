@@ -349,9 +349,10 @@ function AddTransactionPage() {
               }
             >
               <SelectTrigger
-                className="h-11 min-h-[2.75rem] w-full justify-start rounded-xl border-white/20 bg-white/10 text-left font-normal text-white data-[placeholder]:text-white placeholder:text-white/40"
+                data-no-category={categoryId == null}
+                className="h-11 w-full rounded-xl border-white/20 bg-white/10 text-white [&_[data-slot=select-value]_span]:text-white [&_[data-slot=select-value]_svg]:text-white/70 data-[no-category=true]:[&_[data-slot=select-value]_span]:text-white/40 [&>svg]:hidden"
               >
-                <SelectValue placeholder="No category" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent className="text-popover-foreground">
                 <SelectItem value={NO_CATEGORY_VALUE}>
