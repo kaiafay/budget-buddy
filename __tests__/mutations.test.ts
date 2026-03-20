@@ -400,6 +400,62 @@ describe("updateRecurringSegmentInPlace", () => {
       "2025-03-01",
     );
   });
+
+  it("updates start_date when newStartDate differs and uses min date for exception cleanup pivot", async () => {
+    const result = await updateRecurringSegmentInPlace("rule-1", {
+      label: "X",
+      amount: -1,
+      frequency: "monthly",
+      newStartDate: "2025-03-15",
+    });
+    expect(result.error).toBeNull();
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "X",
+        start_date: "2025-03-15",
+      }),
+    );
+    expect(mockExceptionDeleteGte).toHaveBeenCalledWith(
+      "exception_date",
+      "2025-03-01",
+    );
+  });
+
+  it("uses earlier newStartDate in exception cleanup pivot when moving start backward", async () => {
+    const laterStart: RuleRow = {
+      ...rule,
+      start_date: "2025-03-10",
+    };
+    const rr = recurringRulesFromHandlers({
+      fullSelectRules: [laterStart],
+      chainIds: ["rule-1", "rule-2"],
+      idSelectModes: ["chain"],
+    });
+    fromTableHandler = (table: string) => {
+      if (table === "recurring_exceptions") {
+        return { delete: mockExceptionDelete };
+      }
+      if (table === "recurring_rules") {
+        return rr;
+      }
+      return {};
+    };
+
+    const result = await updateRecurringSegmentInPlace("rule-1", {
+      label: "X",
+      amount: -1,
+      frequency: "monthly",
+      newStartDate: "2025-03-01",
+    });
+    expect(result.error).toBeNull();
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ start_date: "2025-03-01" }),
+    );
+    expect(mockExceptionDeleteGte).toHaveBeenCalledWith(
+      "exception_date",
+      "2025-03-01",
+    );
+  });
 });
 
 describe("splitRecurringRuleAtDate", () => {
@@ -439,6 +495,53 @@ describe("splitRecurringRuleAtDate", () => {
     });
     expect(result.error).not.toBeNull();
     expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("inserts new segment with newStartDate as start_date when it differs from occurrenceDate", async () => {
+    const splitRule: RuleRow = {
+      id: "rule-1",
+      start_date: "2025-01-01",
+      end_date: null,
+      root_rule_id: null,
+      account_id: "acc-123",
+      category_id: "cat-1",
+    };
+    const rr = recurringRulesFromHandlers({
+      fullSelectRules: [splitRule],
+      existingAtPivot: null,
+      chainIds: ["rule-1"],
+      nextSegment: null,
+      idSelectModes: ["existing", "chain"],
+    });
+    fromTableHandler = (table: string) => {
+      if (table === "recurring_exceptions") {
+        return { delete: mockExceptionDelete };
+      }
+      if (table === "recurring_rules") {
+        return rr;
+      }
+      return {};
+    };
+
+    const result = await splitRecurringRuleAtDate("rule-1", "2025-02-15", {
+      label: "Rent",
+      amount: -25,
+      frequency: "monthly",
+      newStartDate: "2025-02-20",
+    });
+
+    expect(result.error).toBeNull();
+    expect(mockUpdate).toHaveBeenCalledWith({ end_date: "2025-02-14" });
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        start_date: "2025-02-20",
+        label: "Rent",
+      }),
+    );
+    expect(mockExceptionDeleteGte).toHaveBeenCalledWith(
+      "exception_date",
+      "2025-02-15",
+    );
   });
 });
 

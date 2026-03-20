@@ -1,4 +1,4 @@
-import { addDays, format, parseISO, subDays } from "date-fns";
+import { addDays, format, min, parseISO, subDays } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 
 export async function deleteTransaction(
@@ -272,6 +272,7 @@ export type RecurringSegmentPayload = {
   amount: number;
   frequency: "weekly" | "biweekly" | "monthly" | "yearly";
   category_id?: string | null;
+  newStartDate?: string | null;
 };
 
 export async function updateRecurringSegmentInPlace(
@@ -307,12 +308,20 @@ export async function updateRecurringSegmentInPlace(
     amount: number;
     frequency: string;
     category_id?: string | null;
+    start_date?: string;
   } = {
     label: payload.label,
     amount: payload.amount,
     frequency: payload.frequency,
   };
   if (categoryId !== undefined) updateRow.category_id = categoryId;
+
+  const normalizedNewStart = payload.newStartDate
+    ? normalizeRuleDate(payload.newStartDate)
+    : null;
+  if (normalizedNewStart && normalizedNewStart !== rule.start_date) {
+    updateRow.start_date = normalizedNewStart;
+  }
 
   const { error: updateError } = await supabase
     .from("recurring_rules")
@@ -321,11 +330,19 @@ export async function updateRecurringSegmentInPlace(
     .eq("user_id", user.id);
   if (updateError) return { error: updateError };
 
+  const exceptionPivot =
+    normalizedNewStart && normalizedNewStart !== rule.start_date
+      ? format(
+          min([parseISO(rule.start_date), parseISO(normalizedNewStart)]),
+          "yyyy-MM-dd",
+        )
+      : rule.start_date;
+
   return deleteModifiedExceptionsFromChain(
     supabase,
     user.id,
     chainRuleIds,
-    rule.start_date,
+    exceptionPivot,
   );
 }
 
@@ -404,13 +421,17 @@ export async function splitRecurringRuleAtDate(
     payload.category_id !== undefined ? payload.category_id : rule.category_id;
   const newRootRuleId = rule.root_rule_id ?? ruleId;
 
+  const segmentStartDate = normalizeRuleDate(
+    payload.newStartDate ?? occurrence,
+  );
+
   const { error: insertError } = await supabase.from("recurring_rules").insert({
     user_id: user.id,
     account_id: rule.account_id,
     label: payload.label,
     amount: payload.amount,
     frequency: payload.frequency,
-    start_date: occurrence,
+    start_date: segmentStartDate,
     end_date: newRuleEndDate,
     root_rule_id: newRootRuleId,
     category_id: newRuleCategoryId ?? null,

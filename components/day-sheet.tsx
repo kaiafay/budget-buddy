@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/drawer";
 import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dialog";
 import { CategoryIcon, getCategoryColor } from "@/components/category-icons";
-import { fetchCategories } from "@/lib/api";
+import { fetchCategories, fetchNextChainSegment } from "@/lib/api";
 import {
   deleteTransaction,
   skipRecurringOccurrence,
@@ -94,11 +94,17 @@ export function DayTransactionsContent({
   const NO_CATEGORY_VALUE = "__none__";
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
+  const [nextSegmentDate, setNextSegmentDate] = useState<string | null>(null);
+  const [nextSegmentLoading, setNextSegmentLoading] = useState(false);
+  const [editOccurrenceDate, setEditOccurrenceDate] = useState<string | null>(
+    null,
+  );
   const [pendingEditPayload, setPendingEditPayload] = useState<{
     label: string;
     amount: number;
     frequency: "weekly" | "biweekly" | "monthly" | "yearly";
     category_id: string | null;
+    newStartDate: string;
     ruleId: string;
     occurrenceDate: string;
   } | null>(null);
@@ -125,10 +131,19 @@ export function DayTransactionsContent({
     setEditType(t.amount >= 0 ? "income" : "expense");
     setEditDate(parseISO(t.date));
     setEditCategoryId(t.category_id ?? null);
+    setNextSegmentDate(null);
     if (t.recurring) {
-      const { ruleId } = getRecurringRuleIdAndDate(t.id);
+      const { ruleId, date: occDate } = getRecurringRuleIdAndDate(t.id);
+      setEditOccurrenceDate(occDate);
+      setNextSegmentLoading(true);
+      void fetchNextChainSegment(ruleId, occDate)
+        .then(setNextSegmentDate)
+        .finally(() => setNextSegmentLoading(false));
       const rule = recurringRules.find((r) => r.id === ruleId);
       setEditFrequency(rule?.frequency ?? "monthly");
+    } else {
+      setEditOccurrenceDate(null);
+      setNextSegmentLoading(false);
     }
     setDrawerOpen(true);
   }
@@ -139,6 +154,9 @@ export function DayTransactionsContent({
     setDrawerMode("actions");
     setScopeDialogOpen(false);
     setPendingEditPayload(null);
+    setNextSegmentDate(null);
+    setNextSegmentLoading(false);
+    setEditOccurrenceDate(null);
   }
 
   async function handleSkipOccurrence() {
@@ -204,6 +222,7 @@ export function DayTransactionsContent({
         amount: finalAmount,
         frequency: editFrequency,
         category_id: editCategoryId,
+        newStartDate: dateStr,
         ruleId,
         occurrenceDate,
       });
@@ -252,6 +271,7 @@ export function DayTransactionsContent({
           amount: p.amount,
           frequency: p.frequency,
           category_id: p.category_id,
+          newStartDate: p.newStartDate,
         },
       );
       if (error) {
@@ -570,32 +590,42 @@ export function DayTransactionsContent({
                   <Label className="text-sm font-medium text-white/70">
                     Date
                   </Label>
-                  {selectedTransaction.recurring ? (
-                    <div className="flex h-11 items-center rounded-xl border border-white/20 bg-white/10 px-4 text-sm text-white/70">
-                      {editDate ? format(editDate, "MMM d, yyyy") : ""}
-                    </div>
-                  ) : (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-11 w-full justify-start border-white/20 bg-white/10 text-left font-normal text-white"
-                        >
-                          {editDate
-                            ? format(editDate, "MMM d, yyyy")
-                            : "Pick a date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={editDate}
-                          onSelect={setEditDate}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  )}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 w-full justify-start border-white/20 bg-white/10 text-left font-normal text-white"
+                      >
+                        {editDate
+                          ? format(editDate, "MMM d, yyyy")
+                          : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={editDate}
+                        onSelect={setEditDate}
+                        disabled={
+                          nextSegmentLoading
+                            ? () => true
+                            : selectedTransaction.recurring
+                              ? (d) => {
+                                  const ds = format(d, "yyyy-MM-dd");
+                                  const tooEarly =
+                                    editOccurrenceDate != null &&
+                                    ds < editOccurrenceDate;
+                                  const tooLate = nextSegmentDate
+                                    ? ds >= nextSegmentDate
+                                    : false;
+                                  return tooEarly || tooLate;
+                                }
+                              : undefined
+                        }
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 {editError && (
                   <p className="text-sm text-destructive" role="alert">
