@@ -36,6 +36,7 @@ import {
   DrawerFooter,
   DrawerClose,
 } from "@/components/ui/drawer";
+import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dialog";
 import { CategoryIcon, getCategoryColor } from "@/components/category-icons";
 import { fetchCategories } from "@/lib/api";
 import {
@@ -43,7 +44,8 @@ import {
   skipRecurringOccurrence,
   endRecurringRuleFuture,
   updateTransaction,
-  updateRecurringRuleFromDate,
+  applyRecurringEditFromDate,
+  upsertModifiedRecurringException,
 } from "@/lib/transactions-mutations";
 import type { Transaction, RecurringRule } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -91,6 +93,15 @@ export function DayTransactionsContent({
   >("monthly");
   const NO_CATEGORY_VALUE = "__none__";
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
+  const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
+  const [pendingEditPayload, setPendingEditPayload] = useState<{
+    label: string;
+    amount: number;
+    frequency: "weekly" | "biweekly" | "monthly" | "yearly";
+    category_id: string | null;
+    ruleId: string;
+    occurrenceDate: string;
+  } | null>(null);
 
   const { data: categories = [] } = useSWR("categories", fetchCategories);
   const sortedCategories = useMemo(() => {
@@ -126,6 +137,8 @@ export function DayTransactionsContent({
     setDrawerOpen(false);
     setSelectedTransaction(null);
     setDrawerMode("actions");
+    setScopeDialogOpen(false);
+    setPendingEditPayload(null);
   }
 
   async function handleSkipOccurrence() {
@@ -186,14 +199,44 @@ export function DayTransactionsContent({
       const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
         selectedTransaction.id,
       );
-      const { error } = await updateRecurringRuleFromDate(
+      setPendingEditPayload({
+        label: editLabel.trim(),
+        amount: finalAmount,
+        frequency: editFrequency,
+        category_id: editCategoryId,
         ruleId,
         occurrenceDate,
+      });
+      setScopeDialogOpen(true);
+      return;
+    }
+
+    const { error } = await updateTransaction(selectedTransaction.id, {
+      label: editLabel.trim(),
+      amount: finalAmount,
+      date: dateStr,
+      category_id: editCategoryId,
+    });
+    if (error) {
+      setEditError(error.message);
+      return;
+    }
+    onMutate();
+    closeDrawer();
+  }
+
+  async function confirmRecurringScope(scope: "once" | "fromDate") {
+    if (!pendingEditPayload) return;
+    setEditError(null);
+    const p = pendingEditPayload;
+    if (scope === "once") {
+      const { error } = await upsertModifiedRecurringException(
+        p.ruleId,
+        p.occurrenceDate,
         {
-          label: editLabel.trim(),
-          amount: finalAmount,
-          frequency: editFrequency,
-          category_id: editCategoryId,
+          label: p.label,
+          amount: p.amount,
+          category_id: p.category_id,
         },
       );
       if (error) {
@@ -201,17 +244,23 @@ export function DayTransactionsContent({
         return;
       }
     } else {
-      const { error } = await updateTransaction(selectedTransaction.id, {
-        label: editLabel.trim(),
-        amount: finalAmount,
-        date: dateStr,
-        category_id: editCategoryId,
-      });
+      const { error } = await applyRecurringEditFromDate(
+        p.ruleId,
+        p.occurrenceDate,
+        {
+          label: p.label,
+          amount: p.amount,
+          frequency: p.frequency,
+          category_id: p.category_id,
+        },
+      );
       if (error) {
         setEditError(error.message);
         return;
       }
     }
+    setScopeDialogOpen(false);
+    setPendingEditPayload(null);
     onMutate();
     closeDrawer();
   }
@@ -320,6 +369,17 @@ export function DayTransactionsContent({
           Add transaction
         </Link>
       </Button>
+
+      <RecurringEditScopeDialog
+        open={scopeDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setScopeDialogOpen(false);
+            setPendingEditPayload(null);
+          }
+        }}
+        onSelectScope={confirmRecurringScope}
+      />
 
       <Drawer open={drawerOpen} onOpenChange={(open) => !open && closeDrawer()}>
         <DrawerContent

@@ -149,13 +149,17 @@ export function expandRecurringForDateRange(
           ex?.type === "modified" && ex.modified_label != null
             ? ex.modified_label
             : rule.label;
+        const categoryId =
+          ex?.type === "modified"
+            ? (ex.category_id ?? rule.category_id ?? null)
+            : (rule.category_id ?? null);
         result.push({
           id: `${rule.id}-${d}`,
           label,
           amount,
           date: d,
           recurring: true,
-          category_id: rule.category_id ?? null,
+          category_id: categoryId,
         });
       }
       cursor = addFrequency(cursor, rule.frequency);

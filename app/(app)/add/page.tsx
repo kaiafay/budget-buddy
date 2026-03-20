@@ -13,8 +13,9 @@ import {
   createTransaction,
   createRecurringRule,
   updateTransaction,
-  updateRecurringRuleFromDate,
+  applyRecurringEditFromDate,
   endRecurringRuleFuture,
+  upsertModifiedRecurringException,
 } from "@/lib/transactions-mutations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dialog";
 import { cn } from "@/lib/utils";
 
 function getInitialDate(
@@ -70,6 +72,14 @@ function AddTransactionPage() {
   const [noAccount, setNoAccount] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(!!isEditMode);
+  const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
+  const [pendingRecurringEdit, setPendingRecurringEdit] = useState<{
+    label: string;
+    amount: number;
+    frequency: "weekly" | "biweekly" | "monthly" | "yearly";
+    category_id: string | null;
+    occurrenceDate: string;
+  } | null>(null);
 
   const { data: categories = [] } = useSWR("categories", fetchCategories);
   const sortedCategories = useMemo(() => {
@@ -171,28 +181,21 @@ function AddTransactionPage() {
     }
 
     if (isEditMode && editRuleId) {
-      const occurrenceDate = date
-        ? format(date, "yyyy-MM-dd")
-        : format(new Date(), "yyyy-MM-dd");
-      const { error: updateError } = await updateRecurringRuleFromDate(
-        editRuleId,
+      const dateFromParams = searchParams.get("date");
+      const occurrenceDate =
+        dateFromParams && dateFromParams.length >= 10
+          ? dateFromParams.slice(0, 10)
+          : date
+            ? format(date, "yyyy-MM-dd")
+            : format(new Date(), "yyyy-MM-dd");
+      setPendingRecurringEdit({
+        label: label.trim(),
+        amount: finalAmount,
+        frequency: frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+        category_id: categoryId,
         occurrenceDate,
-        {
-          label: label.trim(),
-          amount: finalAmount,
-          frequency: frequency as "weekly" | "biweekly" | "monthly" | "yearly",
-          category_id: categoryId,
-        },
-      );
-      if (updateError) {
-        setError(updateError.message);
-        return;
-      }
-      const currentMonth = date.getMonth() + 1;
-      const currentYear = date.getFullYear();
-      mutate(`calendar-month-${currentMonth}-${currentYear}`);
-      mutate("transactions");
-      router.back();
+      });
+      setScopeDialogOpen(true);
       return;
     }
 
@@ -250,6 +253,49 @@ function AddTransactionPage() {
     router.back();
   }
 
+  async function confirmRecurringEditScope(scope: "once" | "fromDate") {
+    if (!editRuleId || !pendingRecurringEdit) return;
+    setError(null);
+    const p = pendingRecurringEdit;
+    if (scope === "once") {
+      const { error: upsertError } = await upsertModifiedRecurringException(
+        editRuleId,
+        p.occurrenceDate,
+        {
+          label: p.label,
+          amount: p.amount,
+          category_id: p.category_id,
+        },
+      );
+      if (upsertError) {
+        setError(upsertError.message);
+        return;
+      }
+    } else {
+      const { error: updateError } = await applyRecurringEditFromDate(
+        editRuleId,
+        p.occurrenceDate,
+        {
+          label: p.label,
+          amount: p.amount,
+          frequency: p.frequency,
+          category_id: p.category_id,
+        },
+      );
+      if (updateError) {
+        setError(updateError.message);
+        return;
+      }
+    }
+    setScopeDialogOpen(false);
+    setPendingRecurringEdit(null);
+    const currentMonth = (date ?? new Date()).getMonth() + 1;
+    const currentYear = (date ?? new Date()).getFullYear();
+    mutate(`calendar-month-${currentMonth}-${currentYear}`);
+    mutate("transactions");
+    router.back();
+  }
+
   return (
     <div className="flex flex-col pb-6">
       {/* Header */}
@@ -265,6 +311,17 @@ function AddTransactionPage() {
           {isEditMode ? "Edit Transaction" : "Add Transaction"}
         </h1>
       </header>
+
+      <RecurringEditScopeDialog
+        open={scopeDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setScopeDialogOpen(false);
+            setPendingRecurringEdit(null);
+          }
+        }}
+        onSelectScope={confirmRecurringEditScope}
+      />
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 px-5 pb-8">
         <div className="page-enter-2 flex flex-col gap-5">

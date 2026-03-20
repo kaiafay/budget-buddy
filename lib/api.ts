@@ -51,12 +51,14 @@ export async function fetchCalendarData(
         .order("date", { ascending: true }),
       supabase
         .from("recurring_rules")
-        .select("id, start_date, end_date, amount, label, frequency, category_id")
+        .select(
+          "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id",
+        )
         .eq("user_id", user.id),
       supabase
         .from("recurring_exceptions")
         .select(
-          "id, rule_id, exception_date, type, modified_amount, modified_label",
+          "id, rule_id, exception_date, type, modified_amount, modified_label, category_id",
         )
         .eq("user_id", user.id),
     ]);
@@ -97,12 +99,14 @@ export async function fetchTransactions(): Promise<{
       .order("date", { ascending: false }),
     supabase
       .from("recurring_rules")
-      .select("id, start_date, end_date, amount, label, frequency, category_id")
+      .select(
+        "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id",
+      )
       .eq("user_id", user.id),
     supabase
       .from("recurring_exceptions")
       .select(
-        "id, rule_id, exception_date, type, modified_amount, modified_label",
+        "id, rule_id, exception_date, type, modified_amount, modified_label, category_id",
       )
       .eq("user_id", user.id),
   ]);
@@ -194,7 +198,9 @@ export async function fetchRecurringRule(
   if (!user) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("recurring_rules")
-    .select("id, label, amount, frequency, start_date, end_date, category_id")
+    .select(
+      "id, label, amount, frequency, start_date, end_date, category_id, root_rule_id",
+    )
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -210,6 +216,7 @@ export async function fetchRecurringRule(
     start_date: data.start_date,
     end_date: data.end_date ?? null,
     category_id: data.category_id ?? null,
+    root_rule_id: data.root_rule_id ?? null,
   } as RecurringRule;
 }
 
