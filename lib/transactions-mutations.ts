@@ -1,4 +1,4 @@
-import { format, parseISO, subDays } from "date-fns";
+import { addDays, format, min, parseISO, subDays } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 
 export async function deleteTransaction(
@@ -35,6 +35,39 @@ export async function skipRecurringOccurrence(
     },
     { onConflict: "rule_id,exception_date" },
   );
+  return { error: error ?? null };
+}
+
+export async function upsertModifiedRecurringException(
+  ruleId: string,
+  exceptionDate: string,
+  payload: { label: string; amount: number; category_id?: string | null },
+): Promise<{ error: Error | null }> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+  const row: {
+    user_id: string;
+    rule_id: string;
+    exception_date: string;
+    type: string;
+    modified_amount: number;
+    modified_label: string;
+    category_id: string | null;
+  } = {
+    user_id: user.id,
+    rule_id: ruleId,
+    exception_date: exceptionDate,
+    type: "modified",
+    modified_amount: payload.amount,
+    modified_label: payload.label,
+    category_id: payload.category_id ?? null,
+  };
+  const { error } = await supabase.from("recurring_exceptions").upsert(row, {
+    onConflict: "rule_id,exception_date",
+  });
   return { error: error ?? null };
 }
 
@@ -116,7 +149,8 @@ export async function createRecurringRule(payload: {
     start_date: payload.startDate,
   };
   if (payload.category_id !== undefined) row.category_id = payload.category_id;
-  const { error } = await supabase.from("recurring_rules").insert(row);
+  const insertRow = { ...row, root_rule_id: null as string | null };
+  const { error } = await supabase.from("recurring_rules").insert(insertRow);
   return { error: error ?? null };
 }
 
@@ -153,80 +187,292 @@ export async function updateTransaction(
   return { error: error ?? null };
 }
 
-export async function updateRecurringRule(
+type RuleForEdit = {
+  id: string;
+  start_date: string;
+  root_rule_id: string | null;
+  account_id: string;
+  category_id: string | null;
+};
+
+const RULE_EDIT_SELECT =
+  "id, start_date, root_rule_id, account_id, category_id";
+
+function chainOrFilter(rootId: string): string {
+  return `id.eq.${rootId},root_rule_id.eq.${rootId}`;
+}
+
+function normalizeRuleDate(value: string): string {
+  return String(value).slice(0, 10);
+}
+
+async function fetchRuleForEdit(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
   ruleId: string,
-  payload: {
-    label: string;
-    amount: number;
-    frequency?: "weekly" | "biweekly" | "monthly" | "yearly";
-  },
-): Promise<{ error: Error | null }> {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: new Error("Not authenticated") };
-  const update: {
-    label: string;
-    amount: number;
-    frequency?: "weekly" | "biweekly" | "monthly" | "yearly";
-  } = { label: payload.label, amount: payload.amount };
-  if (payload.frequency !== undefined) update.frequency = payload.frequency;
-  const { error } = await supabase
+): Promise<{ data: RuleForEdit | null; error: Error | null }> {
+  const { data, error } = await supabase
     .from("recurring_rules")
-    .update(update)
+    .select(RULE_EDIT_SELECT)
     .eq("id", ruleId)
-    .eq("user_id", user.id);
+    .eq("user_id", userId)
+    .single();
+  if (error) return { data: null, error: error ?? null };
+  if (!data) return { data: null, error: null };
+  return {
+    data: {
+      id: data.id,
+      start_date: normalizeRuleDate(data.start_date),
+      root_rule_id: data.root_rule_id ?? null,
+      account_id: data.account_id,
+      category_id: data.category_id ?? null,
+    },
+    error: null,
+  };
+}
+
+function resolveRootId(rule: RuleForEdit): string {
+  return rule.root_rule_id ?? rule.id;
+}
+
+async function getChainRuleIds(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  rootId: string,
+): Promise<{ ids: string[]; error: Error | null }> {
+  const { data, error } = await supabase
+    .from("recurring_rules")
+    .select("id")
+    .eq("user_id", userId)
+    .or(chainOrFilter(rootId));
+  if (error) return { ids: [], error: error ?? null };
+  const ids = (data ?? []).map((r: { id: string }) => r.id);
+  return { ids, error: null };
+}
+
+async function deleteModifiedExceptionsFromChain(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  chainRuleIds: string[],
+  fromDate: string,
+): Promise<{ error: Error | null }> {
+  if (chainRuleIds.length === 0) return { error: null };
+  const { error } = await supabase
+    .from("recurring_exceptions")
+    .delete()
+    .eq("user_id", userId)
+    .eq("type", "modified")
+    .gte("exception_date", fromDate)
+    .in("rule_id", chainRuleIds);
   return { error: error ?? null };
 }
 
-export async function updateRecurringRuleFromDate(
+export type RecurringSegmentPayload = {
+  label: string;
+  amount: number;
+  frequency: "weekly" | "biweekly" | "monthly" | "yearly";
+  category_id?: string | null;
+  newStartDate?: string | null;
+};
+
+export async function updateRecurringSegmentInPlace(
   ruleId: string,
-  occurrenceDate: string,
-  payload: {
-    label: string;
-    amount: number;
-    frequency: "weekly" | "biweekly" | "monthly" | "yearly";
-    category_id?: string | null;
-  },
+  payload: RecurringSegmentPayload,
 ): Promise<{ error: Error | null }> {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: new Error("Not authenticated") };
-  const { data: rule, error: fetchError } = await supabase
-    .from("recurring_rules")
-    .select("account_id, category_id")
-    .eq("id", ruleId)
-    .eq("user_id", user.id)
-    .single();
-  if (fetchError) return { error: fetchError ?? null };
-  if (!rule) return { error: new Error("Rule not found") };
-  const lastDayOldRule = format(
-    subDays(parseISO(occurrenceDate), 1),
-    "yyyy-MM-dd",
+  const { data: rule, error: fetchError } = await fetchRuleForEdit(
+    supabase,
+    user.id,
+    ruleId,
   );
+  if (fetchError) return { error: fetchError };
+  if (!rule) return { error: new Error("Rule not found") };
+
+  const rootId = resolveRootId(rule);
+  const { ids: chainRuleIds, error: chainError } = await getChainRuleIds(
+    supabase,
+    user.id,
+    rootId,
+  );
+  if (chainError) return { error: chainError };
+
+  const categoryId =
+    payload.category_id !== undefined ? payload.category_id : rule.category_id;
+
+  const updateRow: {
+    label: string;
+    amount: number;
+    frequency: string;
+    category_id?: string | null;
+    start_date?: string;
+  } = {
+    label: payload.label,
+    amount: payload.amount,
+    frequency: payload.frequency,
+  };
+  if (categoryId !== undefined) updateRow.category_id = categoryId;
+
+  const normalizedNewStart = payload.newStartDate
+    ? normalizeRuleDate(payload.newStartDate)
+    : null;
+  if (normalizedNewStart && normalizedNewStart !== rule.start_date) {
+    updateRow.start_date = normalizedNewStart;
+  }
+
   const { error: updateError } = await supabase
+    .from("recurring_rules")
+    .update(updateRow)
+    .eq("id", ruleId)
+    .eq("user_id", user.id);
+  if (updateError) return { error: updateError };
+
+  const exceptionPivot =
+    normalizedNewStart && normalizedNewStart !== rule.start_date
+      ? format(
+          min([parseISO(rule.start_date), parseISO(normalizedNewStart)]),
+          "yyyy-MM-dd",
+        )
+      : rule.start_date;
+
+  return deleteModifiedExceptionsFromChain(
+    supabase,
+    user.id,
+    chainRuleIds,
+    exceptionPivot,
+  );
+}
+
+export async function splitRecurringRuleAtDate(
+  ruleId: string,
+  occurrenceDate: string,
+  payload: RecurringSegmentPayload,
+): Promise<{ error: Error | null }> {
+  const occurrence = normalizeRuleDate(occurrenceDate);
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+
+  const { data: rule, error: fetchError } = await fetchRuleForEdit(
+    supabase,
+    user.id,
+    ruleId,
+  );
+  if (fetchError) return { error: fetchError };
+  if (!rule) return { error: new Error("Rule not found") };
+
+  if (occurrence <= rule.start_date) {
+    return { error: new Error("Invalid occurrence date for split") };
+  }
+
+  const rootId = resolveRootId(rule);
+
+  const { data: existingAtDate, error: existingError } = await supabase
+    .from("recurring_rules")
+    .select("id")
+    .eq("user_id", user.id)
+    .or(chainOrFilter(rootId))
+    .eq("start_date", occurrence)
+    .maybeSingle();
+  if (existingError) return { error: existingError };
+  if (existingAtDate?.id) {
+    return updateRecurringSegmentInPlace(existingAtDate.id, payload);
+  }
+
+  const { ids: chainRuleIds, error: chainError } = await getChainRuleIds(
+    supabase,
+    user.id,
+    rootId,
+  );
+  if (chainError) return { error: chainError };
+
+  const lastDayOldRule = format(subDays(parseISO(occurrence), 1), "yyyy-MM-dd");
+  const { error: endError } = await supabase
     .from("recurring_rules")
     .update({ end_date: lastDayOldRule })
     .eq("id", ruleId)
     .eq("user_id", user.id);
-  if (updateError) return { error: updateError ?? null };
+  if (endError) return { error: endError };
+
+  const { data: nextSegment, error: nextError } = await supabase
+    .from("recurring_rules")
+    .select("start_date")
+    .eq("user_id", user.id)
+    .or(chainOrFilter(rootId))
+    .gt("start_date", occurrence)
+    .order("start_date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (nextError) return { error: nextError };
+
+  const nextStart = nextSegment?.start_date
+    ? normalizeRuleDate(String(nextSegment.start_date))
+    : null;
+  const newRuleEndDate = nextStart
+    ? format(addDays(parseISO(nextStart), -1), "yyyy-MM-dd")
+    : null;
+
   const newRuleCategoryId =
-    payload.category_id !== undefined
-      ? payload.category_id
-      : rule.category_id ?? null;
+    payload.category_id !== undefined ? payload.category_id : rule.category_id;
+  const newRootRuleId = rule.root_rule_id ?? ruleId;
+
+  const segmentStartDate = normalizeRuleDate(
+    payload.newStartDate ?? occurrence,
+  );
+
   const { error: insertError } = await supabase.from("recurring_rules").insert({
     user_id: user.id,
     account_id: rule.account_id,
     label: payload.label,
     amount: payload.amount,
     frequency: payload.frequency,
-    start_date: occurrenceDate,
-    category_id: newRuleCategoryId,
+    start_date: segmentStartDate,
+    end_date: newRuleEndDate,
+    root_rule_id: newRootRuleId,
+    category_id: newRuleCategoryId ?? null,
   });
-  return { error: insertError ?? null };
+  if (insertError) return { error: insertError };
+
+  return deleteModifiedExceptionsFromChain(
+    supabase,
+    user.id,
+    chainRuleIds,
+    occurrence,
+  );
+}
+
+export async function applyRecurringEditFromDate(
+  ruleId: string,
+  occurrenceDate: string,
+  payload: RecurringSegmentPayload,
+): Promise<{ error: Error | null }> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+
+  const occurrence = normalizeRuleDate(occurrenceDate);
+  const { data: rule, error: fetchError } = await fetchRuleForEdit(
+    supabase,
+    user.id,
+    ruleId,
+  );
+  if (fetchError) return { error: fetchError };
+  if (!rule) return { error: new Error("Rule not found") };
+
+  if (occurrence === rule.start_date) {
+    return updateRecurringSegmentInPlace(ruleId, payload);
+  }
+  if (occurrence > rule.start_date) {
+    return splitRecurringRuleAtDate(ruleId, occurrence, payload);
+  }
+  return { error: new Error("Occurrence is before this segment start date") };
 }
 
 export async function createCategory(payload: {

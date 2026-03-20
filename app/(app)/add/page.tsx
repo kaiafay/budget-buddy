@@ -7,14 +7,20 @@ import { format, parseISO } from "date-fns";
 import useSWR from "swr";
 import { mutate } from "swr";
 import { createClient } from "@/lib/supabase/client";
-import { fetchTransaction, fetchRecurringRule, fetchCategories } from "@/lib/api";
+import {
+  fetchTransaction,
+  fetchRecurringRule,
+  fetchCategories,
+  fetchNextChainSegment,
+} from "@/lib/api";
 import { CategoryIcon } from "@/components/category-icons";
 import {
   createTransaction,
   createRecurringRule,
   updateTransaction,
-  updateRecurringRuleFromDate,
+  applyRecurringEditFromDate,
   endRecurringRuleFuture,
+  upsertModifiedRecurringException,
 } from "@/lib/transactions-mutations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dialog";
 import { cn } from "@/lib/utils";
 
 function getInitialDate(
@@ -70,6 +77,19 @@ function AddTransactionPage() {
   const [noAccount, setNoAccount] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(!!isEditMode);
+  const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
+  const [nextSegmentDate, setNextSegmentDate] = useState<string | null>(null);
+  const [nextSegmentLoading, setNextSegmentLoading] = useState(false);
+  const [recurringEditOccurrenceDate, setRecurringEditOccurrenceDate] =
+    useState<string | null>(null);
+  const [pendingRecurringEdit, setPendingRecurringEdit] = useState<{
+    label: string;
+    amount: number;
+    frequency: "weekly" | "biweekly" | "monthly" | "yearly";
+    category_id: string | null;
+    occurrenceDate: string;
+    newStartDate: string;
+  } | null>(null);
 
   const { data: categories = [] } = useSWR("categories", fetchCategories);
   const sortedCategories = useMemo(() => {
@@ -102,10 +122,16 @@ function AddTransactionPage() {
 
   useEffect(() => {
     if (!editTxId && !editRuleId) {
+      setNextSegmentDate(null);
+      setNextSegmentLoading(false);
+      setRecurringEditOccurrenceDate(null);
       setEditLoading(false);
       return;
     }
     if (editTxId) {
+      setNextSegmentDate(null);
+      setNextSegmentLoading(false);
+      setRecurringEditOccurrenceDate(null);
       fetchTransaction(editTxId)
         .then((tx) => {
           if (tx) {
@@ -120,6 +146,9 @@ function AddTransactionPage() {
       return;
     }
     if (editRuleId) {
+      setNextSegmentDate(null);
+      setNextSegmentLoading(false);
+      setRecurringEditOccurrenceDate(null);
       fetchRecurringRule(editRuleId)
         .then((rule) => {
           if (rule) {
@@ -127,10 +156,19 @@ function AddTransactionPage() {
             setAmount(Math.abs(rule.amount).toFixed(2));
             setType(rule.amount >= 0 ? "income" : "expense");
             setCategoryId(rule.category_id ?? null);
-            const occurrenceDate = searchParams.get("date");
+            const dateFromParams = searchParams.get("date");
+            const occDate =
+              dateFromParams && dateFromParams.length >= 10
+                ? dateFromParams.slice(0, 10)
+                : String(rule.start_date).slice(0, 10);
+            setRecurringEditOccurrenceDate(occDate);
+            setNextSegmentLoading(true);
+            void fetchNextChainSegment(editRuleId, occDate)
+              .then(setNextSegmentDate)
+              .finally(() => setNextSegmentLoading(false));
             setDate(
-              occurrenceDate
-                ? parseISO(occurrenceDate)
+              dateFromParams
+                ? parseISO(dateFromParams)
                 : parseISO(rule.start_date),
             );
             setRecurring(true);
@@ -139,7 +177,7 @@ function AddTransactionPage() {
         })
         .finally(() => setEditLoading(false));
     }
-  }, [editTxId, editRuleId]);
+  }, [editTxId, editRuleId, searchParams.get("date")]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -171,28 +209,22 @@ function AddTransactionPage() {
     }
 
     if (isEditMode && editRuleId) {
-      const occurrenceDate = date
-        ? format(date, "yyyy-MM-dd")
-        : format(new Date(), "yyyy-MM-dd");
-      const { error: updateError } = await updateRecurringRuleFromDate(
-        editRuleId,
+      const dateFromParams = searchParams.get("date");
+      const occurrenceDate =
+        dateFromParams && dateFromParams.length >= 10
+          ? dateFromParams.slice(0, 10)
+          : date
+            ? format(date, "yyyy-MM-dd")
+            : format(new Date(), "yyyy-MM-dd");
+      setPendingRecurringEdit({
+        label: label.trim(),
+        amount: finalAmount,
+        frequency: frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+        category_id: categoryId,
         occurrenceDate,
-        {
-          label: label.trim(),
-          amount: finalAmount,
-          frequency: frequency as "weekly" | "biweekly" | "monthly" | "yearly",
-          category_id: categoryId,
-        },
-      );
-      if (updateError) {
-        setError(updateError.message);
-        return;
-      }
-      const currentMonth = date.getMonth() + 1;
-      const currentYear = date.getFullYear();
-      mutate(`calendar-month-${currentMonth}-${currentYear}`);
-      mutate("transactions");
-      router.back();
+        newStartDate: dateStr,
+      });
+      setScopeDialogOpen(true);
       return;
     }
 
@@ -232,12 +264,12 @@ function AddTransactionPage() {
   async function handleDeleteAllFuture() {
     if (!editRuleId) return;
     setError(null);
-    const occurrenceDate = date
-      ? format(date, "yyyy-MM-dd")
-      : format(new Date(), "yyyy-MM-dd");
+    const occurrenceAnchor =
+      recurringEditOccurrenceDate ??
+      (date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"));
     const { error: endError } = await endRecurringRuleFuture(
       editRuleId,
-      occurrenceDate,
+      occurrenceAnchor,
     );
     if (endError) {
       setError(endError.message);
@@ -246,6 +278,50 @@ function AddTransactionPage() {
     const currentMonth = date?.getMonth() ?? new Date().getMonth();
     const currentYear = date?.getFullYear() ?? new Date().getFullYear();
     mutate(`calendar-month-${currentMonth + 1}-${currentYear}`);
+    mutate("transactions");
+    router.back();
+  }
+
+  async function confirmRecurringEditScope(scope: "once" | "fromDate") {
+    if (!editRuleId || !pendingRecurringEdit) return;
+    setError(null);
+    const p = pendingRecurringEdit;
+    if (scope === "once") {
+      const { error: upsertError } = await upsertModifiedRecurringException(
+        editRuleId,
+        p.occurrenceDate,
+        {
+          label: p.label,
+          amount: p.amount,
+          category_id: p.category_id,
+        },
+      );
+      if (upsertError) {
+        setError(upsertError.message);
+        return;
+      }
+    } else {
+      const { error: updateError } = await applyRecurringEditFromDate(
+        editRuleId,
+        p.occurrenceDate,
+        {
+          label: p.label,
+          amount: p.amount,
+          frequency: p.frequency,
+          category_id: p.category_id,
+          newStartDate: p.newStartDate,
+        },
+      );
+      if (updateError) {
+        setError(updateError.message);
+        return;
+      }
+    }
+    setScopeDialogOpen(false);
+    setPendingRecurringEdit(null);
+    const currentMonth = (date ?? new Date()).getMonth() + 1;
+    const currentYear = (date ?? new Date()).getFullYear();
+    mutate(`calendar-month-${currentMonth}-${currentYear}`);
     mutate("transactions");
     router.back();
   }
@@ -265,6 +341,17 @@ function AddTransactionPage() {
           {isEditMode ? "Edit Transaction" : "Add Transaction"}
         </h1>
       </header>
+
+      <RecurringEditScopeDialog
+        open={scopeDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setScopeDialogOpen(false);
+            setPendingRecurringEdit(null);
+          }
+        }}
+        onSelectScope={confirmRecurringEditScope}
+      />
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 px-5 pb-8">
         <div className="page-enter-2 flex flex-col gap-5">
@@ -395,6 +482,22 @@ function AddTransactionPage() {
                   selected={date}
                   onSelect={setDate}
                   initialFocus
+                  disabled={
+                    nextSegmentLoading
+                      ? () => true
+                      : editRuleId
+                        ? (d) => {
+                            const ds = format(d, "yyyy-MM-dd");
+                            const tooEarly =
+                              recurringEditOccurrenceDate != null &&
+                              ds < recurringEditOccurrenceDate;
+                            const tooLate = nextSegmentDate
+                              ? ds >= nextSegmentDate
+                              : false;
+                            return tooEarly || tooLate;
+                          }
+                        : undefined
+                  }
                 />
               </PopoverContent>
             </Popover>

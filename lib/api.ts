@@ -51,12 +51,14 @@ export async function fetchCalendarData(
         .order("date", { ascending: true }),
       supabase
         .from("recurring_rules")
-        .select("id, start_date, end_date, amount, label, frequency, category_id")
+        .select(
+          "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id",
+        )
         .eq("user_id", user.id),
       supabase
         .from("recurring_exceptions")
         .select(
-          "id, rule_id, exception_date, type, modified_amount, modified_label",
+          "id, rule_id, exception_date, type, modified_amount, modified_label, category_id",
         )
         .eq("user_id", user.id),
     ]);
@@ -97,12 +99,14 @@ export async function fetchTransactions(): Promise<{
       .order("date", { ascending: false }),
     supabase
       .from("recurring_rules")
-      .select("id, start_date, end_date, amount, label, frequency, category_id")
+      .select(
+        "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id",
+      )
       .eq("user_id", user.id),
     supabase
       .from("recurring_exceptions")
       .select(
-        "id, rule_id, exception_date, type, modified_amount, modified_label",
+        "id, rule_id, exception_date, type, modified_amount, modified_label, category_id",
       )
       .eq("user_id", user.id),
   ]);
@@ -118,7 +122,11 @@ export async function fetchTransactions(): Promise<{
   };
 }
 
-const DEFAULT_CATEGORIES: { name: string; icon: string; type: "expense" | "income" }[] = [
+const DEFAULT_CATEGORIES: {
+  name: string;
+  icon: string;
+  type: "expense" | "income";
+}[] = [
   { name: "Groceries", icon: "ShoppingCart", type: "expense" },
   { name: "Food & Dining", icon: "UtensilsCrossed", type: "expense" },
   { name: "Transport", icon: "Car", type: "expense" },
@@ -165,7 +173,13 @@ export async function fetchCategories(): Promise<Category[]> {
 
 export async function fetchTransaction(
   id: string,
-): Promise<{ id: string; label: string; amount: number; date: string; category_id: string | null } | null> {
+): Promise<{
+  id: string;
+  label: string;
+  amount: number;
+  date: string;
+  category_id: string | null;
+} | null> {
   const supabase = createClient();
   const {
     data: { user },
@@ -181,7 +195,13 @@ export async function fetchTransaction(
     if (error.code === "PGRST116") return null;
     throw new Error(error.message);
   }
-  return data as { id: string; label: string; amount: number; date: string; category_id: string | null };
+  return data as {
+    id: string;
+    label: string;
+    amount: number;
+    date: string;
+    category_id: string | null;
+  };
 }
 
 export async function fetchRecurringRule(
@@ -194,7 +214,9 @@ export async function fetchRecurringRule(
   if (!user) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("recurring_rules")
-    .select("id, label, amount, frequency, start_date, end_date, category_id")
+    .select(
+      "id, label, amount, frequency, start_date, end_date, category_id, root_rule_id",
+    )
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
@@ -210,7 +232,50 @@ export async function fetchRecurringRule(
     start_date: data.start_date,
     end_date: data.end_date ?? null,
     category_id: data.category_id ?? null,
+    root_rule_id: data.root_rule_id ?? null,
   } as RecurringRule;
+}
+
+function normalizeRuleDateKey(value: string): string {
+  return String(value).slice(0, 10);
+}
+
+export async function fetchNextChainSegment(
+  ruleId: string,
+  occurrenceDate: string,
+): Promise<string | null> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const occ = normalizeRuleDateKey(occurrenceDate);
+
+  const { data: rule, error: ruleError } = await supabase
+    .from("recurring_rules")
+    .select("root_rule_id")
+    .eq("id", ruleId)
+    .eq("user_id", user.id)
+    .single();
+  if (ruleError || !rule) return null;
+
+  const rootId = rule.root_rule_id ?? ruleId;
+
+  const { data: next, error: nextError } = await supabase
+    .from("recurring_rules")
+    .select("start_date")
+    .eq("user_id", user.id)
+    .or(`id.eq.${rootId},root_rule_id.eq.${rootId}`)
+    .gt("start_date", occ)
+    .order("start_date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (nextError) return null;
+
+  return next?.start_date
+    ? normalizeRuleDateKey(String(next.start_date))
+    : null;
 }
 
 export async function fetchCategoryUsageCount(

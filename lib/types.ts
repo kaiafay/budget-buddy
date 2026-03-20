@@ -22,6 +22,7 @@ export type RecurringRule = {
   start_date: string;
   end_date?: string | null;
   category_id?: string | null;
+  root_rule_id?: string | null;
 };
 
 export type RecurringException = {
@@ -31,6 +32,7 @@ export type RecurringException = {
   type: "skip" | "modified";
   modified_amount?: number | null;
   modified_label?: string | null;
+  category_id?: string | null;
 };
 
 export type Account = {

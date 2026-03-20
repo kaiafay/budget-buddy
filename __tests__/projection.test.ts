@@ -449,6 +449,66 @@ describe("expandRecurringForDateRange", () => {
     expect(result[0].amount).toBe(-550);
     expect(result[0].label).toBe("Rent (increased)");
   });
+
+  it("modified exception category_id overrides rule category_id", () => {
+    const result = expandRecurringForDateRange(
+      [
+        {
+          id: "r1",
+          label: "Rent",
+          amount: -500,
+          frequency: "monthly",
+          start_date: "2026-03-01",
+          category_id: "cat-original",
+        },
+      ],
+      "2026-03-01",
+      "2026-03-31",
+      [
+        {
+          id: "e1",
+          rule_id: "r1",
+          exception_date: "2026-03-01",
+          type: "modified",
+          modified_amount: -550,
+          modified_label: "Rent modified",
+          category_id: "cat-override",
+        },
+      ],
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].category_id).toBe("cat-override");
+  });
+
+  it("modified exception with null category_id falls back to rule category_id", () => {
+    const result = expandRecurringForDateRange(
+      [
+        {
+          id: "r1",
+          label: "Rent",
+          amount: -500,
+          frequency: "monthly",
+          start_date: "2026-03-01",
+          category_id: "cat-original",
+        },
+      ],
+      "2026-03-01",
+      "2026-03-31",
+      [
+        {
+          id: "e1",
+          rule_id: "r1",
+          exception_date: "2026-03-01",
+          type: "modified",
+          modified_amount: -550,
+          modified_label: "Rent modified",
+          category_id: null,
+        },
+      ],
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].category_id).toBe("cat-original");
+  });
 });
 
 describe("sumRecurringBeforeDate", () => {

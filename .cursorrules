@@ -46,7 +46,10 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - frequency: text (weekly | biweekly | monthly | yearly)
 - start_date: date (format: yyyy-MM-dd)
 - end_date: date (nullable)
+- root_rule_id: uuid (nullable, references recurring_rules — root row has null; split segments point at the chain root id)
 - created_at: timestamptz
+
+Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root_id`. Query all segments with `id = rootId OR root_rule_id = rootId`, ordered by `start_date`.
 
 ### recurring_exceptions
 
@@ -57,6 +60,7 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - type: text ('skip' | 'modified')
 - modified_amount: numeric (nullable — only used when type = 'modified')
 - modified_label: text (nullable — only used when type = 'modified')
+- category_id: uuid (nullable, references categories — optional override for type = 'modified')
 - created_at: timestamptz
 
 ## Supabase Client Usage
@@ -107,12 +111,12 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - app/(app)/ — protected app pages (calendar, transactions, add, settings)
 - app/login/ — public auth page
 - components/ — shared components
-- components/ui/ — shadcn primitives (do not edit)
+- components/ui/ — shadcn primitives (edit directly for global changes, see Component Rules)
 - lib/supabase/ — Supabase client helpers
 - lib/api.ts — SWR data fetching (fetchCalendarData, fetchTransactions)
 - lib/types.ts — shared TypeScript types (Transaction, RecurringRule, RecurringException, Account, GroupedTransactions)
 - lib/projection.ts — balance projection engine
-- lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, updateRecurringRule, updateRecurringRuleFromDate)
+- lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, createTransaction, createRecurringRule, upsertModifiedRecurringException, applyRecurringEditFromDate, updateRecurringSegmentInPlace, splitRecurringRuleAtDate)
 - proxy.ts — auth middleware (Next.js 16); redirects unauthenticated users to /login, authenticated users away from /login
 
 ## Key Rules
@@ -122,7 +126,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - Always handle the case where a user has no account yet
 - Keep prompts surgical — only change what's asked, nothing else
 - Never revert the SWR data fetching pattern back to server-side fetching
-- Recurring rule edits always use updateRecurringRuleFromDate — never updateRecurringRule directly from UI. This ensures past occurrences are preserved and only future ones are updated
+- Recurring rule edits from the calendar/add flow always use applyRecurringEditFromDate — never call recurring rule mutations directly from UI. This preserves past occurrences via segment split/in-place updates and chain-wide modified-exception cleanup
 - Swipe gestures use react-swipeable with preventScrollOnSwipe: true — always include this to avoid conflicting with vertical scroll
 - Recurring transaction synthetic id format: `${ruleId}-${date}` — parse with id.slice(0, -11) for ruleId and id.slice(-10) for date
 - recurring_exceptions with type 'skip' are used to hide individual occurrences — never use a cancelling transaction for this purpose
