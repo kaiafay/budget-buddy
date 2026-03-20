@@ -6,6 +6,7 @@ import {
   splitRecurringRuleAtDate,
   skipRecurringOccurrence,
   upsertModifiedRecurringException,
+  moveRecurringOccurrence,
   endRecurringRuleFuture,
   createCategory,
   updateCategory,
@@ -710,6 +711,119 @@ describe("skipRecurringOccurrence", () => {
     mockUpsert.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await skipRecurringOccurrence("rule-1", "2025-02-15");
     expect(result.error).not.toBeNull();
+  });
+});
+
+describe("moveRecurringOccurrence", () => {
+  const mockTxSingle = vi.fn();
+  const mockTxSelect = vi.fn(() => ({ single: mockTxSingle }));
+  const mockTxInsert = vi.fn(() => ({ select: mockTxSelect }));
+  const mockTxDeleteEq2 = vi.fn();
+  const mockTxDeleteEq1 = vi.fn(() => ({ eq: mockTxDeleteEq2 }));
+  const mockTxDelete = vi.fn(() => ({ eq: mockTxDeleteEq1 }));
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpsert.mockResolvedValue({ error: null });
+    mockTxSingle.mockResolvedValue({
+      data: { id: "tx-new" },
+      error: null,
+    });
+    mockTxDeleteEq2.mockResolvedValue({ error: null });
+    mockTxDeleteEq1.mockReturnValue({ eq: mockTxDeleteEq2 });
+    mockTxDelete.mockReturnValue({ eq: mockTxDeleteEq1 });
+    fromTableHandler = (table: string) => {
+      if (table === "transactions") {
+        return { insert: mockTxInsert, delete: mockTxDelete };
+      }
+      if (table === "recurring_exceptions") {
+        return { upsert: mockUpsert };
+      }
+      return {};
+    };
+  });
+
+  it("when date unchanged calls upsert modified only, not insert or skip path on transactions", async () => {
+    const result = await moveRecurringOccurrence({
+      ruleId: "rule-1",
+      originalOccurrenceDate: "2025-03-01",
+      targetDate: "2025-03-01",
+      accountId: "acc-1",
+      label: "Adjusted",
+      amount: -10,
+      category_id: "cat-x",
+    });
+    expect(result.error).toBeNull();
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rule_id: "rule-1",
+        exception_date: "2025-03-01",
+        type: "modified",
+        modified_label: "Adjusted",
+        modified_amount: -10,
+        category_id: "cat-x",
+      }),
+      { onConflict: "rule_id,exception_date" },
+    );
+    expect(mockTxInsert).not.toHaveBeenCalled();
+  });
+
+  it("when date changed inserts transaction then skips occurrence", async () => {
+    const result = await moveRecurringOccurrence({
+      ruleId: "rule-1",
+      originalOccurrenceDate: "2025-03-01",
+      targetDate: "2025-03-05",
+      accountId: "acc-1",
+      label: "Moved",
+      amount: -20,
+      category_id: null,
+    });
+    expect(result.error).toBeNull();
+    expect(mockTxInsert).toHaveBeenCalled();
+    expect(mockTxSelect).toHaveBeenCalledWith("id");
+    expect(mockTxSingle).toHaveBeenCalled();
+    expect(mockUpsert).toHaveBeenCalledWith(
+      {
+        user_id: "user-1",
+        rule_id: "rule-1",
+        exception_date: "2025-03-01",
+        type: "skip",
+      },
+      { onConflict: "rule_id,exception_date" },
+    );
+    expect(mockTxDelete).not.toHaveBeenCalled();
+  });
+
+  it("when date changed and skip fails rolls back by deleting new transaction", async () => {
+    mockUpsert.mockResolvedValueOnce({ error: { message: "skip failed" } });
+    const result = await moveRecurringOccurrence({
+      ruleId: "rule-1",
+      originalOccurrenceDate: "2025-03-01",
+      targetDate: "2025-03-05",
+      accountId: "acc-1",
+      label: "Moved",
+      amount: -20,
+    });
+    expect(result.error?.message).toBe("skip failed");
+    expect(mockTxDeleteEq1).toHaveBeenCalledWith("id", "tx-new");
+    expect(mockTxDeleteEq2).toHaveBeenCalledWith("user_id", "user-1");
+  });
+
+  it("when date changed and insert fails returns error without calling skip", async () => {
+    mockTxSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: "insert failed" },
+    });
+    const result = await moveRecurringOccurrence({
+      ruleId: "rule-1",
+      originalOccurrenceDate: "2025-03-01",
+      targetDate: "2025-03-05",
+      accountId: "acc-1",
+      label: "Moved",
+      amount: -20,
+    });
+    expect(result.error?.message).toBe("insert failed");
+    expect(mockUpsert).not.toHaveBeenCalled();
   });
 });
 

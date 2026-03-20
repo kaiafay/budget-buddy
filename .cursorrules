@@ -135,7 +135,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - lib/api.ts — SWR data fetching (fetchCalendarData, fetchTransactions)
 - lib/types.ts — shared TypeScript types (Transaction, RecurringRule, RecurringException, Account, GroupedTransactions, Category)
 - lib/projection.ts — balance projection engine
-- lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, createTransaction, createRecurringRule, upsertModifiedRecurringException, applyRecurringEditFromDate, updateRecurringSegmentInPlace, splitRecurringRuleAtDate, createCategory, updateCategory, deleteCategory)
+- lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, createTransaction, createRecurringRule, upsertModifiedRecurringException, moveRecurringOccurrence, applyRecurringEditFromDate, updateRecurringSegmentInPlace, splitRecurringRuleAtDate, createCategory, updateCategory, deleteCategory)
 - proxy.ts — auth middleware (Next.js 16); redirects unauthenticated users to /login, authenticated users away from /login
 
 ## Key Rules
@@ -145,8 +145,8 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - Always handle the case where a user has no account yet
 - Keep prompts surgical — only change what's asked, nothing else
 - Never revert the SWR data fetching pattern back to server-side fetching
-- Recurring "this and all future" edits always use applyRecurringEditFromDate. "Just this occurrence" uses upsertModifiedRecurringException. Skip uses skipRecurringOccurrence. End uses endRecurringRuleFuture. Never call splitRecurringRuleAtDate or updateRecurringSegmentInPlace directly from UI.
-- "Just this occurrence" date change is not supported — the occurrence date is fixed. Only label, amount, and category can be changed for a single occurrence via upsertModifiedRecurringException.
+- Recurring "this and all future" edits always use applyRecurringEditFromDate. "Just this occurrence" with unchanged date uses upsertModifiedRecurringException (via moveRecurringOccurrence). With changed date use moveRecurringOccurrence (skip original + one-time on new date). Skip uses skipRecurringOccurrence. End uses endRecurringRuleFuture. Never call splitRecurringRuleAtDate or updateRecurringSegmentInPlace directly from UI.
+- "Just this occurrence" with unchanged date → upsertModifiedRecurringException. With changed date → moveRecurringOccurrence (skip original + create one-time on new date). Deleting the one-time transaction later does NOT restore the original occurrence — the skip exception remains.
 - deleteCategory relies on DB-level FK behavior (ON DELETE SET NULL) to null out category_id references on transactions and recurring_rules. Verify this is configured in Supabase if categories are deletable.
 - Swipe gestures use react-swipeable with preventScrollOnSwipe: true — always include this to avoid conflicting with vertical scroll
 - Recurring transaction synthetic id format: `${ruleId}-${date}` — parse with id.slice(0, -11) for ruleId and id.slice(-10) for date

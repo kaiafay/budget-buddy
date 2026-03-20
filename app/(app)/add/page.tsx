@@ -20,7 +20,7 @@ import {
   updateTransaction,
   applyRecurringEditFromDate,
   endRecurringRuleFuture,
-  upsertModifiedRecurringException,
+  moveRecurringOccurrence,
 } from "@/lib/transactions-mutations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -294,17 +294,17 @@ function AddTransactionPage() {
     setError(null);
     const p = pendingRecurringEdit;
     if (scope === "once") {
-      const { error: upsertError } = await upsertModifiedRecurringException(
-        editRuleId,
-        p.occurrenceDate,
-        {
-          label: p.label,
-          amount: p.amount,
-          category_id: p.category_id,
-        },
-      );
-      if (upsertError) {
-        setError(upsertError.message);
+      const { error: moveError } = await moveRecurringOccurrence({
+        ruleId: editRuleId,
+        originalOccurrenceDate: p.occurrenceDate,
+        targetDate: p.newStartDate ?? p.occurrenceDate,
+        accountId: accountId ?? "",
+        label: p.label,
+        amount: p.amount,
+        category_id: p.category_id,
+      });
+      if (moveError) {
+        setError(moveError.message);
         return;
       }
     } else {
