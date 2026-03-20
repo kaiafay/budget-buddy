@@ -34,6 +34,7 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - label: text
 - amount: numeric (negative for expenses, positive for income)
 - date: date (format: yyyy-MM-dd)
+- category_id: uuid (nullable, references categories)
 - created_at: timestamptz
 
 ### recurring_rules
@@ -47,6 +48,7 @@ A personal budget calendar app called "Budget Buddy". Mobile-first PWA built wit
 - start_date: date (format: yyyy-MM-dd)
 - end_date: date (nullable)
 - root_rule_id: uuid (nullable, references recurring_rules — root row has null; split segments point at the chain root id)
+- category_id: uuid (nullable, references categories)
 - created_at: timestamptz
 
 Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root_id`. Query all segments with `id = rootId OR root_rule_id = rootId`, ordered by `start_date`.
@@ -61,6 +63,15 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 - modified_amount: numeric (nullable — only used when type = 'modified')
 - modified_label: text (nullable — only used when type = 'modified')
 - category_id: uuid (nullable, references categories — optional override for type = 'modified')
+- created_at: timestamptz
+
+### categories
+
+- id: uuid (primary key)
+- user_id: uuid (references auth.users)
+- name: text
+- icon: text (icon name from ALLOWED_CATEGORY_ICON_NAMES in components/category-icons.tsx)
+- type: text ('expense' | 'income')
 - created_at: timestamptz
 
 ## Supabase Client Usage
@@ -79,15 +90,20 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 - Mutations use the Supabase browser client (lib/supabase/client.ts) and call mutate() from SWR after success to invalidate cache
 - mutate() is the primary cache invalidation method — not router.refresh()
 - Auth protection uses proxy.ts (Next.js 16) instead of middleware.ts
-- Mutation helpers live in lib/transactions-mutations.ts — never inline Supabase mutation logic in components
-- After any mutation, always call mutate() on both "transactions" and the current calendar key `calendar-month-${month}-${year}`
+- Transaction and recurring rule mutations live in lib/transactions-mutations.ts — never inline these in components. Account mutations in settings-form.tsx are an exception as settings is a special server-side page.
+- After any mutation, invalidate SWR cache appropriately:
+  - One-time transaction create/update/delete: mutate("transactions") + mutate(`calendar-month-${txMonth}-${txYear}`) for the transaction's month
+  - Recurring rule mutations (edit, skip, delete): mutate("transactions") + invalidate next 12 calendar months via loop
+  - Category mutations: mutate("categories") only
+  - Settings save: mutate("transactions") + mutate(`calendar-month-${now.getMonth()+1}-${now.getFullYear()}`)
 
 ## Design System
 
 - Font: Inter (--font-sans in @theme inline)
 - CSS variables (:root): --background (#f0f4f8), --foreground (#0f172a), --card (#ffffff), --card-foreground (#0f172a), --popover, --popover-foreground, --primary (#4f6bed), --primary-foreground (#ffffff), --secondary (#f1f5f9), --secondary-foreground, --muted (#f1f5f9), --muted-foreground (#64748b), --accent (#eef2ff), --accent-foreground (#4f6bed), --destructive (#dc2626), --destructive-foreground, --success (#16a34a), --success-foreground, --amount-positive (#4ade80), --amount-negative (#e11d48), --border (#e2e8f0), --input, --ring (#4f6bed), --radius (1rem)
+- CSS layout variables: --nav-height (56px), --nav-bottom (0px), --fab-gap (12px)
 - Tailwind color tokens: bg-background, bg-card, text-foreground, text-muted-foreground, text-primary, border-border, etc. (mapped in @theme inline)
-- Glass utilities: .glass, .glass-card (blur); .nav-opaque (solid primary nav); .text-overlay, .amount-text (text shadows on glass); .glass-cell, .glass-cell-today, .glass-cell-negative (calendar cells, no blur on cells)
+- Glass utilities: .glass, .glass-card (blur); .nav-opaque (solid primary nav); .text-overlay, .amount-text (text shadows on glass). Calendar cells use inline Tailwind classes in calendar-grid.tsx — no custom CSS classes
 - Animation classes: .animated-gradient (gradientShift keyframes); .wave-emoji (wave-on-load); .greeting-enter, .account-enter, .balance-card-1/2/3, .calendar-enter, .page-enter-1 through .page-enter-4, .transaction-group-enter (greetingEnter); .calendar-slide-from-left, .calendar-slide-from-right (month-change slide)
 
 ## Component Rules
@@ -101,7 +117,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 
 - Icons: always use lucide-react
 - Amount display: always use Math.abs(amount) for display, determine +/- from sign of amount
-- Amounts are already signed in the DB (negative = expense) — never store type/category
+- Amounts are already signed in the DB (negative = expense) — never store a separate type field. category_id is stored on transactions and recurring_rules.
 - Date format for DB: yyyy-MM-dd (use date-fns format())
 - Date format for display: use date-fns format() with human-readable patterns
 - The FAB lives in app/(app)/layout.tsx and is positioned with bottom-[calc(56px+env(safe-area-inset-bottom,0px)+12px)] — never move it inside a transformed ancestor
@@ -112,11 +128,14 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - app/login/ — public auth page
 - components/ — shared components
 - components/ui/ — shadcn primitives (edit directly for global changes, see Component Rules)
+- components/recurring-edit-scope-dialog.tsx — scope picker dialog for recurring transaction edits (just this / this and future)
+- components/category-icons.tsx — category icon map, getCategoryColor, ALLOWED_CATEGORY_ICON_NAMES
 - lib/supabase/ — Supabase client helpers
+- lib/utils.ts — shared utility functions (cn)
 - lib/api.ts — SWR data fetching (fetchCalendarData, fetchTransactions)
-- lib/types.ts — shared TypeScript types (Transaction, RecurringRule, RecurringException, Account, GroupedTransactions)
+- lib/types.ts — shared TypeScript types (Transaction, RecurringRule, RecurringException, Account, GroupedTransactions, Category)
 - lib/projection.ts — balance projection engine
-- lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, createTransaction, createRecurringRule, upsertModifiedRecurringException, applyRecurringEditFromDate, updateRecurringSegmentInPlace, splitRecurringRuleAtDate)
+- lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, createTransaction, createRecurringRule, upsertModifiedRecurringException, applyRecurringEditFromDate, updateRecurringSegmentInPlace, splitRecurringRuleAtDate, createCategory, updateCategory, deleteCategory)
 - proxy.ts — auth middleware (Next.js 16); redirects unauthenticated users to /login, authenticated users away from /login
 
 ## Key Rules
@@ -126,7 +145,9 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - Always handle the case where a user has no account yet
 - Keep prompts surgical — only change what's asked, nothing else
 - Never revert the SWR data fetching pattern back to server-side fetching
-- Recurring rule edits from the calendar/add flow always use applyRecurringEditFromDate — never call recurring rule mutations directly from UI. This preserves past occurrences via segment split/in-place updates and chain-wide modified-exception cleanup
+- Recurring "this and all future" edits always use applyRecurringEditFromDate. "Just this occurrence" uses upsertModifiedRecurringException. Skip uses skipRecurringOccurrence. End uses endRecurringRuleFuture. Never call splitRecurringRuleAtDate or updateRecurringSegmentInPlace directly from UI.
+- "Just this occurrence" date change is not supported — the occurrence date is fixed. Only label, amount, and category can be changed for a single occurrence via upsertModifiedRecurringException.
+- deleteCategory relies on DB-level FK behavior (ON DELETE SET NULL) to null out category_id references on transactions and recurring_rules. Verify this is configured in Supabase if categories are deletable.
 - Swipe gestures use react-swipeable with preventScrollOnSwipe: true — always include this to avoid conflicting with vertical scroll
 - Recurring transaction synthetic id format: `${ruleId}-${date}` — parse with id.slice(0, -11) for ruleId and id.slice(-10) for date
 - recurring_exceptions with type 'skip' are used to hide individual occurrences — never use a cancelling transaction for this purpose
@@ -176,3 +197,4 @@ These rules apply to every change Cursor makes. No exceptions.
 - Every change should leave the codebase cleaner than before
 - If a refactor requires touching more than 5 files, flag it and list the files before making changes
 - Never silently fix unrelated code while making a targeted change — flag it separately instead
+- After any change that affects the Supabase schema, file structure, exported functions, key behaviors, or design system tokens, update .cursorrules to reflect the change in the same commit. Never let .cursorrules become stale.

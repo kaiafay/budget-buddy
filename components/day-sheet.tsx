@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
-import useSWR from "swr";
+import useSWR, { mutate } from "swr";
 import {
   Plus,
   DollarSign,
@@ -57,6 +57,15 @@ function getRecurringRuleIdAndDate(id: string): {
   const date = id.slice(-10);
   const ruleId = id.slice(0, -11);
   return { ruleId, date };
+}
+
+function invalidateNext12CalendarMonths() {
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    mutate(`calendar-month-${d.getMonth() + 1}-${d.getFullYear()}`);
+  }
+  mutate("transactions");
 }
 
 export interface DayTransactionsContentProps {
@@ -169,6 +178,7 @@ export function DayTransactionsContent({
       setEditError(error.message);
       return;
     }
+    invalidateNext12CalendarMonths();
     onMutate();
     closeDrawer();
   }
@@ -183,6 +193,7 @@ export function DayTransactionsContent({
       setEditError(error.message);
       return;
     }
+    invalidateNext12CalendarMonths();
     onMutate();
     closeDrawer();
   }
@@ -281,6 +292,7 @@ export function DayTransactionsContent({
     }
     setScopeDialogOpen(false);
     setPendingEditPayload(null);
+    invalidateNext12CalendarMonths();
     onMutate();
     closeDrawer();
   }
@@ -437,7 +449,7 @@ export function DayTransactionsContent({
                       onClick={handleDeleteAllFuture}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
-                      Delete all future occurrences
+                      Delete this and all future occurrences
                     </Button>
                   </>
                 ) : (
@@ -646,7 +658,7 @@ export function DayTransactionsContent({
                       className="h-11"
                       onClick={handleDeleteAllFuture}
                     >
-                      Delete all future occurrences
+                      Delete this and all future occurrences
                     </Button>
                   )}
                   <Button

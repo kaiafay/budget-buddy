@@ -108,7 +108,8 @@ export default function SettingsForm({
       const { error: updateError } = await supabase
         .from("accounts")
         .update({ name: accountName, starting_balance: balance })
-        .eq("id", accountId);
+        .eq("id", accountId)
+        .eq("user_id", user.id);
       if (updateError) {
         setError(updateError.message);
         return;
@@ -129,6 +130,10 @@ export default function SettingsForm({
       }
       if (inserted?.id) setAccountId(inserted.id);
     }
+
+    const now = new Date();
+    mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
+    mutate("transactions");
 
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);

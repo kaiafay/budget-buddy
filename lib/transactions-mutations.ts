@@ -80,9 +80,13 @@ export async function endRecurringRuleFuture(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: new Error("Not authenticated") };
+  const lastDay = format(
+    subDays(parseISO(lastOccurrenceDate), 1),
+    "yyyy-MM-dd",
+  );
   const { error } = await supabase
     .from("recurring_rules")
-    .update({ end_date: lastOccurrenceDate })
+    .update({ end_date: lastDay })
     .eq("id", ruleId)
     .eq("user_id", user.id);
   return { error: error ?? null };

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   applyRecurringEditFromDate,
+  createRecurringRule,
   updateRecurringSegmentInPlace,
   splitRecurringRuleAtDate,
   skipRecurringOccurrence,
@@ -44,7 +45,7 @@ type RuleRow = {
 };
 
 const RULE_EDIT_COLS =
-  "id, start_date, end_date, root_rule_id, account_id, category_id";
+  "id, start_date, root_rule_id, account_id, category_id";
 
 function ruleSelectChain(singleData: RuleRow) {
   return {
@@ -349,6 +350,75 @@ describe("applyRecurringEditFromDate", () => {
         root_rule_id: "rule-A",
       }),
     );
+  });
+
+  describe("occurrence before segment start", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockEq2.mockResolvedValue({ error: null });
+      mockEq1.mockReturnValue({ eq: mockEq2 });
+      mockUpdate.mockReturnValue({ eq: mockEq1 });
+      mockInsert.mockResolvedValue({ error: null });
+      const lateStartRule: RuleRow = {
+        id: "rule-1",
+        start_date: "2026-02-01",
+        end_date: null,
+        root_rule_id: null,
+        account_id: "acc-123",
+        category_id: "cat-1",
+      };
+      const rr = recurringRulesFromHandlers({
+        fullSelectRules: [lateStartRule],
+        chainIds: [],
+        idSelectModes: [],
+      });
+      fromTableHandler = (table: string) => {
+        if (table === "recurring_exceptions") {
+          return { delete: mockExceptionDelete };
+        }
+        if (table === "recurring_rules") {
+          return rr;
+        }
+        return {};
+      };
+    });
+
+    it("returns error when occurrenceDate is before rule start_date", async () => {
+      const result = await applyRecurringEditFromDate(
+        "rule-1",
+        "2026-01-01",
+        { label: "Test", amount: -100, frequency: "monthly" },
+      );
+      expect(result.error).not.toBeNull();
+      expect(result.error?.message).toMatch(/before/i);
+    });
+  });
+});
+
+describe("createRecurringRule", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockInsert.mockResolvedValue({ error: null });
+    fromTableHandler = (table: string) => {
+      if (table === "recurring_rules") {
+        return { insert: mockInsert };
+      }
+      return {};
+    };
+  });
+
+  it("sets root_rule_id to null on new rules", async () => {
+    await createRecurringRule({
+      accountId: "acc-1",
+      label: "Rent",
+      amount: -500,
+      frequency: "monthly",
+      startDate: "2026-01-01",
+    });
+    const insertCall = mockInsert.mock.calls[0][0] as {
+      root_rule_id: string | null;
+    };
+    expect(insertCall.root_rule_id).toBeNull();
   });
 });
 
@@ -657,10 +727,10 @@ describe("endRecurringRuleFuture", () => {
     };
   });
 
-  it("updates recurring_rules with end_date and filters by id and user_id", async () => {
+  it("updates recurring_rules with end_date day before occurrence and filters by id and user_id", async () => {
     const result = await endRecurringRuleFuture("rule-1", "2025-03-15");
     expect(result.error).toBeNull();
-    expect(mockUpdate).toHaveBeenCalledWith({ end_date: "2025-03-15" });
+    expect(mockUpdate).toHaveBeenCalledWith({ end_date: "2025-03-14" });
     expect(mockEq1).toHaveBeenCalledWith("id", "rule-1");
     expect(mockEq2).toHaveBeenCalledWith("user_id", "user-1");
   });

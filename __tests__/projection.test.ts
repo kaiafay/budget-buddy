@@ -229,6 +229,37 @@ describe("getProjectedBalances", () => {
     expect(balances["2026-03-15"]).toBe(1000);
     expect(balances["2026-03-31"]).toBe(1000);
   });
+
+  it("multi-segment chain produces no double counting at segment boundary", () => {
+    const balances = getProjectedBalances(
+      1000,
+      [],
+      [
+        {
+          id: "rule-A",
+          label: "Rent",
+          amount: -100,
+          frequency: "monthly",
+          start_date: "2026-01-01",
+          end_date: "2026-01-31",
+          root_rule_id: null,
+        },
+        {
+          id: "rule-B",
+          label: "Rent",
+          amount: -150,
+          frequency: "monthly",
+          start_date: "2026-02-01",
+          end_date: null,
+          root_rule_id: "rule-A",
+        },
+      ],
+      1,
+      2026,
+    );
+    expect(balances["2026-02-01"]).toBe(850);
+    expect(balances["2026-02-28"]).toBe(850);
+  });
 });
 
 describe("expandRecurringForDateRange", () => {
@@ -638,6 +669,33 @@ describe("sumRecurringBeforeDate", () => {
       ],
     );
     expect(sum).toBe(-350);
+  });
+
+  it("multi-segment chain carry-forward counts each segment only in its active range", () => {
+    const sum = sumRecurringBeforeDate(
+      [
+        {
+          id: "rule-A",
+          label: "Rent",
+          amount: -100,
+          frequency: "monthly",
+          start_date: "2026-01-01",
+          end_date: "2026-01-31",
+          root_rule_id: null,
+        },
+        {
+          id: "rule-B",
+          label: "Rent",
+          amount: -150,
+          frequency: "monthly",
+          start_date: "2026-02-01",
+          end_date: null,
+          root_rule_id: "rule-A",
+        },
+      ],
+      "2026-03-01",
+    );
+    expect(sum).toBe(-250);
   });
 });
 

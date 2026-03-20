@@ -55,6 +55,15 @@ function getInitialDate(
   }
 }
 
+function invalidateNext12CalendarMonths() {
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    mutate(`calendar-month-${d.getMonth() + 1}-${d.getFullYear()}`);
+  }
+  mutate("transactions");
+}
+
 function AddTransactionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -241,6 +250,7 @@ function AddTransactionPage() {
         setError(insertError.message);
         return;
       }
+      invalidateNext12CalendarMonths();
     } else {
       const { error: insertError } = await createTransaction({
         accountId,
@@ -253,11 +263,11 @@ function AddTransactionPage() {
         setError(insertError.message);
         return;
       }
+      const currentMonth = date.getMonth() + 1;
+      const currentYear = date.getFullYear();
+      mutate(`calendar-month-${currentMonth}-${currentYear}`);
+      mutate("transactions");
     }
-    const currentMonth = date.getMonth() + 1;
-    const currentYear = date.getFullYear();
-    mutate(`calendar-month-${currentMonth}-${currentYear}`);
-    mutate("transactions");
     router.back();
   }
 
@@ -275,10 +285,7 @@ function AddTransactionPage() {
       setError(endError.message);
       return;
     }
-    const currentMonth = date?.getMonth() ?? new Date().getMonth();
-    const currentYear = date?.getFullYear() ?? new Date().getFullYear();
-    mutate(`calendar-month-${currentMonth + 1}-${currentYear}`);
-    mutate("transactions");
+    invalidateNext12CalendarMonths();
     router.back();
   }
 
@@ -319,10 +326,7 @@ function AddTransactionPage() {
     }
     setScopeDialogOpen(false);
     setPendingRecurringEdit(null);
-    const currentMonth = (date ?? new Date()).getMonth() + 1;
-    const currentYear = (date ?? new Date()).getFullYear();
-    mutate(`calendar-month-${currentMonth}-${currentYear}`);
-    mutate("transactions");
+    invalidateNext12CalendarMonths();
     router.back();
   }
 
@@ -583,7 +587,7 @@ function AddTransactionPage() {
               className="mt-2 h-12"
               onClick={handleDeleteAllFuture}
             >
-              Delete all future occurrences
+              Delete this and all future occurrences
             </Button>
           )}
         </div>

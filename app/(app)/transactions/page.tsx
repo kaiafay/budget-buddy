@@ -223,20 +223,22 @@ export default function TransactionsPage() {
       const { error } = await skipRecurringOccurrence(ruleId, exceptionDate);
       if (!error) {
         setOpenedRowId(null);
+        const deletedMonth = new Date(t.date).getMonth() + 1;
+        const deletedYear = new Date(t.date).getFullYear();
         const now = new Date();
-        const month = now.getMonth() + 1;
-        const year = now.getFullYear();
-        mutate(`calendar-month-${month}-${year}`);
+        mutate(`calendar-month-${deletedMonth}-${deletedYear}`);
+        mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
         mutate("transactions");
       }
     } else {
       const { error } = await deleteTransaction(t.id);
       if (!error) {
         setOpenedRowId(null);
+        const deletedMonth = new Date(t.date).getMonth() + 1;
+        const deletedYear = new Date(t.date).getFullYear();
         const now = new Date();
-        const month = now.getMonth() + 1;
-        const year = now.getFullYear();
-        mutate(`calendar-month-${month}-${year}`);
+        mutate(`calendar-month-${deletedMonth}-${deletedYear}`);
+        mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
         mutate("transactions");
       }
     }
