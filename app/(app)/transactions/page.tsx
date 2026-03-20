@@ -1,10 +1,18 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { useSwipeable } from "react-swipeable";
-import { DollarSign, ArrowDownLeft, Pencil, Trash2 } from "lucide-react";
+import {
+  DollarSign,
+  ArrowDownLeft,
+  Pencil,
+  Plus,
+  Receipt,
+  Trash2,
+} from "lucide-react";
 import useSWR, { useSWRConfig } from "swr";
 import type { Category, Transaction, GroupedTransactions } from "@/lib/types";
 import { fetchTransactions, fetchCategories } from "@/lib/api";
@@ -14,6 +22,9 @@ import {
   deleteTransaction,
   skipRecurringOccurrence,
 } from "@/lib/transactions-mutations";
+
+const USER_FACING_ERROR =
+  "Something went wrong. Please check your connection and try again.";
 
 const ROW_ACTIONS_WIDTH = 136;
 
@@ -167,9 +178,15 @@ function groupTransactionsByDate(
 export default function TransactionsPage() {
   const router = useRouter();
   const { mutate } = useSWRConfig();
-  const { data } = useSWR("transactions", fetchTransactions);
+  const {
+    data,
+    error: transactionsFetchError,
+    isLoading: transactionsLoading,
+    mutate: revalidateTransactions,
+  } = useSWR("transactions", fetchTransactions);
   const { data: categories = [] } = useSWR("categories", fetchCategories);
   const [openedRowId, setOpenedRowId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const transactionsList: Transaction[] = useMemo(() => {
     if (!data) return [];
@@ -217,30 +234,35 @@ export default function TransactionsPage() {
   );
 
   async function handleDelete(t: Transaction) {
+    setDeleteError(null);
     if (t.recurring) {
       const ruleId = t.id.slice(0, -11);
       const exceptionDate = t.date;
       const { error } = await skipRecurringOccurrence(ruleId, exceptionDate);
-      if (!error) {
-        setOpenedRowId(null);
-        const deletedMonth = new Date(t.date).getMonth() + 1;
-        const deletedYear = new Date(t.date).getFullYear();
-        const now = new Date();
-        mutate(`calendar-month-${deletedMonth}-${deletedYear}`);
-        mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
-        mutate("transactions");
+      if (error) {
+        setDeleteError(USER_FACING_ERROR);
+        return;
       }
+      setOpenedRowId(null);
+      const deletedMonth = new Date(t.date).getMonth() + 1;
+      const deletedYear = new Date(t.date).getFullYear();
+      const now = new Date();
+      mutate(`calendar-month-${deletedMonth}-${deletedYear}`);
+      mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
+      mutate("transactions");
     } else {
       const { error } = await deleteTransaction(t.id);
-      if (!error) {
-        setOpenedRowId(null);
-        const deletedMonth = new Date(t.date).getMonth() + 1;
-        const deletedYear = new Date(t.date).getFullYear();
-        const now = new Date();
-        mutate(`calendar-month-${deletedMonth}-${deletedYear}`);
-        mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
-        mutate("transactions");
+      if (error) {
+        setDeleteError(USER_FACING_ERROR);
+        return;
       }
+      setOpenedRowId(null);
+      const deletedMonth = new Date(t.date).getMonth() + 1;
+      const deletedYear = new Date(t.date).getFullYear();
+      const now = new Date();
+      mutate(`calendar-month-${deletedMonth}-${deletedYear}`);
+      mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
+      mutate("transactions");
     }
   }
 
@@ -262,6 +284,53 @@ export default function TransactionsPage() {
       </header>
 
       <div className="flex flex-col gap-6 px-5 pb-6">
+        {transactionsFetchError && (
+          <div className="rounded-2xl border border-destructive/40 bg-destructive/15 px-4 py-3">
+            <p className="text-sm text-white" role="alert">
+              Couldn&apos;t load transactions. Check your connection and try
+              again.
+            </p>
+            <button
+              type="button"
+              className="mt-2 text-sm font-medium text-white underline underline-offset-2"
+              onClick={() => void revalidateTransactions()}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+        {deleteError && (
+          <p className="text-sm text-destructive" role="alert">
+            {deleteError}
+          </p>
+        )}
+        {transactionsLoading && !data && !transactionsFetchError && (
+          <p className="text-sm text-white/70">Loading…</p>
+        )}
+        {!transactionsLoading &&
+          !transactionsFetchError &&
+          grouped.length === 0 && (
+            <div className="glass-card flex flex-col items-center gap-4 rounded-2xl px-6 py-10 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
+                <Receipt className="h-7 w-7 text-white/80" aria-hidden />
+              </div>
+              <div className="space-y-1">
+                <p className="text-base font-semibold text-white">
+                  No transactions yet
+                </p>
+                <p className="text-sm text-white/70">
+                  When you add income or expenses, they&apos;ll show up here.
+                </p>
+              </div>
+              <Link
+                href="/add"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 active:bg-primary/85"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                Add transaction
+              </Link>
+            </div>
+          )}
         {grouped.map((group, index) => (
           <section
             key={group.date}

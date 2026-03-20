@@ -89,13 +89,15 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 - fetchCalendarData and fetchTransactions are the two main data fetching functions (used with useSWR)
 - Mutations use the Supabase browser client (lib/supabase/client.ts) and call mutate() from SWR after success to invalidate cache
 - mutate() is the primary cache invalidation method — not router.refresh()
-- Auth protection uses proxy.ts (Next.js 16) instead of middleware.ts
+- Auth protection: root `proxy.ts` (Next.js 16 proxy convention — not `middleware.ts`; edge redirects for `/login` vs app routes)
 - Transaction and recurring rule mutations live in lib/transactions-mutations.ts — never inline these in components. Account mutations in settings-form.tsx are an exception as settings is a special server-side page.
 - After any mutation, invalidate SWR cache appropriately:
   - One-time transaction create/update/delete: mutate("transactions") + mutate(`calendar-month-${txMonth}-${txYear}`) for the transaction's month
-  - Recurring rule mutations (edit, skip, delete): mutate("transactions") + invalidate next 12 calendar months via loop
+  - Recurring rule mutations (edit, skip, delete): `invalidateNext12CalendarMonths()` from lib/swr-invalidate.ts (shared with add page); on the calendar home, `DayTransactionsContent` calls `onMutate({ recurringTouch: true })` so the parent also revalidates the visible `calendar-month-*` keys (covers months outside the next-12-from-today window)
   - Category mutations: mutate("categories") only
   - Settings save: mutate("transactions") + mutate(`calendar-month-${now.getMonth()+1}-${now.getFullYear()}`)
+- Home calendar URL (`app/(app)/page.tsx`): optional `?month=` (1–12) and `?year=` (1900–2100); invalid or missing query values fall back to the current month/year
+- Calendar header avatar initials (`components/calendar-view.tsx`): derived from Supabase `user_metadata` name fields (`full_name`, `name`, `display_name`, `preferred_username`) when present; otherwise a neutral placeholder — not from email
 
 ## Design System
 
@@ -133,10 +135,11 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - lib/supabase/ — Supabase client helpers
 - lib/utils.ts — shared utility functions (cn)
 - lib/api.ts — SWR data fetching (fetchCalendarData, fetchTransactions)
+- lib/swr-invalidate.ts — `invalidateNext12CalendarMonths()` for recurring-rule cache invalidation (aligned with add page)
 - lib/types.ts — shared TypeScript types (Transaction, RecurringRule, RecurringException, Account, GroupedTransactions, Category)
 - lib/projection.ts — balance projection engine
 - lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, createTransaction, createRecurringRule, upsertModifiedRecurringException, moveRecurringOccurrence, applyRecurringEditFromDate, updateRecurringSegmentInPlace, splitRecurringRuleAtDate, createCategory, updateCategory, deleteCategory)
-- proxy.ts — auth middleware (Next.js 16); redirects unauthenticated users to /login, authenticated users away from /login
+- proxy.ts — edge auth (Next.js 16 `proxy` file convention); redirects unauthenticated users to /login, authenticated users away from /login
 
 ## Key Rules
 

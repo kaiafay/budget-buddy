@@ -14,6 +14,8 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [mode, setMode] = useState<Mode>("signin");
   const [error, setError] = useState<string | null>(null);
   const [signUpSuccess, setSignUpSuccess] = useState(false);
@@ -38,9 +40,21 @@ export default function LoginPage() {
       return;
     }
 
+    const trimmedFirst = firstName.trim();
+    const trimmedLast = lastName.trim();
+    if (!trimmedFirst || !trimmedLast) {
+      setError("Please enter your first and last name");
+      return;
+    }
+
     const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          full_name: `${trimmedFirst} ${trimmedLast}`,
+        },
+      },
     });
     if (signUpError) {
       setError(signUpError.message);
@@ -53,6 +67,8 @@ export default function LoginPage() {
     setMode((m) => (m === "signin" ? "signup" : "signin"));
     setError(null);
     setSignUpSuccess(false);
+    setFirstName("");
+    setLastName("");
   }
 
   return (
@@ -80,6 +96,47 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          {mode === "signup" && (
+            <>
+              <div className="flex flex-col gap-2">
+                <Label
+                  htmlFor="firstName"
+                  className="text-sm font-medium text-white/70"
+                >
+                  First name
+                </Label>
+                <Input
+                  id="firstName"
+                  type="text"
+                  autoComplete="given-name"
+                  placeholder="First name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label
+                  htmlFor="lastName"
+                  className="text-sm font-medium text-white/70"
+                >
+                  Last name
+                </Label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  autoComplete="family-name"
+                  placeholder="Last name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
+                  required
+                />
+              </div>
+            </>
+          )}
+
           <div className="flex flex-col gap-2">
             <Label
               htmlFor="email"

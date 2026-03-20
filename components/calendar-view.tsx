@@ -7,14 +7,45 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Transaction, RecurringRule } from "@/lib/types";
 import { fetchCalendarData } from "@/lib/api";
+import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
 import {
   getProjectedBalances,
   sumRecurringBeforeDate,
   expandRecurringForDateRange,
   getTransactionsForDate,
 } from "@/lib/projection";
+import { Button } from "@/components/ui/button";
 import { CalendarGrid } from "@/components/calendar-grid";
 import { DayTransactionsContent } from "@/components/day-sheet";
+
+function getUserDisplayInitials(user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+} | null): string {
+  if (!user) return "··";
+  const meta = user.user_metadata ?? {};
+  const pick = (key: string) => {
+    const v = meta[key];
+    return typeof v === "string" && v.trim() ? v.trim() : "";
+  };
+  const name =
+    pick("full_name") ||
+    pick("name") ||
+    pick("display_name") ||
+    pick("preferred_username");
+  if (name) {
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      const a = parts[0]![0];
+      const b = parts[parts.length - 1]![0];
+      if (a && b) return (a + b).toUpperCase();
+    }
+    if (name.length >= 2) return name.slice(0, 2).toUpperCase();
+    const first = name[0];
+    return first ? first.toUpperCase() + "·" : "··";
+  }
+  return "··";
+}
 
 interface CalendarViewProps {
   initialMonth: number;
@@ -37,13 +68,17 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
     createClient()
       .auth.getUser()
       .then(({ data }) => {
-        const email = data.user?.email ?? "";
-        setInitials(email.slice(0, 2).toUpperCase());
+        setInitials(getUserDisplayInitials(data.user));
       });
   }, []);
 
   const { mutate } = useSWRConfig();
-  const { data, isLoading } = useSWR(
+  const {
+    data,
+    isLoading,
+    error: calendarError,
+    mutate: revalidateCalendarMonth,
+  } = useSWR(
     `calendar-month-${month}-${year}`,
     () => fetchCalendarData(month, year),
     { keepPreviousData: true },
@@ -156,7 +191,12 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
   const needDaySheetMonth =
     effectiveDate && (effMonth !== month || effYear !== year);
 
-  const { data: daySheetMonthData, isLoading: daySheetMonthLoading } = useSWR(
+  const {
+    data: daySheetMonthData,
+    isLoading: daySheetMonthLoading,
+    error: daySheetMonthError,
+    mutate: revalidateDaySheetMonth,
+  } = useSWR(
     needDaySheetMonth ? `calendar-month-${effMonth}-${effYear}` : null,
     () => fetchCalendarData(effMonth, effYear),
     { keepPreviousData: true },
@@ -198,7 +238,8 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
     );
   }, [daySheetMonthSource, daySheetRecurringMapped, effectiveDate]);
 
-  const daySheetLoading = needDaySheetMonth && daySheetMonthLoading;
+  const daySheetLoading =
+    needDaySheetMonth && daySheetMonthLoading && !daySheetMonthError;
 
   function onPrevMonth() {
     setSlideDirection("prev");
@@ -237,6 +278,22 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
           {initials}
         </div>
       </header>
+
+      {calendarError && (
+        <div className="page-enter-1 mx-4 mb-3 rounded-2xl border border-destructive/40 bg-destructive/15 px-4 py-3">
+          <p className="text-sm text-white" role="alert">
+            Couldn&apos;t load this month. Check your connection and try again.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-2 h-9 rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20"
+            onClick={() => void revalidateCalendarMonth()}
+          >
+            Try again
+          </Button>
+        </div>
+      )}
 
       {/* Balance hero card */}
       <div className="balance-card-1 px-5 pb-2 pt-1">
@@ -295,12 +352,26 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
             balanceMonth={month}
             onPrevMonth={onPrevMonth}
             onNextMonth={onNextMonth}
-            isLoading={isLoading}
+            isLoading={isLoading && !calendarError}
             selectedDate={selectedDate}
             onSelectedDateChange={setSelectedDate}
           />
         </div>
-        {daySheetLoading ? (
+        {needDaySheetMonth && daySheetMonthError ? (
+          <div className="border-t border-white/20 px-5 pb-6 pt-4">
+            <p className="text-sm text-white/90" role="alert">
+              Couldn&apos;t load transactions for this day.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-2 h-9 rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20"
+              onClick={() => void revalidateDaySheetMonth()}
+            >
+              Try again
+            </Button>
+          </div>
+        ) : daySheetLoading ? (
           <div className="border-t border-white/20 px-5 pb-6 pt-4">
             <p className="text-overlay text-xs text-white/70">Loading…</p>
           </div>
@@ -310,12 +381,20 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
             transactions={daySheetTransactions}
             recurringRules={daySheetRecurringMapped}
             accountId={data?.account?.id ?? null}
-            onMutate={() => {
-              mutate(`calendar-month-${month}-${year}`);
-              if (needDaySheetMonth) {
-                mutate(`calendar-month-${effMonth}-${effYear}`);
+            onMutate={(opts) => {
+              if (opts?.recurringTouch) {
+                invalidateNext12CalendarMonths();
+                mutate(`calendar-month-${month}-${year}`);
+                if (needDaySheetMonth) {
+                  mutate(`calendar-month-${effMonth}-${effYear}`);
+                }
+              } else {
+                mutate(`calendar-month-${month}-${year}`);
+                if (needDaySheetMonth) {
+                  mutate(`calendar-month-${effMonth}-${effYear}`);
+                }
+                mutate("transactions");
               }
-              mutate("transactions");
             }}
           />
         )}

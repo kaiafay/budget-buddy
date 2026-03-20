@@ -84,6 +84,10 @@ export default function SettingsForm({
     transactions: number;
     rules: number;
   } | null>(null);
+  const [categoryDeleteError, setCategoryDeleteError] = useState<string | null>(
+    null,
+  );
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -196,6 +200,7 @@ export default function SettingsForm({
   }
 
   async function requestDeleteCategory(cat: Category) {
+    setCategoryDeleteError(null);
     const count = await fetchCategoryUsageCount(cat.id);
     setDeleteUsageCount(count);
     setCategoryToDelete(cat);
@@ -204,12 +209,15 @@ export default function SettingsForm({
   async function confirmDeleteCategory() {
     const id = categoryToDelete?.id;
     if (!id) return;
+    setCategoryDeleteError(null);
     const { error: err } = await deleteCategory(id);
-    if (!err) {
-      mutate("categories");
-      setCategoryToDelete(null);
-      setDeleteUsageCount(null);
+    if (err) {
+      setCategoryDeleteError(err.message);
+      return;
     }
+    mutate("categories");
+    setCategoryToDelete(null);
+    setDeleteUsageCount(null);
   }
 
   return (
@@ -373,9 +381,13 @@ export default function SettingsForm({
             type="button"
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-medium text-white/70 transition-colors hover:bg-secondary hover:text-foreground"
             onClick={async () => {
+              setSignOutError(null);
               const supabase = createClient();
-              const { error: signOutError } = await supabase.auth.signOut();
-              if (signOutError) return;
+              const { error: signOutErr } = await supabase.auth.signOut();
+              if (signOutErr) {
+                setSignOutError(signOutErr.message);
+                return;
+              }
               mutate("transactions");
               mutate(
                 `calendar-month-${new Date().getMonth() + 1}-${new Date().getFullYear()}`,
@@ -386,6 +398,11 @@ export default function SettingsForm({
             <LogOut className="h-4 w-4" />
             Sign out
           </button>
+          {signOutError && (
+            <p className="text-center text-sm text-destructive" role="alert">
+              {signOutError}
+            </p>
+          )}
         </div>
         <Dialog
           open={categoryDialogOpen}
@@ -495,7 +512,13 @@ export default function SettingsForm({
 
         <AlertDialog
           open={!!categoryToDelete}
-          onOpenChange={(open) => !open && setCategoryToDelete(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setCategoryToDelete(null);
+              setDeleteUsageCount(null);
+              setCategoryDeleteError(null);
+            }
+          }}
         >
           <AlertDialogContent className="border-white/20 bg-card text-card-foreground">
             <AlertDialogHeader>
@@ -516,6 +539,11 @@ export default function SettingsForm({
                 )}
               </AlertDialogDescription>
             </AlertDialogHeader>
+            {categoryDeleteError && (
+              <p className="text-sm text-destructive" role="alert">
+                {categoryDeleteError}
+              </p>
+            )}
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-xl border border-border bg-muted text-foreground hover:bg-muted/80">
                 Cancel

@@ -6,6 +6,7 @@ import { ArrowLeft, CalendarIcon, Repeat } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import useSWR from "swr";
 import { mutate } from "swr";
+import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
 import { createClient } from "@/lib/supabase/client";
 import {
   fetchTransaction,
@@ -42,6 +43,9 @@ import { Switch } from "@/components/ui/switch";
 import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dialog";
 import { cn } from "@/lib/utils";
 
+const USER_FACING_ERROR =
+  "Something went wrong. Please check your connection and try again.";
+
 function getInitialDate(
   searchParams: ReturnType<typeof useSearchParams>,
 ): Date {
@@ -53,15 +57,6 @@ function getInitialDate(
   } catch {
     return new Date();
   }
-}
-
-function invalidateNext12CalendarMonths() {
-  const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    mutate(`calendar-month-${d.getMonth() + 1}-${d.getFullYear()}`);
-  }
-  mutate("transactions");
 }
 
 function AddTransactionPage() {
@@ -85,6 +80,8 @@ function AddTransactionPage() {
   const [accountId, setAccountId] = useState<string | null>(null);
   const [noAccount, setNoAccount] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editLoadError, setEditLoadError] = useState<string | null>(null);
+  const [editRetryKey, setEditRetryKey] = useState(0);
   const [editLoading, setEditLoading] = useState(!!isEditMode);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
   const [nextSegmentDate, setNextSegmentDate] = useState<string | null>(null);
@@ -134,6 +131,8 @@ function AddTransactionPage() {
       setNextSegmentDate(null);
       setNextSegmentLoading(false);
       setRecurringEditOccurrenceDate(null);
+      setEditLoadError(null);
+      setEditRetryKey(0);
       setEditLoading(false);
       return;
     }
@@ -141,16 +140,20 @@ function AddTransactionPage() {
       setNextSegmentDate(null);
       setNextSegmentLoading(false);
       setRecurringEditOccurrenceDate(null);
+      setEditLoadError(null);
       fetchTransaction(editTxId)
         .then((tx) => {
-          if (tx) {
-            setLabel(tx.label);
-            setAmount(Math.abs(Number(tx.amount)).toFixed(2));
-            setType(Number(tx.amount) >= 0 ? "income" : "expense");
-            setCategoryId(tx.category_id ?? null);
-            setDate(parseISO(tx.date));
+          if (!tx) {
+            setEditLoadError("Couldn't find this transaction.");
+            return;
           }
+          setLabel(tx.label);
+          setAmount(Math.abs(Number(tx.amount)).toFixed(2));
+          setType(Number(tx.amount) >= 0 ? "income" : "expense");
+          setCategoryId(tx.category_id ?? null);
+          setDate(parseISO(tx.date));
         })
+        .catch(() => setEditLoadError(USER_FACING_ERROR))
         .finally(() => setEditLoading(false));
       return;
     }
@@ -158,35 +161,40 @@ function AddTransactionPage() {
       setNextSegmentDate(null);
       setNextSegmentLoading(false);
       setRecurringEditOccurrenceDate(null);
+      setEditLoadError(null);
       fetchRecurringRule(editRuleId)
         .then((rule) => {
-          if (rule) {
-            setLabel(rule.label);
-            setAmount(Math.abs(rule.amount).toFixed(2));
-            setType(rule.amount >= 0 ? "income" : "expense");
-            setCategoryId(rule.category_id ?? null);
-            const dateFromParams = searchParams.get("date");
-            const occDate =
-              dateFromParams && dateFromParams.length >= 10
-                ? dateFromParams.slice(0, 10)
-                : String(rule.start_date).slice(0, 10);
-            setRecurringEditOccurrenceDate(occDate);
-            setNextSegmentLoading(true);
-            void fetchNextChainSegment(editRuleId, occDate)
-              .then(setNextSegmentDate)
-              .finally(() => setNextSegmentLoading(false));
-            setDate(
-              dateFromParams
-                ? parseISO(dateFromParams)
-                : parseISO(rule.start_date),
-            );
-            setRecurring(true);
-            setFrequency(rule.frequency);
+          if (!rule) {
+            setEditLoadError("Couldn't find this recurring rule.");
+            return;
           }
+          setLabel(rule.label);
+          setAmount(Math.abs(rule.amount).toFixed(2));
+          setType(rule.amount >= 0 ? "income" : "expense");
+          setCategoryId(rule.category_id ?? null);
+          const dateFromParams = searchParams.get("date");
+          const occDate =
+            dateFromParams && dateFromParams.length >= 10
+              ? dateFromParams.slice(0, 10)
+              : String(rule.start_date).slice(0, 10);
+          setRecurringEditOccurrenceDate(occDate);
+          setNextSegmentLoading(true);
+          void fetchNextChainSegment(editRuleId, occDate)
+            .then(setNextSegmentDate)
+            .catch(() => setNextSegmentDate(null))
+            .finally(() => setNextSegmentLoading(false));
+          setDate(
+            dateFromParams
+              ? parseISO(dateFromParams)
+              : parseISO(rule.start_date),
+          );
+          setRecurring(true);
+          setFrequency(rule.frequency);
         })
+        .catch(() => setEditLoadError(USER_FACING_ERROR))
         .finally(() => setEditLoading(false));
     }
-  }, [editTxId, editRuleId, searchParams.get("date")]);
+  }, [editTxId, editRuleId, searchParams.get("date"), editRetryKey]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -206,7 +214,7 @@ function AddTransactionPage() {
         category_id: categoryId,
       });
       if (updateError) {
-        setError(updateError.message);
+        setError(USER_FACING_ERROR);
         return;
       }
       const currentMonth = date.getMonth() + 1;
@@ -247,7 +255,7 @@ function AddTransactionPage() {
         category_id: categoryId,
       });
       if (insertError) {
-        setError(insertError.message);
+        setError(USER_FACING_ERROR);
         return;
       }
       invalidateNext12CalendarMonths();
@@ -260,7 +268,7 @@ function AddTransactionPage() {
         category_id: categoryId,
       });
       if (insertError) {
-        setError(insertError.message);
+        setError(USER_FACING_ERROR);
         return;
       }
       const currentMonth = date.getMonth() + 1;
@@ -282,7 +290,7 @@ function AddTransactionPage() {
       occurrenceAnchor,
     );
     if (endError) {
-      setError(endError.message);
+      setError(USER_FACING_ERROR);
       return;
     }
     invalidateNext12CalendarMonths();
@@ -304,7 +312,7 @@ function AddTransactionPage() {
         category_id: p.category_id,
       });
       if (moveError) {
-        setError(moveError.message);
+        setError(USER_FACING_ERROR);
         return;
       }
     } else {
@@ -320,7 +328,7 @@ function AddTransactionPage() {
         },
       );
       if (updateError) {
-        setError(updateError.message);
+        setError(USER_FACING_ERROR);
         return;
       }
     }
@@ -557,6 +565,25 @@ function AddTransactionPage() {
             <p className="text-sm text-destructive">
               Please set up your account in Settings first.
             </p>
+          )}
+          {editLoadError && (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-destructive" role="alert">
+                {editLoadError}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20"
+                onClick={() => {
+                  setEditLoadError(null);
+                  setEditLoading(true);
+                  setEditRetryKey((k) => k + 1);
+                }}
+              >
+                Try again
+              </Button>
+            </div>
           )}
           {error && (
             <p className="text-sm text-destructive" role="alert">
