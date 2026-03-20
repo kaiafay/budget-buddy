@@ -45,7 +45,7 @@ import {
   endRecurringRuleFuture,
   updateTransaction,
   applyRecurringEditFromDate,
-  upsertModifiedRecurringException,
+  moveRecurringOccurrence,
 } from "@/lib/transactions-mutations";
 import type { Transaction, RecurringRule } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -73,6 +73,7 @@ export interface DayTransactionsContentProps {
   transactions: Transaction[];
   recurringRules: RecurringRule[];
   onMutate: () => void;
+  accountId: string | null;
 }
 
 /**
@@ -85,6 +86,7 @@ export function DayTransactionsContent({
   transactions,
   recurringRules,
   onMutate,
+  accountId,
 }: DayTransactionsContentProps) {
   const monthDay = format(parseISO(date), "MMMM d");
   const dayTotal = transactions.reduce((sum, t) => sum + t.amount, 0);
@@ -260,15 +262,15 @@ export function DayTransactionsContent({
     setEditError(null);
     const p = pendingEditPayload;
     if (scope === "once") {
-      const { error } = await upsertModifiedRecurringException(
-        p.ruleId,
-        p.occurrenceDate,
-        {
-          label: p.label,
-          amount: p.amount,
-          category_id: p.category_id,
-        },
-      );
+      const { error } = await moveRecurringOccurrence({
+        ruleId: p.ruleId,
+        originalOccurrenceDate: p.occurrenceDate,
+        targetDate: p.newStartDate ?? p.occurrenceDate,
+        accountId: accountId ?? "",
+        label: p.label,
+        amount: p.amount,
+        category_id: p.category_id,
+      });
       if (error) {
         setEditError(error.message);
         return;

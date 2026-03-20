@@ -98,12 +98,12 @@ export async function createTransaction(payload: {
   amount: number;
   date: string;
   category_id?: string | null;
-}): Promise<{ error: Error | null }> {
+}): Promise<{ data: { id: string } | null; error: Error | null }> {
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { error: new Error("Not authenticated") };
+  if (!user) return { data: null, error: new Error("Not authenticated") };
   const row: {
     user_id: string;
     account_id: string;
@@ -119,8 +119,62 @@ export async function createTransaction(payload: {
     date: payload.date,
   };
   if (payload.category_id !== undefined) row.category_id = payload.category_id;
-  const { error } = await supabase.from("transactions").insert(row);
-  return { error: error ?? null };
+  const { data, error } = await supabase
+    .from("transactions")
+    .insert(row)
+    .select("id")
+    .single();
+  if (error) return { data: null, error: error ?? null };
+  if (!data?.id) {
+    return {
+      data: null,
+      error: new Error("Insert succeeded but no id returned"),
+    };
+  }
+  return { data: { id: data.id as string }, error: null };
+}
+
+export async function moveRecurringOccurrence(payload: {
+  ruleId: string;
+  originalOccurrenceDate: string;
+  targetDate: string;
+  accountId: string;
+  label: string;
+  amount: number;
+  category_id?: string | null;
+}): Promise<{ error: Error | null }> {
+  const orig = String(payload.originalOccurrenceDate).slice(0, 10);
+  const target = String(payload.targetDate).slice(0, 10);
+  if (orig === target) {
+    return upsertModifiedRecurringException(payload.ruleId, orig, {
+      label: payload.label,
+      amount: payload.amount,
+      category_id: payload.category_id,
+    });
+  }
+  if (!payload.accountId.trim()) {
+    return { error: new Error("No account found — cannot move occurrence") };
+  }
+  const { data, error: insertError } = await createTransaction({
+    accountId: payload.accountId.trim(),
+    label: payload.label,
+    amount: payload.amount,
+    date: target,
+    category_id: payload.category_id,
+  });
+  if (insertError) return { error: insertError };
+  if (!data?.id) {
+    return { error: new Error("Insert succeeded but no id returned") };
+  }
+  const { error: skipError } = await skipRecurringOccurrence(
+    payload.ruleId,
+    orig,
+  );
+  if (skipError) {
+    await deleteTransaction(data.id);
+    return { error: skipError };
+  }
+  return { error: null };
 }
 
 export async function createRecurringRule(payload: {

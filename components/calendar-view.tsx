@@ -309,6 +309,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
             date={effectiveDate}
             transactions={daySheetTransactions}
             recurringRules={daySheetRecurringMapped}
+            accountId={data?.account?.id ?? null}
             onMutate={() => {
               mutate(`calendar-month-${month}-${year}`);
               if (needDaySheetMonth) {
