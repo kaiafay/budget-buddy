@@ -90,12 +90,12 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 - Mutations use the Supabase browser client (lib/supabase/client.ts) and call mutate() from SWR after success to invalidate cache
 - mutate() is the primary cache invalidation method — not router.refresh()
 - Auth protection: root `proxy.ts` (Next.js 16 proxy convention — not `middleware.ts`; edge redirects for `/login` vs app routes)
-- Transaction and recurring rule mutations live in lib/transactions-mutations.ts — never inline these in components. Account mutations in settings-form.tsx are an exception as settings is a special server-side page.
+- Transaction and recurring rule mutations live in lib/transactions-mutations.ts — never inline these in components. Account mutations in settings-form.tsx are an exception as settings is a special server-side page. Account name and starting balance auto-save (debounced 1s after last change); category CRUD still uses explicit dialog actions.
 - After any mutation, invalidate SWR cache appropriately:
   - One-time transaction create/update/delete: mutate("transactions") + mutate(`calendar-month-${txMonth}-${txYear}`) for the transaction's month
   - Recurring rule mutations (edit, skip, delete): `invalidateNext12CalendarMonths()` from lib/swr-invalidate.ts (shared with add page); on the calendar home, `DayTransactionsContent` calls `onMutate({ recurringTouch: true })` so the parent also revalidates the visible `calendar-month-*` keys (covers months outside the next-12-from-today window)
   - Category mutations: mutate("categories") only
-  - Settings save: mutate("transactions") + mutate(`calendar-month-${now.getMonth()+1}-${now.getFullYear()}`)
+  - Account settings save (auto, debounced): mutate("transactions") + mutate(`calendar-month-${now.getMonth()+1}-${now.getFullYear()}`)
 - Home calendar URL (`app/(app)/page.tsx`): optional `?month=` (1–12) and `?year=` (1900–2100); invalid or missing query values fall back to the current month/year
 - Calendar header avatar initials (`components/calendar-view.tsx`): derived from Supabase `user_metadata` name fields (`full_name`, `name`, `display_name`, `preferred_username`) when present; otherwise a neutral placeholder — not from email
 
