@@ -47,7 +47,7 @@ export default function LoginPage() {
       return;
     }
 
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -59,6 +59,13 @@ export default function LoginPage() {
     if (signUpError) {
       setError(signUpError.message);
       return;
+    }
+    if (signUpData.user) {
+      await supabase.from("accounts").insert({
+        user_id: signUpData.user.id,
+        name: "My Account",
+        starting_balance: 0,
+      });
     }
     setSignUpSuccess(true);
   }
