@@ -1,5 +1,27 @@
 import { CalendarView } from "@/components/calendar-view";
 
+function parseCalendarQueryMonthYear(
+  monthStr: string | undefined,
+  yearStr: string | undefined,
+  now: Date,
+): { month: number; year: number } {
+  const parsedMonth = monthStr ? Number.parseInt(monthStr, 10) : NaN;
+  const parsedYear = yearStr ? Number.parseInt(yearStr, 10) : NaN;
+
+  const month =
+    Number.isFinite(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12
+      ? parsedMonth
+      : now.getMonth() + 1;
+
+  const currentYear = now.getFullYear();
+  const year =
+    Number.isFinite(parsedYear) && parsedYear >= 1900 && parsedYear <= 2100
+      ? parsedYear
+      : currentYear;
+
+  return { month, year };
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -7,9 +29,10 @@ export default async function HomePage({
 }) {
   const params = await searchParams;
   const now = new Date();
-  const year = params.year ? parseInt(params.year, 10) : now.getFullYear();
-  const month = params.month
-    ? Math.min(12, Math.max(1, parseInt(params.month, 10)))
-    : now.getMonth() + 1;
+  const { month, year } = parseCalendarQueryMonthYear(
+    params.month,
+    params.year,
+    now,
+  );
   return <CalendarView initialMonth={month} initialYear={year} />;
 }

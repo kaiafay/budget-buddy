@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   User,
   DollarSign,
@@ -60,8 +60,8 @@ export default function SettingsForm({
 }: Props) {
   const [accountName, setAccountName] = useState(initialName);
   const [startingBalance, setStartingBalance] = useState(initialBalance);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
   const [accountId, setAccountId] = useState(initialAccountId);
   const router = useRouter();
   const { mutate } = useSWRConfig();
@@ -84,23 +84,34 @@ export default function SettingsForm({
     transactions: number;
     rules: number;
   } | null>(null);
+  const [categoryDeleteError, setCategoryDeleteError] = useState<string | null>(
+    null,
+  );
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+  const saveSeqRef = useRef(0);
+  const skipNextDebounceRef = useRef(true);
+
+  const saveAccountSettings = useCallback(async () => {
+    setBalanceError(null);
+    setAccountError(null);
+
+    const seq = ++saveSeqRef.current;
 
     const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      setError("You must be signed in.");
+      if (seq !== saveSeqRef.current) return;
+      setAccountError("You must be signed in.");
       return;
     }
 
     const balance = parseFloat(startingBalance);
     if (Number.isNaN(balance)) {
-      setError("Please enter a valid starting balance.");
+      if (seq !== saveSeqRef.current) return;
+      setBalanceError("Please enter a valid starting balance.");
       return;
     }
 
@@ -111,7 +122,8 @@ export default function SettingsForm({
         .eq("id", accountId)
         .eq("user_id", user.id);
       if (updateError) {
-        setError(updateError.message);
+        if (seq !== saveSeqRef.current) return;
+        setAccountError(updateError.message);
         return;
       }
     } else {
@@ -125,19 +137,33 @@ export default function SettingsForm({
         .select("id")
         .single();
       if (insertError) {
-        setError(insertError.message);
+        if (seq !== saveSeqRef.current) return;
+        setAccountError(insertError.message);
         return;
       }
       if (inserted?.id) setAccountId(inserted.id);
     }
 
+    if (seq !== saveSeqRef.current) return;
+
     const now = new Date();
     mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
     mutate("transactions");
+  }, [accountName, startingBalance, accountId, mutate]);
 
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  }
+  const saveAccountSettingsRef = useRef(saveAccountSettings);
+  saveAccountSettingsRef.current = saveAccountSettings;
+
+  useEffect(() => {
+    if (skipNextDebounceRef.current) {
+      skipNextDebounceRef.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      void saveAccountSettingsRef.current();
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [accountName, startingBalance]);
 
   function openCategoryDialog(category?: Category) {
     if (category) {
@@ -196,6 +222,7 @@ export default function SettingsForm({
   }
 
   async function requestDeleteCategory(cat: Category) {
+    setCategoryDeleteError(null);
     const count = await fetchCategoryUsageCount(cat.id);
     setDeleteUsageCount(count);
     setCategoryToDelete(cat);
@@ -204,16 +231,22 @@ export default function SettingsForm({
   async function confirmDeleteCategory() {
     const id = categoryToDelete?.id;
     if (!id) return;
+    setCategoryDeleteError(null);
     const { error: err } = await deleteCategory(id);
-    if (!err) {
-      mutate("categories");
-      setCategoryToDelete(null);
-      setDeleteUsageCount(null);
+    if (err) {
+      setCategoryDeleteError(err.message);
+      return;
     }
+    mutate("categories");
+    setCategoryToDelete(null);
+    setDeleteUsageCount(null);
   }
 
   return (
-    <form onSubmit={handleSave} className="flex flex-col gap-5 px-5 pb-8">
+    <form
+      onSubmit={(e) => e.preventDefault()}
+      className="flex flex-col gap-5 px-5 pb-8"
+    >
       <div className="page-enter-2 glass-card flex flex-col gap-4 rounded-2xl p-4">
         <div className="flex items-center gap-3 pb-1">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent">
@@ -238,6 +271,11 @@ export default function SettingsForm({
             className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
             placeholder="e.g. Main Checking"
           />
+          {accountError && (
+            <p className="text-sm text-destructive" role="alert">
+              {accountError}
+            </p>
+          )}
         </div>
       </div>
 
@@ -270,6 +308,11 @@ export default function SettingsForm({
               className="h-11 rounded-xl border-white/20 bg-white/10 pl-8 tabular-nums text-white placeholder:text-white/40"
             />
           </div>
+          {balanceError && (
+            <p className="text-sm text-destructive" role="alert">
+              {balanceError}
+            </p>
+          )}
         </div>
       </div>
 
@@ -350,32 +393,18 @@ export default function SettingsForm({
       </div>
 
       <div className="page-enter-4 flex flex-col gap-2">
-        {error && (
-          <p className="text-sm text-destructive" role="alert">
-            {error}
-          </p>
-        )}
-        {saved && (
-          <p className="text-sm text-green-600" role="status">
-            Settings saved
-          </p>
-        )}
-
-        <Button
-          type="submit"
-          className="h-11 rounded-xl border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          {saved ? "Saved!" : "Save Changes"}
-        </Button>
-
         <div className="pt-4">
           <button
             type="button"
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-medium text-white/70 transition-colors hover:bg-secondary hover:text-foreground"
             onClick={async () => {
+              setSignOutError(null);
               const supabase = createClient();
-              const { error: signOutError } = await supabase.auth.signOut();
-              if (signOutError) return;
+              const { error: signOutErr } = await supabase.auth.signOut();
+              if (signOutErr) {
+                setSignOutError(signOutErr.message);
+                return;
+              }
               mutate("transactions");
               mutate(
                 `calendar-month-${new Date().getMonth() + 1}-${new Date().getFullYear()}`,
@@ -386,6 +415,11 @@ export default function SettingsForm({
             <LogOut className="h-4 w-4" />
             Sign out
           </button>
+          {signOutError && (
+            <p className="text-center text-sm text-destructive" role="alert">
+              {signOutError}
+            </p>
+          )}
         </div>
         <Dialog
           open={categoryDialogOpen}
@@ -495,7 +529,13 @@ export default function SettingsForm({
 
         <AlertDialog
           open={!!categoryToDelete}
-          onOpenChange={(open) => !open && setCategoryToDelete(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setCategoryToDelete(null);
+              setDeleteUsageCount(null);
+              setCategoryDeleteError(null);
+            }
+          }}
         >
           <AlertDialogContent className="border-white/20 bg-card text-card-foreground">
             <AlertDialogHeader>
@@ -516,6 +556,11 @@ export default function SettingsForm({
                 )}
               </AlertDialogDescription>
             </AlertDialogHeader>
+            {categoryDeleteError && (
+              <p className="text-sm text-destructive" role="alert">
+                {categoryDeleteError}
+              </p>
+            )}
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-xl border border-border bg-muted text-foreground hover:bg-muted/80">
                 Cancel

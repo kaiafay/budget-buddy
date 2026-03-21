@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
-import useSWR, { mutate } from "swr";
+import useSWR from "swr";
 import {
   Plus,
   DollarSign,
@@ -59,20 +59,11 @@ function getRecurringRuleIdAndDate(id: string): {
   return { ruleId, date };
 }
 
-function invalidateNext12CalendarMonths() {
-  const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    mutate(`calendar-month-${d.getMonth() + 1}-${d.getFullYear()}`);
-  }
-  mutate("transactions");
-}
-
 export interface DayTransactionsContentProps {
   date: string;
   transactions: Transaction[];
   recurringRules: RecurringRule[];
-  onMutate: () => void;
+  onMutate: (opts?: { recurringTouch?: boolean }) => void;
   accountId: string | null;
 }
 
@@ -180,8 +171,7 @@ export function DayTransactionsContent({
       setEditError(error.message);
       return;
     }
-    invalidateNext12CalendarMonths();
-    onMutate();
+    onMutate({ recurringTouch: true });
     closeDrawer();
   }
 
@@ -195,8 +185,7 @@ export function DayTransactionsContent({
       setEditError(error.message);
       return;
     }
-    invalidateNext12CalendarMonths();
-    onMutate();
+    onMutate({ recurringTouch: true });
     closeDrawer();
   }
 
@@ -294,8 +283,7 @@ export function DayTransactionsContent({
     }
     setScopeDialogOpen(false);
     setPendingEditPayload(null);
-    invalidateNext12CalendarMonths();
-    onMutate();
+    onMutate({ recurringTouch: true });
     closeDrawer();
   }
 
@@ -331,7 +319,11 @@ export function DayTransactionsContent({
                     >
                       <CategoryIcon
                         iconName={category.icon}
-                        className={t.amount > 0 ? "h-4 w-4 text-white" : "h-4 w-4 text-white/70"}
+                        className={
+                          t.amount > 0
+                            ? "h-4 w-4 text-white"
+                            : "h-4 w-4 text-white/70"
+                        }
                       />
                     </div>
                   ) : t.amount > 0 ? (
@@ -343,30 +335,30 @@ export function DayTransactionsContent({
                       <ArrowDownLeft className="h-4 w-4 text-white/70" />
                     </div>
                   )}
-                <div className="flex flex-1 flex-col">
-                  <span className="text-overlay text-sm font-medium text-white">
-                    {t.label}
-                    {t.recurring && (
-                      <span className="text-overlay ml-1 text-xs text-white/70">
-                        ↻
-                      </span>
-                    )}
+                  <div className="flex flex-1 flex-col">
+                    <span className="text-overlay text-sm font-medium text-white">
+                      {t.label}
+                      {t.recurring && (
+                        <span className="text-overlay ml-1 text-xs text-white/70">
+                          ↻
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <span
+                    className={
+                      t.amount >= 0
+                        ? "amount-text text-sm font-semibold tabular-nums text-[var(--amount-positive)]"
+                        : "text-sm font-semibold tabular-nums text-[var(--amount-negative)]"
+                    }
+                  >
+                    {t.amount >= 0 ? "+" : "-"}$
+                    {Math.abs(t.amount).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
                   </span>
-                </div>
-                <span
-                  className={
-                    t.amount >= 0
-                      ? "amount-text text-sm font-semibold tabular-nums text-[var(--amount-positive)]"
-                      : "text-sm font-semibold tabular-nums text-[var(--amount-negative)]"
-                  }
-                >
-                  {t.amount >= 0 ? "+" : "-"}$
-                  {Math.abs(t.amount).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              </button>
+                </button>
               );
             })}
 
@@ -545,9 +537,7 @@ export function DayTransactionsContent({
                   <Select
                     value={editCategoryId ?? NO_CATEGORY_VALUE}
                     onValueChange={(v) =>
-                      setEditCategoryId(
-                        v === NO_CATEGORY_VALUE ? null : v,
-                      )
+                      setEditCategoryId(v === NO_CATEGORY_VALUE ? null : v)
                     }
                   >
                     <SelectTrigger
@@ -558,7 +548,9 @@ export function DayTransactionsContent({
                     </SelectTrigger>
                     <SelectContent className="text-popover-foreground">
                       <SelectItem value={NO_CATEGORY_VALUE}>
-                        <span className="text-muted-foreground">No category</span>
+                        <span className="text-muted-foreground">
+                          No category
+                        </span>
                       </SelectItem>
                       {sortedCategories.map((cat) => (
                         <SelectItem key={cat.id} value={cat.id}>
