@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Transaction, RecurringRule } from "@/lib/types";
 import { fetchCalendarData } from "@/lib/api";
+import { mapRecurringRuleRow } from "@/lib/recurring-rules";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
 import {
   getProjectedBalances,
@@ -14,7 +15,7 @@ import {
   expandRecurringForDateRange,
   getTransactionsForDate,
 } from "@/lib/projection";
-import { Button } from "@/components/ui/button";
+import { ErrorBanner } from "@/components/error-banner";
 import { CalendarGrid } from "@/components/calendar-grid";
 import { DayTransactionsContent } from "@/components/day-sheet";
 
@@ -86,16 +87,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
 
   const accountName = data?.account?.name ?? "";
   const recurringRulesMapped: RecurringRule[] = useMemo(
-    () =>
-      (data?.recurringRules ?? []).map((r) => ({
-        id: r.id,
-        start_date: r.start_date,
-        end_date: r.end_date ?? null,
-        amount: Number(r.amount),
-        label: r.label,
-        frequency: r.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
-        category_id: r.category_id ?? null,
-      })),
+    () => (data?.recurringRules ?? []).map(mapRecurringRuleRow),
     [data?.recurringRules],
   );
 
@@ -205,15 +197,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
   const daySheetMonthSource = needDaySheetMonth ? daySheetMonthData : data;
   const daySheetRecurringMapped: RecurringRule[] = useMemo(
     () =>
-      (daySheetMonthSource?.recurringRules ?? []).map((r) => ({
-        id: r.id,
-        start_date: r.start_date,
-        end_date: r.end_date ?? null,
-        amount: Number(r.amount),
-        label: r.label,
-        frequency: r.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
-        category_id: r.category_id ?? null,
-      })),
+      (daySheetMonthSource?.recurringRules ?? []).map(mapRecurringRuleRow),
     [daySheetMonthSource?.recurringRules],
   );
   const daySheetTransactions: Transaction[] = useMemo(() => {
@@ -280,19 +264,12 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       </header>
 
       {calendarError && (
-        <div className="page-enter-1 mx-4 mb-3 rounded-2xl border border-destructive/40 bg-destructive/15 px-4 py-3">
-          <p className="text-sm text-white" role="alert">
-            Couldn&apos;t load this month. Check your connection and try again.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-2 h-9 rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20"
-            onClick={() => void revalidateCalendarMonth()}
-          >
-            Try again
-          </Button>
-        </div>
+        <ErrorBanner
+          variant="panel"
+          className="page-enter-1 mx-4 mb-3"
+          message="Couldn't load this month. Check your connection and try again."
+          onRetry={() => void revalidateCalendarMonth()}
+        />
       )}
 
       {/* Balance hero card */}
@@ -358,19 +335,11 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
           />
         </div>
         {needDaySheetMonth && daySheetMonthError ? (
-          <div className="border-t border-white/20 px-5 pb-6 pt-4">
-            <p className="text-sm text-white/90" role="alert">
-              Couldn&apos;t load transactions for this day.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-2 h-9 rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20"
-              onClick={() => void revalidateDaySheetMonth()}
-            >
-              Try again
-            </Button>
-          </div>
+          <ErrorBanner
+            variant="strip"
+            message="Couldn't load transactions for this day."
+            onRetry={() => void revalidateDaySheetMonth()}
+          />
         ) : daySheetLoading ? (
           <div className="border-t border-white/20 px-5 pb-6 pt-4">
             <p className="text-overlay text-xs text-white/70">Loading…</p>

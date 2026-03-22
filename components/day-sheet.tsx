@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import useSWR from "swr";
@@ -12,6 +12,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,7 @@ import {
   moveRecurringOccurrence,
 } from "@/lib/transactions-mutations";
 import type { Transaction, RecurringRule } from "@/lib/types";
+import { useSortedCategories } from "@/hooks/use-sorted-categories";
 import { cn } from "@/lib/utils";
 
 function getRecurringRuleIdAndDate(id: string): {
@@ -112,17 +114,7 @@ export function DayTransactionsContent({
   } | null>(null);
 
   const { data: categories = [] } = useSWR("categories", fetchCategories);
-  const sortedCategories = useMemo(() => {
-    const expenseFirst = [...categories]
-      .filter((c) => c.type === "expense")
-      .sort((a, b) => a.name.localeCompare(b.name));
-    const incomeFirst = [...categories]
-      .filter((c) => c.type === "income")
-      .sort((a, b) => a.name.localeCompare(b.name));
-    return editType === "expense"
-      ? [...expenseFirst, ...incomeFirst]
-      : [...incomeFirst, ...expenseFirst];
-  }, [categories, editType]);
+  const sortedCategories = useSortedCategories(categories, editType);
 
   function openDrawer(t: Transaction) {
     setSelectedTransaction(t);
@@ -633,11 +625,7 @@ export function DayTransactionsContent({
                     </PopoverContent>
                   </Popover>
                 </div>
-                {editError && (
-                  <p className="text-sm text-destructive" role="alert">
-                    {editError}
-                  </p>
-                )}
+                {editError && <InlineError>{editError}</InlineError>}
                 <DrawerFooter className="flex flex-col gap-2 px-0 pb-0 pt-2">
                   <Button
                     type="submit"

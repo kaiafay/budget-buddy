@@ -18,14 +18,14 @@ import type { Category, Transaction, GroupedTransactions } from "@/lib/types";
 import { fetchTransactions, fetchCategories } from "@/lib/api";
 import { CategoryIcon, getCategoryColor } from "@/components/category-icons";
 import { expandRecurringForDateRange } from "@/lib/projection";
+import { mapRecurringRuleRow } from "@/lib/recurring-rules";
 import {
   deleteTransaction,
   skipRecurringOccurrence,
 } from "@/lib/transactions-mutations";
-import { Button } from "@/components/ui/button";
-
-const USER_FACING_ERROR =
-  "Something went wrong. Please check your connection and try again.";
+import { USER_FACING_ERROR } from "@/lib/errors";
+import { ErrorBanner } from "@/components/error-banner";
+import { InlineError } from "@/components/inline-error";
 
 const ROW_ACTIONS_WIDTH = 136;
 
@@ -176,6 +176,18 @@ function groupTransactionsByDate(
   return groups;
 }
 
+function invalidateAfterLocalDelete(
+  dateStr: string,
+  mutate: (key: string) => void,
+) {
+  const deletedMonth = new Date(dateStr).getMonth() + 1;
+  const deletedYear = new Date(dateStr).getFullYear();
+  const now = new Date();
+  mutate(`calendar-month-${deletedMonth}-${deletedYear}`);
+  mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
+  mutate("transactions");
+}
+
 export default function TransactionsPage() {
   const router = useRouter();
   const { mutate } = useSWRConfig();
@@ -209,15 +221,7 @@ export default function TransactionsPage() {
       category_id: row.category_id ?? null,
     }));
 
-    const rules = (data.recurringRules ?? []).map((r) => ({
-      id: r.id,
-      start_date: r.start_date,
-      end_date: r.end_date ?? null,
-      amount: Number(r.amount),
-      label: r.label,
-      frequency: r.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
-      category_id: r.category_id ?? null,
-    }));
+    const rules = (data.recurringRules ?? []).map(mapRecurringRuleRow);
 
     const expanded = expandRecurringForDateRange(
       rules,
@@ -245,12 +249,7 @@ export default function TransactionsPage() {
         return;
       }
       setOpenedRowId(null);
-      const deletedMonth = new Date(t.date).getMonth() + 1;
-      const deletedYear = new Date(t.date).getFullYear();
-      const now = new Date();
-      mutate(`calendar-month-${deletedMonth}-${deletedYear}`);
-      mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
-      mutate("transactions");
+      invalidateAfterLocalDelete(t.date, mutate);
     } else {
       const { error } = await deleteTransaction(t.id);
       if (error) {
@@ -258,12 +257,7 @@ export default function TransactionsPage() {
         return;
       }
       setOpenedRowId(null);
-      const deletedMonth = new Date(t.date).getMonth() + 1;
-      const deletedYear = new Date(t.date).getFullYear();
-      const now = new Date();
-      mutate(`calendar-month-${deletedMonth}-${deletedYear}`);
-      mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
-      mutate("transactions");
+      invalidateAfterLocalDelete(t.date, mutate);
     }
   }
 
@@ -286,26 +280,13 @@ export default function TransactionsPage() {
 
       <div className="flex flex-col gap-6 px-5 pb-6">
         {transactionsFetchError && (
-          <div className="rounded-2xl border border-destructive/40 bg-destructive/15 px-4 py-3">
-            <p className="text-sm text-white" role="alert">
-              Couldn&apos;t load transactions. Check your connection and try
-              again.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-2 h-9 rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
-              onClick={() => void revalidateTransactions()}
-            >
-              Try again
-            </Button>
-          </div>
+          <ErrorBanner
+            variant="panel"
+            message="Couldn't load transactions. Check your connection and try again."
+            onRetry={() => void revalidateTransactions()}
+          />
         )}
-        {deleteError && (
-          <p className="text-sm text-destructive" role="alert">
-            {deleteError}
-          </p>
-        )}
+        {deleteError && <InlineError>{deleteError}</InlineError>}
         {transactionsLoading && !data && !transactionsFetchError && (
           <p className="text-sm text-white/70">Loading…</p>
         )}

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import useSWR from "swr";
+import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -271,11 +272,7 @@ export default function SettingsForm({
             className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
             placeholder="e.g. Main Checking"
           />
-          {accountError && (
-            <p className="text-sm text-destructive" role="alert">
-              {accountError}
-            </p>
-          )}
+          {accountError && <InlineError>{accountError}</InlineError>}
         </div>
       </div>
 
@@ -308,11 +305,7 @@ export default function SettingsForm({
               className="h-11 rounded-xl border-white/20 bg-white/10 pl-8 tabular-nums text-white placeholder:text-white/40"
             />
           </div>
-          {balanceError && (
-            <p className="text-sm text-destructive" role="alert">
-              {balanceError}
-            </p>
-          )}
+          {balanceError && <InlineError>{balanceError}</InlineError>}
         </div>
       </div>
 
@@ -416,9 +409,7 @@ export default function SettingsForm({
             Sign out
           </button>
           {signOutError && (
-            <p className="text-center text-sm text-destructive" role="alert">
-              {signOutError}
-            </p>
+            <InlineError className="text-center">{signOutError}</InlineError>
           )}
         </div>
         <Dialog
@@ -513,9 +504,7 @@ export default function SettingsForm({
                 </div>
               </div>
               {categoryFormError && (
-                <p className="text-sm text-destructive" role="alert">
-                  {categoryFormError}
-                </p>
+                <InlineError>{categoryFormError}</InlineError>
               )}
               <Button
                 type="submit"
@@ -557,9 +546,7 @@ export default function SettingsForm({
               </AlertDialogDescription>
             </AlertDialogHeader>
             {categoryDeleteError && (
-              <p className="text-sm text-destructive" role="alert">
-                {categoryDeleteError}
-              </p>
+              <InlineError>{categoryDeleteError}</InlineError>
             )}
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-xl border border-border bg-muted text-foreground hover:bg-muted/80">

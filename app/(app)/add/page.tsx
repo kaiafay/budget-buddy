@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CalendarIcon, Repeat } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -23,6 +23,8 @@ import {
   endRecurringRuleFuture,
   moveRecurringOccurrence,
 } from "@/lib/transactions-mutations";
+import { ErrorBanner } from "@/components/error-banner";
+import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,10 +43,9 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dialog";
+import { USER_FACING_ERROR } from "@/lib/errors";
+import { useSortedCategories } from "@/hooks/use-sorted-categories";
 import { cn } from "@/lib/utils";
-
-const USER_FACING_ERROR =
-  "Something went wrong. Please check your connection and try again.";
 
 function getInitialDate(
   searchParams: ReturnType<typeof useSearchParams>,
@@ -78,7 +79,6 @@ function AddTransactionPage() {
   const [recurring, setRecurring] = useState(false);
   const [frequency, setFrequency] = useState<string>("monthly");
   const [accountId, setAccountId] = useState<string | null>(null);
-  const [noAccount, setNoAccount] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editLoadError, setEditLoadError] = useState<string | null>(null);
   const [editRetryKey, setEditRetryKey] = useState(0);
@@ -98,11 +98,7 @@ function AddTransactionPage() {
   } | null>(null);
 
   const { data: categories = [] } = useSWR("categories", fetchCategories);
-  const sortedCategories = useMemo(() => {
-    const expenseFirst = [...categories].filter((c) => c.type === "expense").sort((a, b) => a.name.localeCompare(b.name));
-    const incomeFirst = [...categories].filter((c) => c.type === "income").sort((a, b) => a.name.localeCompare(b.name));
-    return type === "expense" ? [...expenseFirst, ...incomeFirst] : [...incomeFirst, ...expenseFirst];
-  }, [categories, type]);
+  const sortedCategories = useSortedCategories(categories, type);
 
   useEffect(() => {
     async function loadAccount() {
@@ -117,11 +113,10 @@ function AddTransactionPage() {
         .eq("user_id", user.id)
         .maybeSingle();
       if (fetchError) {
-        setNoAccount(true);
+        setError(USER_FACING_ERROR);
         return;
       }
       if (data?.id) setAccountId(data.id);
-      else setNoAccount(true);
     }
     loadAccount();
   }, []);
@@ -565,35 +560,18 @@ function AddTransactionPage() {
         </div>
 
         <div className="page-enter-3 flex flex-col gap-2">
-          {noAccount && (
-            <p className="text-sm text-destructive">
-              Please set up your account in Settings first.
-            </p>
-          )}
           {editLoadError && (
-            <div className="flex flex-col gap-2">
-              <p className="text-sm text-destructive" role="alert">
-                {editLoadError}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-2 h-9 rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
-                onClick={() => {
-                  setEditLoadError(null);
-                  setEditLoading(true);
-                  setEditRetryKey((k) => k + 1);
-                }}
-              >
-                Try again
-              </Button>
-            </div>
+            <ErrorBanner
+              variant="inline"
+              message={editLoadError}
+              onRetry={() => {
+                setEditLoadError(null);
+                setEditLoading(true);
+                setEditRetryKey((k) => k + 1);
+              }}
+            />
           )}
-          {error && (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          )}
+          {error && <InlineError>{error}</InlineError>}
 
           {/* Submit */}
           <Button
