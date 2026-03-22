@@ -15,7 +15,7 @@ import {
   fetchCategories,
   fetchNextChainSegment,
 } from "@/lib/api";
-import { CategoryIcon } from "@/components/category-icons";
+import { GlassCategorySelectTrigger } from "@/components/glass-category-select-trigger";
 import {
   createTransaction,
   createRecurringRule,
@@ -48,6 +48,12 @@ import { Switch } from "@/components/ui/switch";
 import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dialog";
 import { USER_FACING_ERROR } from "@/lib/errors";
 import { useSortedCategories } from "@/hooks/use-sorted-categories";
+import {
+  glassAmountInputClass,
+  glassCurrencyPrefixClass,
+  glassInputClass,
+  glassSectionIconClass,
+} from "@/lib/glass-classes";
 import { cn } from "@/lib/utils";
 
 function getInitialDate(
@@ -336,6 +342,9 @@ function AddTransactionPage() {
     router.back();
   }
 
+  const submitButtonClass =
+    "mt-2 h-12 border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90 active:bg-primary/80";
+
   return (
     <div className="flex flex-col pb-6">
       {/* Header */}
@@ -376,9 +385,7 @@ function AddTransactionPage() {
               Amount
             </Label>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-white/70">
-                $
-              </span>
+              <span className={glassCurrencyPrefixClass}>$</span>
               <Input
                 id="amount"
                 type="number"
@@ -387,7 +394,10 @@ function AddTransactionPage() {
                 placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="h-12 rounded-xl border-white/20 bg-white/10 pl-8 text-lg font-semibold tabular-nums text-white placeholder:text-white/40"
+                className={cn(
+                  glassAmountInputClass,
+                  "placeholder:text-white/40",
+                )}
                 required
               />
             </div>
@@ -407,7 +417,7 @@ function AddTransactionPage() {
               placeholder="e.g. Grocery Store"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
+              className={glassInputClass}
               required
             />
           </div>
@@ -417,35 +427,14 @@ function AddTransactionPage() {
             <Label className="text-sm font-medium text-white/70">
               Category
             </Label>
-            <Select
-              value={categoryId ?? NO_CATEGORY_VALUE}
+            <GlassCategorySelectTrigger
+              value={categoryId}
+              noCategoryValue={NO_CATEGORY_VALUE}
               onValueChange={(v) =>
                 setCategoryId(v === NO_CATEGORY_VALUE ? null : v)
               }
-            >
-              <SelectTrigger
-                data-no-category={categoryId == null}
-                className="h-11 w-full rounded-xl border-white/20 bg-white/10 text-white [&_[data-slot=select-value]_span]:text-white [&_[data-slot=select-value]_svg]:text-white/70 data-[no-category=true]:[&_[data-slot=select-value]_span]:text-white/40 [&>svg]:hidden"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-popover-foreground">
-                <SelectItem value={NO_CATEGORY_VALUE}>
-                  <span className="text-muted-foreground">No category</span>
-                </SelectItem>
-                {sortedCategories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    <span className="flex items-center gap-2 text-popover-foreground">
-                      <CategoryIcon
-                        iconName={cat.icon}
-                        className="h-4 w-4 text-muted-foreground"
-                      />
-                      {cat.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              categories={sortedCategories}
+            />
           </div>
 
           {/* Date */}
@@ -495,7 +484,7 @@ function AddTransactionPage() {
           <div className="glass-card flex flex-col gap-4 rounded-2xl p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent">
+                <div className={glassSectionIconClass}>
                   <Repeat className="h-4 w-4 text-primary" />
                 </div>
                 <div className="flex flex-col">
@@ -554,7 +543,7 @@ function AddTransactionPage() {
           <Button
             type="submit"
             disabled={!accountId || editLoading}
-            className="mt-2 h-12 border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
+            className={submitButtonClass}
           >
             {editLoading
               ? "Loading…"

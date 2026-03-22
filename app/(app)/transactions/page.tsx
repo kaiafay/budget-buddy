@@ -24,6 +24,9 @@ import { InlineError } from "@/components/inline-error";
 
 const ROW_ACTIONS_WIDTH = 136;
 
+const swipeActionButtonClass =
+  "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white active:brightness-90";
+
 function SwipeableTransactionRow({
   t,
   category,
@@ -93,7 +96,7 @@ function SwipeableTransactionRow({
           <button
             type="button"
             onClick={onDelete}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white active:brightness-90"
+            className={swipeActionButtonClass}
             style={{
               background: "rgba(220,38,38,0.85)",
               backdropFilter: "blur(12px)",
@@ -107,7 +110,7 @@ function SwipeableTransactionRow({
           <button
             type="button"
             onClick={onEdit}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white active:brightness-90"
+            className={swipeActionButtonClass}
             style={{
               background: "rgba(255,255,255,0.2)",
               backdropFilter: "blur(12px)",

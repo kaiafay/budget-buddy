@@ -19,13 +19,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Drawer,
   DrawerContent,
   DrawerHeader,
@@ -34,9 +27,14 @@ import {
   DrawerClose,
 } from "@/components/ui/drawer";
 import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dialog";
-import { CategoryIcon } from "@/components/category-icons";
+import { GlassCategorySelectTrigger } from "@/components/glass-category-select-trigger";
 import { TransactionLeadingIcon } from "@/components/transaction-leading-icon";
 import { fetchCategories, fetchNextChainSegment } from "@/lib/api";
+import {
+  glassAmountInputClass,
+  glassCurrencyPrefixClass,
+  glassInputClass,
+} from "@/lib/glass-classes";
 import {
   deleteTransaction,
   skipRecurringOccurrence,
@@ -276,6 +274,9 @@ export function DayTransactionsContent({
     closeDrawer();
   }
 
+  const drawerOutlineButtonClass =
+    "h-11 justify-start border-white/20 bg-white/10 text-white hover:bg-white/20 active:bg-white/15";
+
   return (
     <div className="border-t border-white/20 px-5 pb-6 pt-4">
       <h3 className="text-overlay text-sm font-semibold text-white/90">
@@ -369,7 +370,7 @@ export function DayTransactionsContent({
               <div className="flex flex-col gap-2 px-4 pb-4">
                 <Button
                   variant="outline"
-                  className="h-11 justify-start border-white/20 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
+                  className={drawerOutlineButtonClass}
                   onClick={() => setDrawerMode("edit")}
                 >
                   <Pencil className="mr-2 h-4 w-4" />
@@ -379,7 +380,7 @@ export function DayTransactionsContent({
                   <>
                     <Button
                       variant="outline"
-                      className="h-11 justify-start border-white/20 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
+                      className={drawerOutlineButtonClass}
                       onClick={handleSkipOccurrence}
                     >
                       Delete this occurrence
@@ -430,16 +431,14 @@ export function DayTransactionsContent({
                     Amount
                   </Label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-white/70">
-                      $
-                    </span>
+                    <span className={glassCurrencyPrefixClass}>$</span>
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
                       value={editAmount}
                       onChange={(e) => setEditAmount(e.target.value)}
-                      className="h-12 rounded-xl border-white/20 bg-white/10 pl-8 text-lg font-semibold tabular-nums text-white"
+                      className={glassAmountInputClass}
                       required
                     />
                   </div>
@@ -451,7 +450,7 @@ export function DayTransactionsContent({
                   <Input
                     value={editLabel}
                     onChange={(e) => setEditLabel(e.target.value)}
-                    className="h-11 rounded-xl border-white/20 bg-white/10 text-white"
+                    className={glassInputClass}
                     required
                   />
                 </div>
@@ -459,37 +458,14 @@ export function DayTransactionsContent({
                   <Label className="text-sm font-medium text-white/70">
                     Category
                   </Label>
-                  <Select
-                    value={editCategoryId ?? NO_CATEGORY_VALUE}
+                  <GlassCategorySelectTrigger
+                    value={editCategoryId}
+                    noCategoryValue={NO_CATEGORY_VALUE}
                     onValueChange={(v) =>
                       setEditCategoryId(v === NO_CATEGORY_VALUE ? null : v)
                     }
-                  >
-                    <SelectTrigger
-                      data-no-category={editCategoryId == null}
-                      className="h-11 w-full rounded-xl border-white/20 bg-white/10 text-white [&_[data-slot=select-value]_span]:text-white [&_[data-slot=select-value]_svg]:text-white/70 data-[no-category=true]:[&_[data-slot=select-value]_span]:text-white/40 [&>svg]:hidden"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="text-popover-foreground">
-                      <SelectItem value={NO_CATEGORY_VALUE}>
-                        <span className="text-muted-foreground">
-                          No category
-                        </span>
-                      </SelectItem>
-                      {sortedCategories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          <span className="flex items-center gap-2 text-popover-foreground">
-                            <CategoryIcon
-                              iconName={cat.icon}
-                              className="h-4 w-4 text-muted-foreground"
-                            />
-                            {cat.name}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    categories={sortedCategories}
+                  />
                 </div>
                 {selectedTransaction.recurring && (
                   <div className="flex flex-col gap-2">

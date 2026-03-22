@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { glassInputClass } from "@/lib/glass-classes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -119,7 +120,7 @@ export default function LoginPage() {
                   placeholder="First name"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
+                  className={glassInputClass}
                   required
                 />
               </div>
@@ -137,7 +138,7 @@ export default function LoginPage() {
                   placeholder="Last name"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
+                  className={glassInputClass}
                   required
                 />
               </div>
@@ -157,7 +158,7 @@ export default function LoginPage() {
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
+              className={glassInputClass}
               required
             />
           </div>
@@ -175,7 +176,7 @@ export default function LoginPage() {
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
+              className={glassInputClass}
               required
             />
           </div>

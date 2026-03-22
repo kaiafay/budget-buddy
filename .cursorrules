@@ -134,6 +134,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - components/recurring-edit-scope-dialog.tsx — scope picker dialog for recurring transaction edits (just this / this and future)
 - components/category-icons.tsx — category icon map, getCategoryColor, ALLOWED_CATEGORY_ICON_NAMES
 - components/error-banner.tsx — `ErrorBanner` (fetch/network + retry), `glassRetryButtonClassName` for glass outline retry on gradient backgrounds
+- components/glass-category-select-trigger.tsx — `GlassCategorySelectTrigger` for glass-styled category `<Select>` (add page + day-sheet edit)
 - components/glass-expense-income-toggle.tsx — `GlassExpenseIncomeToggle` for glass expense/income segmented control (add page + day-sheet edit)
 - components/glass-icon-button.tsx — `GlassIconButton` for glass shell icon controls (back, month nav, drawer close)
 - components/inline-error.tsx — `InlineError` for form/API inline errors (`text-sm text-destructive`, `role="alert"`)
@@ -141,6 +142,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - components/transaction-leading-icon.tsx — `TransactionLeadingIcon` for category-colored row icon (day-sheet + transactions list)
 - lib/supabase/ — Supabase client helpers
 - lib/utils.ts — shared utility functions (cn)
+- lib/glass-classes.ts — shared glass UI className constants (`glassInputClass`, `glassAmountInputClass`, `glassCurrencyPrefixClass`, `glassSectionIconClass`)
 - lib/format-currency.ts — `formatCurrencyAmount()` (magnitude via `Math.abs`, `toLocaleString` fraction options)
 - lib/errors.ts — shared user-facing error copy (USER_FACING_ERROR)
 - lib/recurring-rules.ts — `mapRecurringRuleRow()` for Supabase recurring_rules rows → App `RecurringRule`
@@ -151,6 +153,8 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - lib/projection.ts — balance projection engine
 - lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, createTransaction, createRecurringRule, upsertModifiedRecurringException, moveRecurringOccurrence, applyRecurringEditFromDate, updateRecurringSegmentInPlace, splitRecurringRuleAtDate, createCategory, updateCategory, deleteCategory)
 - proxy.ts — edge auth (Next.js 16 `proxy` file convention); redirects unauthenticated users to /login, authenticated users away from /login
+- FUTURE.md — post-beta backlog, known limitations, and deferred architectural decisions
+- BETA_TEST.md — manual test checklist for releases and feature changes
 
 ## Key Rules
 
@@ -220,6 +224,32 @@ These rules apply to every change Cursor makes. No exceptions.
 - Prefer composable components with clear props over context-specific one-off markup.
 - If updating a UI pattern requires touching more than one file, it should be a
   shared component.
+
+### State Management Rules
+
+- Never put more than 5 useState calls in a single component without grouping
+  related state into useReducer or a custom hook first
+- If 3+ state values always change together, they belong in a useReducer or a
+  single state object — not separate useState calls
+- If a useEffect block is longer than 15 lines or sets more than 3 state values,
+  extract it into a custom hook
+- Local form state belongs in the component (useState or useReducer) — never in
+  global state (Jotai, Context, etc.)
+- Shared cross-component state that isn't server data belongs in Jotai atoms in
+  lib/atoms/ — not prop-drilled or duplicated
+- Never duplicate state shape across two components — extract a shared hook
+  instead (e.g. useRecurringScope used by both add page and day-sheet)
+- Custom hooks live in hooks/ and are named use-[feature].ts
+
+### Component Size Rules
+
+- If a component exceeds 200 lines, consider splitting it
+- If a component has more than one distinct "mode" (e.g. add vs edit, actions
+  vs edit drawer), consider whether each mode should be its own component
+- A component that requires reading more than 3 other files to understand is too
+  coupled — simplify its dependencies
+- Page components (app/(app)/**/page.tsx) should be thin — data fetching and
+  state logic belong in hooks, not inline in the page
 
 ### General
 

@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { useSWRConfig } from "swr";
+import { glassInputClass, glassSectionIconClass } from "@/lib/glass-classes";
 import { calendarMonthSwrKey } from "@/lib/swr-keys";
 import {
   Dialog,
@@ -244,6 +245,11 @@ export default function SettingsForm({
     setDeleteUsageCount(null);
   }
 
+  const signOutButtonClass =
+    "flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-medium text-white/70 transition-colors hover:bg-secondary hover:text-foreground active:bg-white/15";
+  const dialogSubmitButtonClass =
+    "h-11 rounded-xl border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80";
+
   return (
     <form
       onSubmit={(e) => e.preventDefault()}
@@ -251,7 +257,7 @@ export default function SettingsForm({
     >
       <div className="page-enter-2 glass-card flex flex-col gap-4 rounded-2xl p-4">
         <div className="flex items-center gap-3 pb-1">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent">
+          <div className={glassSectionIconClass}>
             <User className="h-4 w-4 text-primary" />
           </div>
           <span className="text-sm font-medium text-white">
@@ -270,7 +276,7 @@ export default function SettingsForm({
             type="text"
             value={accountName}
             onChange={(e) => setAccountName(e.target.value)}
-            className="h-11 rounded-xl border-white/20 bg-white/10 text-white placeholder:text-white/40"
+            className={glassInputClass}
             placeholder="e.g. Main Checking"
           />
           {accountError && <InlineError>{accountError}</InlineError>}
@@ -312,7 +318,7 @@ export default function SettingsForm({
 
       <div className="page-enter-3 glass-card flex flex-col gap-4 rounded-2xl p-4">
         <div className="flex items-center gap-3 pb-1">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent">
+          <div className={glassSectionIconClass}>
             <Tags className="h-4 w-4 text-primary" />
           </div>
           <div className="flex flex-col">
@@ -390,7 +396,7 @@ export default function SettingsForm({
         <div className="pt-4">
           <button
             type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-medium text-white/70 transition-colors hover:bg-secondary hover:text-foreground active:bg-white/15"
+            className={signOutButtonClass}
             onClick={async () => {
               setSignOutError(null);
               const supabase = createClient();
@@ -512,7 +518,7 @@ export default function SettingsForm({
               )}
               <Button
                 type="submit"
-                className="h-11 rounded-xl border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
+                className={dialogSubmitButtonClass}
               >
                 {editingCategory ? "Save changes" : "Add category"}
               </Button>
