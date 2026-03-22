@@ -22,6 +22,7 @@ import {
   deleteTransaction,
   skipRecurringOccurrence,
 } from "@/lib/transactions-mutations";
+import { Button } from "@/components/ui/button";
 
 const USER_FACING_ERROR =
   "Something went wrong. Please check your connection and try again.";
@@ -290,13 +291,14 @@ export default function TransactionsPage() {
               Couldn&apos;t load transactions. Check your connection and try
               again.
             </p>
-            <button
+            <Button
               type="button"
-              className="mt-2 rounded-md px-1.5 py-1 text-sm font-medium text-white underline underline-offset-2 transition-colors hover:underline active:bg-white/15"
+              variant="outline"
+              className="mt-2 h-9 rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
               onClick={() => void revalidateTransactions()}
             >
               Try again
-            </button>
+            </Button>
           </div>
         )}
         {deleteError && (

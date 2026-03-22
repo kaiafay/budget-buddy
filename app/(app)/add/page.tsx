@@ -578,7 +578,7 @@ function AddTransactionPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
+                className="mt-2 h-9 rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
                 onClick={() => {
                   setEditLoadError(null);
                   setEditLoading(true);
