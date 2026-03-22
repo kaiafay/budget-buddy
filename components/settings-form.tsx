@@ -363,7 +363,7 @@ export default function SettingsForm({
                   <button
                     type="button"
                     onClick={() => openCategoryDialog(cat)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
                     aria-label="Edit category"
                   >
                     <Pencil className="h-4 w-4" />
@@ -371,7 +371,7 @@ export default function SettingsForm({
                   <button
                     type="button"
                     onClick={() => requestDeleteCategory(cat)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-destructive/20 hover:text-destructive"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-destructive/20 hover:text-destructive active:bg-white/15"
                     aria-label="Delete category"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -384,7 +384,7 @@ export default function SettingsForm({
         <Button
           type="button"
           variant="outline"
-          className="h-11 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20"
+          className="h-11 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
           onClick={() => openCategoryDialog()}
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -396,7 +396,7 @@ export default function SettingsForm({
         <div className="pt-4">
           <button
             type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-medium text-white/70 transition-colors hover:bg-secondary hover:text-foreground"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-medium text-white/70 transition-colors hover:bg-secondary hover:text-foreground active:bg-white/15"
             onClick={async () => {
               setSignOutError(null);
               const supabase = createClient();
@@ -466,7 +466,7 @@ export default function SettingsForm({
                       "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
                       categoryForm.type === "expense"
                         ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground",
+                        : "text-muted-foreground active:bg-white/15",
                     )}
                   >
                     Expense
@@ -480,7 +480,7 @@ export default function SettingsForm({
                       "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
                       categoryForm.type === "income"
                         ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground",
+                        : "text-muted-foreground active:bg-white/15",
                     )}
                   >
                     Income
@@ -519,7 +519,7 @@ export default function SettingsForm({
               )}
               <Button
                 type="submit"
-                className="h-11 rounded-xl border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90"
+                className="h-11 rounded-xl border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
               >
                 {editingCategory ? "Save changes" : "Add category"}
               </Button>
@@ -570,7 +570,7 @@ export default function SettingsForm({
                   e.preventDefault();
                   void confirmDeleteCategory();
                 }}
-                className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80"
               >
                 Delete
               </AlertDialogAction>

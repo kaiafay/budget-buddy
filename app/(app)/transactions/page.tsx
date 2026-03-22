@@ -119,7 +119,7 @@ function SwipeableTransactionRow({
           <button
             type="button"
             onClick={onDelete}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white"
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white active:brightness-90"
             style={{
               background: "rgba(220,38,38,0.85)",
               backdropFilter: "blur(12px)",
@@ -133,7 +133,7 @@ function SwipeableTransactionRow({
           <button
             type="button"
             onClick={onEdit}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white"
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white active:brightness-90"
             style={{
               background: "rgba(255,255,255,0.2)",
               backdropFilter: "blur(12px)",
@@ -292,7 +292,7 @@ export default function TransactionsPage() {
             </p>
             <button
               type="button"
-              className="mt-2 text-sm font-medium text-white underline underline-offset-2"
+              className="mt-2 rounded-md px-1.5 py-1 text-sm font-medium text-white underline underline-offset-2 transition-colors hover:underline active:bg-white/15"
               onClick={() => void revalidateTransactions()}
             >
               Try again
@@ -324,7 +324,7 @@ export default function TransactionsPage() {
               </div>
               <Link
                 href="/add"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 active:bg-primary/85"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 active:bg-primary/80"
               >
                 <Plus className="h-4 w-4" aria-hidden />
                 Add transaction

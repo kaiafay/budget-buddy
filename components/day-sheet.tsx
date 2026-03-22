@@ -388,7 +388,7 @@ export function DayTransactionsContent({
 
       <Button
         asChild
-        className="mt-4 h-11 w-full border border-white/20 bg-primary text-white hover:bg-primary/90"
+        className="mt-4 h-11 w-full border border-white/20 bg-primary text-white hover:bg-primary/90 active:bg-primary/80"
       >
         <Link href={`/add?date=${date}`}>
           <Plus className="mr-2 h-4 w-4" />
@@ -422,7 +422,7 @@ export function DayTransactionsContent({
               <div className="flex flex-col gap-2 px-4 pb-4">
                 <Button
                   variant="outline"
-                  className="h-11 justify-start border-white/20 bg-white/10 text-white hover:bg-white/20"
+                  className="h-11 justify-start border-white/20 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
                   onClick={() => setDrawerMode("edit")}
                 >
                   <Pencil className="mr-2 h-4 w-4" />
@@ -432,14 +432,14 @@ export function DayTransactionsContent({
                   <>
                     <Button
                       variant="outline"
-                      className="h-11 justify-start border-white/20 bg-white/10 text-white hover:bg-white/20"
+                      className="h-11 justify-start border-white/20 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
                       onClick={handleSkipOccurrence}
                     >
                       Delete this occurrence
                     </Button>
                     <Button
                       variant="destructive"
-                      className="h-11 justify-start"
+                      className="h-11 justify-start active:bg-destructive/80"
                       onClick={handleDeleteAllFuture}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
@@ -449,7 +449,7 @@ export function DayTransactionsContent({
                 ) : (
                   <Button
                     variant="destructive"
-                    className="h-11 justify-start"
+                    className="h-11 justify-start active:bg-destructive/80"
                     onClick={handleDeleteOneTime}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -482,7 +482,7 @@ export function DayTransactionsContent({
                       "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
                       editType === "expense"
                         ? "bg-white/25 text-white"
-                        : "text-white/50",
+                        : "text-white/50 active:bg-white/15",
                     )}
                   >
                     Expense
@@ -494,7 +494,7 @@ export function DayTransactionsContent({
                       "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
                       editType === "income"
                         ? "bg-white/25 text-white"
-                        : "text-white/50",
+                        : "text-white/50 active:bg-white/15",
                     )}
                   >
                     Income
@@ -583,7 +583,7 @@ export function DayTransactionsContent({
                             "rounded-xl border px-3 py-2 text-xs font-medium capitalize transition-all",
                             editFrequency === f
                               ? "border-white/40 bg-white/25 text-white"
-                              : "border-white/20 bg-white/10 text-white/50",
+                              : "border-white/20 bg-white/10 text-white/50 active:bg-white/15",
                           )}
                         >
                           {f}
@@ -601,7 +601,7 @@ export function DayTransactionsContent({
                       <Button
                         type="button"
                         variant="outline"
-                        className="h-11 w-full justify-start border-white/20 bg-white/10 text-left font-normal text-white"
+                        className="h-11 w-full justify-start border-white/20 bg-white/10 text-left font-normal text-white active:bg-white/15"
                       >
                         {editDate
                           ? format(editDate, "MMM d, yyyy")
@@ -641,7 +641,7 @@ export function DayTransactionsContent({
                 <DrawerFooter className="flex flex-col gap-2 px-0 pb-0 pt-2">
                   <Button
                     type="submit"
-                    className="h-11 border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90"
+                    className="h-11 border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
                   >
                     Save changes
                   </Button>
@@ -649,7 +649,7 @@ export function DayTransactionsContent({
                     <Button
                       type="button"
                       variant="destructive"
-                      className="h-11"
+                      className="h-11 active:bg-destructive/80"
                       onClick={handleDeleteAllFuture}
                     >
                       Delete this and all future occurrences
@@ -658,7 +658,7 @@ export function DayTransactionsContent({
                   <Button
                     type="button"
                     variant="ghost"
-                    className="h-11 text-white/70 hover:bg-white/10 hover:text-white"
+                    className="h-11 text-white/70 hover:bg-white/10 hover:text-white active:bg-white/15"
                     onClick={() => setDrawerMode("actions")}
                   >
                     Cancel
@@ -671,7 +671,7 @@ export function DayTransactionsContent({
             <DrawerClose asChild>
               <button
                 type="button"
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 hover:bg-white/10 hover:text-white"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 hover:bg-white/10 hover:text-white active:bg-white/15"
                 aria-label="Close"
               >
                 <X className="h-5 w-5" />

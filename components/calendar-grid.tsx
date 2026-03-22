@@ -71,7 +71,7 @@ export function CalendarGrid({
       >
         <button
           onClick={onPrevMonth}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
           aria-label="Previous month"
         >
           <ChevronLeft className="h-5 w-5" />
@@ -81,7 +81,7 @@ export function CalendarGrid({
         </h2>
         <button
           onClick={onNextMonth}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
           aria-label="Next month"
         >
           <ChevronRight className="h-5 w-5" />
@@ -120,7 +120,7 @@ export function CalendarGrid({
             <button
               key={day}
               onClick={() => handleDayClick(day)}
-              className="flex aspect-square flex-col items-center justify-center gap-1"
+              className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl hover:bg-white/10 active:bg-white/15"
               aria-label={`${MONTH_NAMES[balanceMonth - 1]} ${day}`}
             >
               <span

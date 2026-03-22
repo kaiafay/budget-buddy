@@ -28,7 +28,7 @@ export function BottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "text-overlay flex flex-col items-center gap-0.5 px-4 py-1 text-xs transition-colors",
+                "text-overlay flex flex-col items-center gap-0.5 px-4 py-1 text-xs transition-colors active:opacity-70",
                 isActive ? "text-white" : "text-white/50",
               )}
               aria-current={isActive ? "page" : undefined}
