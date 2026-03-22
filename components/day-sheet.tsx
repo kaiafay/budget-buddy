@@ -4,14 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import useSWR from "swr";
-import {
-  Plus,
-  DollarSign,
-  ArrowDownLeft,
-  Pencil,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { AmountText } from "@/components/amount-text";
+import { GlassExpenseIncomeToggle } from "@/components/glass-expense-income-toggle";
+import { GlassIconButton } from "@/components/glass-icon-button";
 import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +34,8 @@ import {
   DrawerClose,
 } from "@/components/ui/drawer";
 import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dialog";
-import { CategoryIcon, getCategoryColor } from "@/components/category-icons";
+import { CategoryIcon } from "@/components/category-icons";
+import { TransactionLeadingIcon } from "@/components/transaction-leading-icon";
 import { fetchCategories, fetchNextChainSegment } from "@/lib/api";
 import {
   deleteTransaction,
@@ -304,29 +301,11 @@ export function DayTransactionsContent({
                   onClick={() => openDrawer(t)}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-white/5 active:bg-white/10"
                 >
-                  {category ? (
-                    <div
-                      className="flex h-9 w-9 items-center justify-center rounded-xl"
-                      style={{ background: getCategoryColor(category.icon) }}
-                    >
-                      <CategoryIcon
-                        iconName={category.icon}
-                        className={
-                          t.amount > 0
-                            ? "h-4 w-4 text-white"
-                            : "h-4 w-4 text-white/70"
-                        }
-                      />
-                    </div>
-                  ) : t.amount > 0 ? (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
-                      <DollarSign className="h-4 w-4 text-white" />
-                    </div>
-                  ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10">
-                      <ArrowDownLeft className="h-4 w-4 text-white/70" />
-                    </div>
-                  )}
+                  <TransactionLeadingIcon
+                    category={category}
+                    amount={t.amount}
+                    dimExpenseCategoryIcon
+                  />
                   <div className="flex flex-1 flex-col">
                     <span className="text-overlay text-sm font-medium text-white">
                       {t.label}
@@ -337,19 +316,7 @@ export function DayTransactionsContent({
                       )}
                     </span>
                   </div>
-                  <span
-                    className={
-                      t.amount >= 0
-                        ? "amount-text text-sm font-semibold tabular-nums text-[var(--amount-positive)]"
-                        : "text-sm font-semibold tabular-nums text-[var(--amount-negative)]"
-                    }
-                  >
-                    {t.amount >= 0 ? "+" : "-"}$
-                    {Math.abs(t.amount).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
+                  <AmountText amount={t.amount} variant="list" />
                 </button>
               );
             })}
@@ -359,19 +326,7 @@ export function DayTransactionsContent({
                 <span className="text-overlay text-sm font-medium text-white/70">
                   Net total
                 </span>
-                <span
-                  className={
-                    dayTotal >= 0
-                      ? "amount-text text-sm font-semibold tabular-nums text-[var(--amount-positive)]"
-                      : "text-sm font-semibold tabular-nums text-[var(--amount-negative)]"
-                  }
-                >
-                  {dayTotal >= 0 ? "+" : "-"}$
-                  {Math.abs(dayTotal).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
+                <AmountText amount={dayTotal} variant="list" />
               </div>
             )}
           </>
@@ -466,32 +421,10 @@ export function DayTransactionsContent({
                 }}
                 className="flex flex-col gap-4 px-4 pb-4"
               >
-                <div className="flex gap-2 rounded-2xl bg-white/10 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setEditType("expense")}
-                    className={cn(
-                      "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
-                      editType === "expense"
-                        ? "bg-white/25 text-white"
-                        : "text-white/50 active:bg-white/15",
-                    )}
-                  >
-                    Expense
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditType("income")}
-                    className={cn(
-                      "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
-                      editType === "income"
-                        ? "bg-white/25 text-white"
-                        : "text-white/50 active:bg-white/15",
-                    )}
-                  >
-                    Income
-                  </button>
-                </div>
+                <GlassExpenseIncomeToggle
+                  value={editType}
+                  onChange={setEditType}
+                />
                 <div className="flex flex-col gap-2">
                   <Label className="text-sm font-medium text-white/70">
                     Amount
@@ -657,13 +590,9 @@ export function DayTransactionsContent({
           )}
           <div className="absolute right-4 top-4">
             <DrawerClose asChild>
-              <button
-                type="button"
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 hover:bg-white/10 hover:text-white active:bg-white/15"
-                aria-label="Close"
-              >
+              <GlassIconButton aria-label="Close">
                 <X className="h-5 w-5" />
-              </button>
+              </GlassIconButton>
             </DrawerClose>
           </div>
         </DrawerContent>

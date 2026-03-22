@@ -2,6 +2,8 @@
 
 import { useSwipeable } from "react-swipeable";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { AmountText } from "@/components/amount-text";
+import { GlassIconButton } from "@/components/glass-icon-button";
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -69,23 +71,15 @@ export function CalendarGrid({
           isLoading && "opacity-60 transition-opacity",
         )}
       >
-        <button
-          onClick={onPrevMonth}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
-          aria-label="Previous month"
-        >
+        <GlassIconButton onClick={onPrevMonth} aria-label="Previous month">
           <ChevronLeft className="h-5 w-5" />
-        </button>
+        </GlassIconButton>
         <h2 className="text-lg font-semibold text-white">
           {MONTH_NAMES[balanceMonth - 1]} {balanceYear}
         </h2>
-        <button
-          onClick={onNextMonth}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
-          aria-label="Next month"
-        >
+        <GlassIconButton onClick={onNextMonth} aria-label="Next month">
           <ChevronRight className="h-5 w-5" />
-        </button>
+        </GlassIconButton>
       </div>
 
       {/* Weekday headers */}
@@ -135,22 +129,17 @@ export function CalendarGrid({
                 {day}
               </span>
               {balance !== undefined && (
-                <span
+                <AmountText
+                  amount={balance}
+                  variant="compact"
                   className={cn(
-                    "text-[10px] leading-none font-medium tabular-nums",
                     isToday
                       ? "amount-text text-white/90"
                       : balance >= 0
                         ? "amount-text text-[var(--amount-positive)]"
                         : "text-[var(--amount-negative)]",
                   )}
-                >
-                  {balance < 0 && "-"}
-                  {Math.abs(balance).toLocaleString(undefined, {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0,
-                  })}
-                </span>
+                />
               )}
             </button>
           );

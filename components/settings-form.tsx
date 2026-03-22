@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { useSWRConfig } from "swr";
+import { calendarMonthSwrKey } from "@/lib/swr-keys";
 import {
   Dialog,
   DialogContent,
@@ -148,7 +149,7 @@ export default function SettingsForm({
     if (seq !== saveSeqRef.current) return;
 
     const now = new Date();
-    mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
+    mutate(calendarMonthSwrKey(now.getMonth() + 1, now.getFullYear()));
     mutate("transactions");
   }, [accountName, startingBalance, accountId, mutate]);
 
@@ -400,7 +401,10 @@ export default function SettingsForm({
               }
               mutate("transactions");
               mutate(
-                `calendar-month-${new Date().getMonth() + 1}-${new Date().getFullYear()}`,
+                calendarMonthSwrKey(
+                  new Date().getMonth() + 1,
+                  new Date().getFullYear(),
+                ),
               );
               router.push("/login");
             }}

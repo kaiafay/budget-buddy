@@ -9,12 +9,14 @@ import type { Transaction, RecurringRule } from "@/lib/types";
 import { fetchCalendarData } from "@/lib/api";
 import { mapRecurringRuleRow } from "@/lib/recurring-rules";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
+import { calendarMonthSwrKey } from "@/lib/swr-keys";
 import {
   getProjectedBalances,
   sumRecurringBeforeDate,
   expandRecurringForDateRange,
   getTransactionsForDate,
 } from "@/lib/projection";
+import { AmountText } from "@/components/amount-text";
 import { ErrorBanner } from "@/components/error-banner";
 import { CalendarGrid } from "@/components/calendar-grid";
 import { DayTransactionsContent } from "@/components/day-sheet";
@@ -80,7 +82,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
     error: calendarError,
     mutate: revalidateCalendarMonth,
   } = useSWR(
-    `calendar-month-${month}-${year}`,
+    calendarMonthSwrKey(month, year),
     () => fetchCalendarData(month, year),
     { keepPreviousData: true },
   );
@@ -189,7 +191,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
     error: daySheetMonthError,
     mutate: revalidateDaySheetMonth,
   } = useSWR(
-    needDaySheetMonth ? `calendar-month-${effMonth}-${effYear}` : null,
+    needDaySheetMonth ? calendarMonthSwrKey(effMonth, effYear) : null,
     () => fetchCalendarData(effMonth, effYear),
     { keepPreviousData: true },
   );
@@ -276,19 +278,11 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       <div className="balance-card-1 px-5 pb-2 pt-1">
         <div className="glass-card flex flex-col gap-0.5 rounded-2xl p-4">
           <span className="text-xs text-white/85">Current Balance</span>
-          <span
-            className={cn(
-              "text-2xl font-bold tabular-nums",
-              todayBalance >= 0
-                ? "amount-text text-[var(--amount-positive)]"
-                : "text-[var(--amount-negative)]",
-            )}
-          >
-            {todayBalance >= 0 ? "" : "-"}$
-            {Math.abs(todayBalance).toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-            })}
-          </span>
+          <AmountText
+            amount={todayBalance}
+            variant="hero"
+            signDisplay="negativeOnly"
+          />
         </div>
       </div>
 
@@ -296,21 +290,19 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
       <div className="flex gap-2 px-5 pb-3">
         <div className="balance-card-2 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
           <span className="text-[10px] text-white/85">Income</span>
-          <span className="amount-text text-sm font-semibold tabular-nums text-[var(--amount-positive)]">
-            +$
-            {monthIncome.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-            })}
-          </span>
+          <AmountText
+            amount={monthIncome}
+            polarity="positive"
+            signDisplay="always"
+          />
         </div>
         <div className="balance-card-3 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
           <span className="text-[10px] text-white/85">Expenses</span>
-          <span className="text-sm font-semibold tabular-nums text-[var(--amount-negative)]">
-            -$
-            {Math.abs(monthExpenses).toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-            })}
-          </span>
+          <AmountText
+            amount={monthExpenses}
+            polarity="negative"
+            signDisplay="always"
+          />
         </div>
       </div>
 
@@ -353,14 +345,14 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
             onMutate={(opts) => {
               if (opts?.recurringTouch) {
                 invalidateNext12CalendarMonths();
-                mutate(`calendar-month-${month}-${year}`);
+                mutate(calendarMonthSwrKey(month, year));
                 if (needDaySheetMonth) {
-                  mutate(`calendar-month-${effMonth}-${effYear}`);
+                  mutate(calendarMonthSwrKey(effMonth, effYear));
                 }
               } else {
-                mutate(`calendar-month-${month}-${year}`);
+                mutate(calendarMonthSwrKey(month, year));
                 if (needDaySheetMonth) {
-                  mutate(`calendar-month-${effMonth}-${effYear}`);
+                  mutate(calendarMonthSwrKey(effMonth, effYear));
                 }
                 mutate("transactions");
               }

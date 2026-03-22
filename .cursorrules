@@ -92,10 +92,10 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 - Auth protection: root `proxy.ts` (Next.js 16 proxy convention — not `middleware.ts`; edge redirects for `/login` vs app routes)
 - Transaction and recurring rule mutations live in lib/transactions-mutations.ts — never inline these in components. Account mutations in settings-form.tsx are an exception as settings is a special server-side page. Account name and starting balance auto-save (debounced 1s after last change); category CRUD still uses explicit dialog actions.
 - After any mutation, invalidate SWR cache appropriately:
-  - One-time transaction create/update/delete: mutate("transactions") + mutate(`calendar-month-${txMonth}-${txYear}`) for the transaction's month
-  - Recurring rule mutations (edit, skip, delete): `invalidateNext12CalendarMonths()` from lib/swr-invalidate.ts (shared with add page); on the calendar home, `DayTransactionsContent` calls `onMutate({ recurringTouch: true })` so the parent also revalidates the visible `calendar-month-*` keys (covers months outside the next-12-from-today window)
+  - One-time transaction create/update/delete: `mutate("transactions")` plus `mutate(calendarMonthSwrKey(txMonth, txYear))` from lib/swr-keys.ts for the transaction's month
+  - Recurring rule mutations (edit, skip, delete): `invalidateNext12CalendarMonths()` from lib/swr-invalidate.ts (shared with add page); on the calendar home, `DayTransactionsContent` calls `onMutate({ recurringTouch: true })` so the parent also revalidates the visible `calendarMonthSwrKey(...)` keys (covers months outside the next-12-from-today window)
   - Category mutations: mutate("categories") only
-  - Account settings save (auto, debounced): mutate("transactions") + mutate(`calendar-month-${now.getMonth()+1}-${now.getFullYear()}`)
+  - Account settings save (auto, debounced): `mutate("transactions")` plus `mutate(calendarMonthSwrKey(now.getMonth() + 1, now.getFullYear()))`
 - Home calendar URL (`app/(app)/page.tsx`): optional `?month=` (1–12) and `?year=` (1900–2100); invalid or missing query values fall back to the current month/year
 - Calendar header avatar initials (`components/calendar-view.tsx`): derived from Supabase `user_metadata` name fields (`full_name`, `name`, `display_name`, `preferred_username`) when present; otherwise a neutral placeholder — not from email
 
@@ -134,13 +134,19 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - components/recurring-edit-scope-dialog.tsx — scope picker dialog for recurring transaction edits (just this / this and future)
 - components/category-icons.tsx — category icon map, getCategoryColor, ALLOWED_CATEGORY_ICON_NAMES
 - components/error-banner.tsx — `ErrorBanner` (fetch/network + retry), `glassRetryButtonClassName` for glass outline retry on gradient backgrounds
+- components/glass-expense-income-toggle.tsx — `GlassExpenseIncomeToggle` for glass expense/income segmented control (add page + day-sheet edit)
+- components/glass-icon-button.tsx — `GlassIconButton` for glass shell icon controls (back, month nav, drawer close)
 - components/inline-error.tsx — `InlineError` for form/API inline errors (`text-sm text-destructive`, `role="alert"`)
+- components/amount-text.tsx — `AmountText` for signed currency display (`formatCurrencyAmount` + sign/`$` rules by variant)
+- components/transaction-leading-icon.tsx — `TransactionLeadingIcon` for category-colored row icon (day-sheet + transactions list)
 - lib/supabase/ — Supabase client helpers
 - lib/utils.ts — shared utility functions (cn)
+- lib/format-currency.ts — `formatCurrencyAmount()` (magnitude via `Math.abs`, `toLocaleString` fraction options)
 - lib/errors.ts — shared user-facing error copy (USER_FACING_ERROR)
 - lib/recurring-rules.ts — `mapRecurringRuleRow()` for Supabase recurring_rules rows → App `RecurringRule`
 - lib/api.ts — SWR data fetching (fetchCalendarData, fetchTransactions)
 - lib/swr-invalidate.ts — `invalidateNext12CalendarMonths()` for recurring-rule cache invalidation (aligned with add page)
+- lib/swr-keys.ts — `calendarMonthSwrKey(month, year)` for SWR keys matching `fetchCalendarData`
 - lib/types.ts — shared TypeScript types (Transaction, RecurringRule, RecurringException, Account, GroupedTransactions, Category)
 - lib/projection.ts — balance projection engine
 - lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, createTransaction, createRecurringRule, upsertModifiedRecurringException, moveRecurringOccurrence, applyRecurringEditFromDate, updateRecurringSegmentInPlace, splitRecurringRuleAtDate, createCategory, updateCategory, deleteCategory)

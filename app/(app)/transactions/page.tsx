@@ -5,18 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { useSwipeable } from "react-swipeable";
-import {
-  DollarSign,
-  ArrowDownLeft,
-  Pencil,
-  Plus,
-  Receipt,
-  Trash2,
-} from "lucide-react";
+import { Pencil, Plus, Receipt, Trash2 } from "lucide-react";
 import useSWR, { useSWRConfig } from "swr";
 import type { Category, Transaction, GroupedTransactions } from "@/lib/types";
 import { fetchTransactions, fetchCategories } from "@/lib/api";
-import { CategoryIcon, getCategoryColor } from "@/components/category-icons";
+import { TransactionLeadingIcon } from "@/components/transaction-leading-icon";
 import { expandRecurringForDateRange } from "@/lib/projection";
 import { mapRecurringRuleRow } from "@/lib/recurring-rules";
 import {
@@ -24,6 +17,8 @@ import {
   skipRecurringOccurrence,
 } from "@/lib/transactions-mutations";
 import { USER_FACING_ERROR } from "@/lib/errors";
+import { calendarMonthSwrKey } from "@/lib/swr-keys";
+import { AmountText } from "@/components/amount-text";
 import { ErrorBanner } from "@/components/error-banner";
 import { InlineError } from "@/components/inline-error";
 
@@ -67,25 +62,11 @@ function SwipeableTransactionRow({
         }}
       >
         <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2.5">
-          {category ? (
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-              style={{ background: getCategoryColor(category.icon) }}
-            >
-              <CategoryIcon
-                iconName={category.icon}
-                className="h-4 w-4 text-white"
-              />
-            </div>
-          ) : t.amount > 0 ? (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/20">
-              <DollarSign className="h-4 w-4 text-white" />
-            </div>
-          ) : (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10">
-              <ArrowDownLeft className="h-4 w-4 text-white/70" />
-            </div>
-          )}
+          <TransactionLeadingIcon
+            category={category}
+            amount={t.amount}
+            className="shrink-0"
+          />
           <div className="min-w-0 flex-1">
             <span className="text-sm font-medium text-white">
               {t.label}
@@ -94,19 +75,11 @@ function SwipeableTransactionRow({
               )}
             </span>
           </div>
-          <span
-            className={
-              t.amount >= 0
-                ? "amount-text shrink-0 text-sm font-semibold tabular-nums text-[var(--amount-positive)]"
-                : "shrink-0 text-sm font-semibold tabular-nums text-[var(--amount-negative)]"
-            }
-          >
-            {t.amount >= 0 ? "+" : "-"}$
-            {Math.abs(t.amount).toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </span>
+          <AmountText
+            amount={t.amount}
+            className="shrink-0"
+            variant="list"
+          />
         </div>
 
         <div
@@ -183,8 +156,8 @@ function invalidateAfterLocalDelete(
   const deletedMonth = new Date(dateStr).getMonth() + 1;
   const deletedYear = new Date(dateStr).getFullYear();
   const now = new Date();
-  mutate(`calendar-month-${deletedMonth}-${deletedYear}`);
-  mutate(`calendar-month-${now.getMonth() + 1}-${now.getFullYear()}`);
+  mutate(calendarMonthSwrKey(deletedMonth, deletedYear));
+  mutate(calendarMonthSwrKey(now.getMonth() + 1, now.getFullYear()));
   mutate("transactions");
 }
 

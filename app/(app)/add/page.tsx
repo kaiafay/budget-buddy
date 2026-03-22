@@ -7,6 +7,7 @@ import { format, parseISO } from "date-fns";
 import useSWR from "swr";
 import { mutate } from "swr";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
+import { calendarMonthSwrKey } from "@/lib/swr-keys";
 import { createClient } from "@/lib/supabase/client";
 import {
   fetchTransaction,
@@ -24,6 +25,8 @@ import {
   moveRecurringOccurrence,
 } from "@/lib/transactions-mutations";
 import { ErrorBanner } from "@/components/error-banner";
+import { GlassExpenseIncomeToggle } from "@/components/glass-expense-income-toggle";
+import { GlassIconButton } from "@/components/glass-icon-button";
 import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -214,7 +217,7 @@ function AddTransactionPage() {
       }
       const currentMonth = date.getMonth() + 1;
       const currentYear = date.getFullYear();
-      mutate(`calendar-month-${currentMonth}-${currentYear}`);
+      mutate(calendarMonthSwrKey(currentMonth, currentYear));
       mutate("transactions");
       router.back();
       return;
@@ -268,7 +271,7 @@ function AddTransactionPage() {
       }
       const currentMonth = date.getMonth() + 1;
       const currentYear = date.getFullYear();
-      mutate(`calendar-month-${currentMonth}-${currentYear}`);
+      mutate(calendarMonthSwrKey(currentMonth, currentYear));
       mutate("transactions");
     }
     router.back();
@@ -337,13 +340,12 @@ function AddTransactionPage() {
     <div className="flex flex-col pb-6">
       {/* Header */}
       <header className="page-enter-1 flex items-center gap-3 px-5 pb-4 pt-6">
-        <button
+        <GlassIconButton
           onClick={() => router.back()}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
           aria-label="Go back"
         >
           <ArrowLeft className="h-5 w-5" />
-        </button>
+        </GlassIconButton>
         <h1 className="text-xl font-semibold text-white">
           {isEditMode ? "Edit Transaction" : "Add Transaction"}
         </h1>
@@ -363,32 +365,7 @@ function AddTransactionPage() {
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 px-5 pb-8">
         <div className="page-enter-2 flex flex-col gap-5">
           {/* Type toggle */}
-          <div className="flex gap-2 rounded-2xl bg-white/10 p-1">
-            <button
-              type="button"
-              onClick={() => setType("expense")}
-              className={cn(
-                "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
-                type === "expense"
-                  ? "bg-white/25 text-white"
-                  : "text-white/50 active:bg-white/15",
-              )}
-            >
-              Expense
-            </button>
-            <button
-              type="button"
-              onClick={() => setType("income")}
-              className={cn(
-                "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
-                type === "income"
-                  ? "bg-white/25 text-white"
-                  : "text-white/50 active:bg-white/15",
-              )}
-            >
-              Income
-            </button>
-          </div>
+          <GlassExpenseIncomeToggle value={type} onChange={setType} />
 
           {/* Amount */}
           <div className="flex flex-col gap-2">
