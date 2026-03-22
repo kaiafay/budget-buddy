@@ -344,7 +344,7 @@ function AddTransactionPage() {
       <header className="page-enter-1 flex items-center gap-3 px-5 pb-4 pt-6">
         <button
           onClick={() => router.back()}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-white/70 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
           aria-label="Go back"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -374,7 +374,9 @@ function AddTransactionPage() {
               onClick={() => setType("expense")}
               className={cn(
                 "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
-                type === "expense" ? "bg-white/25 text-white" : "text-white/50",
+                type === "expense"
+                  ? "bg-white/25 text-white"
+                  : "text-white/50 active:bg-white/15",
               )}
             >
               Expense
@@ -384,7 +386,9 @@ function AddTransactionPage() {
               onClick={() => setType("income")}
               className={cn(
                 "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
-                type === "income" ? "bg-white/25 text-white" : "text-white/50",
+                type === "income"
+                  ? "bg-white/25 text-white"
+                  : "text-white/50 active:bg-white/15",
               )}
             >
               Income
@@ -574,7 +578,7 @@ function AddTransactionPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20"
+                className="mt-2 h-9 rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
                 onClick={() => {
                   setEditLoadError(null);
                   setEditLoading(true);
@@ -595,7 +599,7 @@ function AddTransactionPage() {
           <Button
             type="submit"
             disabled={!accountId || editLoading}
-            className="mt-2 h-12 border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="mt-2 h-12 border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
           >
             {editLoading
               ? "Loading…"
@@ -611,7 +615,7 @@ function AddTransactionPage() {
             <Button
               type="button"
               variant="destructive"
-              className="mt-2 h-12"
+              className="mt-2 h-12 active:bg-destructive/80"
               onClick={handleDeleteAllFuture}
             >
               Delete this and all future occurrences

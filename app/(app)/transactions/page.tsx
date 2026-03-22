@@ -22,6 +22,7 @@ import {
   deleteTransaction,
   skipRecurringOccurrence,
 } from "@/lib/transactions-mutations";
+import { Button } from "@/components/ui/button";
 
 const USER_FACING_ERROR =
   "Something went wrong. Please check your connection and try again.";
@@ -119,7 +120,7 @@ function SwipeableTransactionRow({
           <button
             type="button"
             onClick={onDelete}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white"
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white active:brightness-90"
             style={{
               background: "rgba(220,38,38,0.85)",
               backdropFilter: "blur(12px)",
@@ -133,7 +134,7 @@ function SwipeableTransactionRow({
           <button
             type="button"
             onClick={onEdit}
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white"
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white active:brightness-90"
             style={{
               background: "rgba(255,255,255,0.2)",
               backdropFilter: "blur(12px)",
@@ -290,13 +291,14 @@ export default function TransactionsPage() {
               Couldn&apos;t load transactions. Check your connection and try
               again.
             </p>
-            <button
+            <Button
               type="button"
-              className="mt-2 text-sm font-medium text-white underline underline-offset-2"
+              variant="outline"
+              className="mt-2 h-9 rounded-xl border-white/30 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
               onClick={() => void revalidateTransactions()}
             >
               Try again
-            </button>
+            </Button>
           </div>
         )}
         {deleteError && (
@@ -324,7 +326,7 @@ export default function TransactionsPage() {
               </div>
               <Link
                 href="/add"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 active:bg-primary/85"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 active:bg-primary/80"
               >
                 <Plus className="h-4 w-4" aria-hidden />
                 Add transaction
