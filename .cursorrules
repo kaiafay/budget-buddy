@@ -155,6 +155,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 ## Key Rules
 
 - Mobile-first always — design for 390px width, scale up for desktop
+- Account is auto-created on signup via app/login/page.tsx — no dedicated no-account handling needed in the add flow. Submit remains disabled when accountId is absent as a silent safety net.
 - Never change layout or styling unless explicitly asked
 - Keep prompts surgical — only change what's asked, nothing else
 - Never revert the SWR data fetching pattern back to server-side fetching
