@@ -130,6 +130,10 @@ export function DayTransactionsContent({
       setNextSegmentLoading(true);
       void fetchNextChainSegment(ruleId, occDate)
         .then(setNextSegmentDate)
+        .catch((err) => {
+          console.error("fetchNextChainSegment failed:", err);
+          return null;
+        })
         .finally(() => setNextSegmentLoading(false));
       const rule = recurringRules.find((r) => r.id === ruleId);
       setEditFrequency(rule?.frequency ?? "monthly");

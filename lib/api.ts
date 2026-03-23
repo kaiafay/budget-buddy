@@ -181,6 +181,12 @@ export async function fetchTransaction(
   date: string;
   category_id: string | null;
 } | null> {
+  let parsedId: string;
+  try {
+    parsedId = uuidSchema.parse(id);
+  } catch {
+    throw new Error("Invalid ID");
+  }
   const supabase = createClient();
   const {
     data: { user },
@@ -189,7 +195,7 @@ export async function fetchTransaction(
   const { data, error } = await supabase
     .from("transactions")
     .select("id, label, amount, date, category_id")
-    .eq("id", id)
+    .eq("id", parsedId)
     .eq("user_id", user.id)
     .single();
   if (error) {
@@ -208,6 +214,12 @@ export async function fetchTransaction(
 export async function fetchRecurringRule(
   id: string,
 ): Promise<RecurringRule | null> {
+  let parsedId: string;
+  try {
+    parsedId = uuidSchema.parse(id);
+  } catch {
+    throw new Error("Invalid ID");
+  }
   const supabase = createClient();
   const {
     data: { user },
@@ -218,7 +230,7 @@ export async function fetchRecurringRule(
     .select(
       "id, label, amount, frequency, start_date, end_date, category_id, root_rule_id",
     )
-    .eq("id", id)
+    .eq("id", parsedId)
     .eq("user_id", user.id)
     .single();
   if (error) {
@@ -245,6 +257,12 @@ export async function fetchNextChainSegment(
   ruleId: string,
   occurrenceDate: string,
 ): Promise<string | null> {
+  let parsedRuleId: string;
+  try {
+    parsedRuleId = uuidSchema.parse(ruleId);
+  } catch {
+    throw new Error("Invalid ID");
+  }
   const supabase = createClient();
   const {
     data: { user },
@@ -256,12 +274,12 @@ export async function fetchNextChainSegment(
   const { data: rule, error: ruleError } = await supabase
     .from("recurring_rules")
     .select("root_rule_id")
-    .eq("id", ruleId)
+    .eq("id", parsedRuleId)
     .eq("user_id", user.id)
     .single();
   if (ruleError || !rule) return null;
 
-  const rootId = rule.root_rule_id ?? ruleId;
+  const rootId = rule.root_rule_id ?? parsedRuleId;
   const safeId = uuidSchema.parse(rootId);
 
   const { data: next, error: nextError } = await supabase
