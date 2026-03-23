@@ -1,4 +1,9 @@
 import { CalendarView } from "@/components/calendar-view";
+import { createClient } from "@/lib/supabase/server";
+import {
+  getUserDisplayInitials,
+  getUserGivenNameFromMetadata,
+} from "@/lib/user-display";
 
 function parseCalendarQueryMonthYear(
   monthStr: string | undefined,
@@ -58,11 +63,20 @@ export default async function HomePage({
     now,
   );
   const initialSelectedDate = parseSelectedDate(params.selected);
+
+  const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getUser();
+  const user = authData.user;
+  const givenName = getUserGivenNameFromMetadata(user?.user_metadata ?? {});
+  const avatarInitials = getUserDisplayInitials(user);
+
   return (
     <CalendarView
       initialMonth={month}
       initialYear={year}
       initialSelectedDate={initialSelectedDate}
+      givenName={givenName}
+      avatarInitials={avatarInitials}
     />
   );
 }

@@ -4,7 +4,6 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
 import { format } from "date-fns";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Transaction, RecurringRule } from "@/lib/types";
 import { fetchCalendarData } from "@/lib/api";
@@ -22,45 +21,20 @@ import { ErrorBanner } from "@/components/error-banner";
 import { CalendarGrid } from "@/components/calendar-grid";
 import { DayTransactionsContent } from "@/components/day-sheet";
 
-function getUserDisplayInitials(user: {
-  email?: string | null;
-  user_metadata?: Record<string, unknown>;
-} | null): string {
-  if (!user) return "··";
-  const meta = user.user_metadata ?? {};
-  const pick = (key: string) => {
-    const v = meta[key];
-    return typeof v === "string" && v.trim() ? v.trim() : "";
-  };
-  const name =
-    pick("full_name") ||
-    pick("name") ||
-    pick("display_name") ||
-    pick("preferred_username");
-  if (name) {
-    const parts = name.split(/\s+/).filter(Boolean);
-    if (parts.length >= 2) {
-      const a = parts[0]![0];
-      const b = parts[parts.length - 1]![0];
-      if (a && b) return (a + b).toUpperCase();
-    }
-    if (name.length >= 2) return name.slice(0, 2).toUpperCase();
-    const first = name[0];
-    return first ? first.toUpperCase() + "·" : "··";
-  }
-  return "··";
-}
-
 interface CalendarViewProps {
   initialMonth: number;
   initialYear: number;
   initialSelectedDate?: string;
+  givenName?: string;
+  avatarInitials?: string;
 }
 
 export function CalendarView({
   initialMonth,
   initialYear,
   initialSelectedDate,
+  givenName = "",
+  avatarInitials = "··",
 }: CalendarViewProps) {
   const router = useRouter();
   const hour = new Date().getHours();
@@ -74,8 +48,6 @@ export function CalendarView({
   const [selectedDate, setSelectedDate] = useState<string | null>(
     () => initialSelectedDate ?? null,
   );
-  const [initials, setInitials] = useState("··");
-
   useEffect(() => {
     if (!initialSelectedDate || initialSelectedDate.length < 10) return;
     setSelectedDate(initialSelectedDate);
@@ -85,14 +57,6 @@ export function CalendarView({
     setYear(y);
     setMonth(m);
   }, [initialSelectedDate]);
-
-  useEffect(() => {
-    createClient()
-      .auth.getUser()
-      .then(({ data }) => {
-        setInitials(getUserDisplayInitials(data.user));
-      });
-  }, []);
 
   const { mutate } = useSWRConfig();
   const {
@@ -217,8 +181,7 @@ export function CalendarView({
 
   const daySheetMonthSource = needDaySheetMonth ? daySheetMonthData : data;
   const daySheetRecurringMapped: RecurringRule[] = useMemo(
-    () =>
-      (daySheetMonthSource?.recurringRules ?? []).map(mapRecurringRuleRow),
+    () => (daySheetMonthSource?.recurringRules ?? []).map(mapRecurringRuleRow),
     [daySheetMonthSource?.recurringRules],
   );
   const daySheetTransactions: Transaction[] = useMemo(() => {
@@ -268,10 +231,9 @@ export function CalendarView({
 
   function handleDaySelect(date: string) {
     setSelectedDate(date);
-    router.replace(
-      `/?month=${month}&year=${year}&selected=${date}`,
-      { scroll: false },
-    );
+    router.replace(`/?month=${month}&year=${year}&selected=${date}`, {
+      scroll: false,
+    });
   }
 
   return (
@@ -279,16 +241,23 @@ export function CalendarView({
       {/* Top bar */}
       <header className="flex items-center justify-between px-5 pb-2 pt-4">
         <div>
-          <span className="flex items-center gap-1 greeting-enter">
-            <span className="wave-emoji">👋</span>{" "}
-            <p className="text-base font-normal text-white/70">{greeting}</p>
-          </span>
+          <div className="flex items-baseline gap-1 greeting-enter">
+            <span className="wave-emoji shrink-0" aria-hidden>
+              👋
+            </span>
+            <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-base font-normal leading-none text-white/70">
+              <span>{givenName ? `${greeting},` : greeting}</span>
+              {givenName ? (
+                <span className="relative top-[0.3px]">{givenName}</span>
+              ) : null}
+            </span>
+          </div>
           <h1 className="account-enter min-h-7 text-xl font-semibold text-white">
             {accountName || "\u00A0"}
           </h1>
         </div>
         <div className="glass account-enter flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white">
-          {initials}
+          {avatarInitials}
         </div>
       </header>
 

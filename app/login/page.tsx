@@ -53,7 +53,8 @@ export default function LoginPage() {
       password,
       options: {
         data: {
-          full_name: `${trimmedFirst} ${trimmedLast}`,
+          given_name: trimmedFirst,
+          family_name: trimmedLast,
         },
       },
     });

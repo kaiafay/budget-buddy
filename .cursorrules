@@ -80,7 +80,7 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 - Server components: import { createClient } from "@/lib/supabase/server" (always await it)
 - Never use the service_role key — only anon key in frontend code
 - Always use .eq("user_id", user.id) for RLS — never fetch data without filtering by user
-- Server client is only used in app/(app)/settings/page.tsx — all other pages use SWR via lib/api.ts
+- Server client: `app/(app)/settings/page.tsx` (settings fetch); `app/(app)/page.tsx` calls `getUser` only to pass calendar header `givenName` / `avatarInitials` (from `lib/user-display.ts`) into `CalendarView`. All other app data uses SWR via lib/api.ts
 - Default to SWR + browser client for new pages unless the page is settings-like (simple single fetch, no reactivity needed)
 
 ## Architecture Rules
@@ -97,7 +97,7 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
   - Category mutations: mutate("categories") only
   - Account settings save (auto, debounced): `mutate("transactions")` plus `mutate(calendarMonthSwrKey(now.getMonth() + 1, now.getFullYear()))`
 - Home calendar URL (`app/(app)/page.tsx`): optional `?month=` (1–12) and `?year=` (1900–2100); invalid or missing query values fall back to the current month/year; optional `?selected=` (`yyyy-MM-dd`, validated) pre-selects that day and aligns the visible month (e.g. after save from `/add`). Tapping a day in `components/calendar-view.tsx` calls `router.replace` with `month`, `year`, and `selected` so `router.back()` from `/add` restores selection.
-- Calendar header avatar initials (`components/calendar-view.tsx`): derived from Supabase `user_metadata` name fields (`full_name`, `name`, `display_name`, `preferred_username`) when present; otherwise a neutral placeholder — not from email
+- Calendar header greeting uses `given_name` from `user_metadata` when present (`lib/user-display.ts`). Avatar initials use `given_name` + `family_name`, then fall back to `name`, `display_name`, `preferred_username` — not from email. Values are read on the server in `app/(app)/page.tsx` and passed into `CalendarView` as props; after profile name changes, use `router.refresh()` (or revisit `/`) so RSC passes updated props
 
 ## Design System
 
@@ -142,6 +142,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - components/transaction-leading-icon.tsx — `TransactionLeadingIcon` for category-colored row icon (day-sheet + transactions list)
 - lib/supabase/ — Supabase client helpers
 - lib/utils.ts — shared utility functions (cn)
+- lib/user-display.ts — `getUserDisplayNameFromMetadata`, `getUserGivenNameFromMetadata`, `getUserDisplayInitials` for Auth `user_metadata` (signup stores `given_name` / `family_name`)
 - lib/glass-classes.ts — shared glass UI className constants (`glassInputClass`, `glassAmountInputClass`, `glassCurrencyPrefixClass`, `glassSectionIconClass`)
 - lib/format-currency.ts — `formatCurrencyAmount()` (magnitude via `Math.abs`, `toLocaleString` fraction options)
 - lib/errors.ts — shared user-facing error copy (USER_FACING_ERROR)

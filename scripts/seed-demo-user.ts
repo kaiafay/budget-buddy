@@ -92,7 +92,7 @@ async function main(): Promise<void> {
       email: DEMO_EMAIL,
       password,
       email_confirm: true,
-      user_metadata: { full_name: "Demo User" },
+      user_metadata: { given_name: "Jane", family_name: "Doe" },
     });
     if (error) throw error;
     userId = data.user!.id;
@@ -101,7 +101,7 @@ async function main(): Promise<void> {
   } else {
     // Update metadata even if user already exists so initials show correctly
     await supabase.auth.admin.updateUserById(userId, {
-      user_metadata: { full_name: "Demo User" },
+      user_metadata: { given_name: "Jane", family_name: "Doe" },
     });
     console.log("User already exists, re-seeding data:", DEMO_EMAIL);
   }
