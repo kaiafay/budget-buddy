@@ -114,7 +114,7 @@ export function CalendarGrid({
             <button
               key={day}
               onClick={() => handleDayClick(day)}
-              className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl hover:bg-white/10 active:bg-white/15"
+              className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl hover:bg-white/10"
               aria-label={`${MONTH_NAMES[balanceMonth - 1]} ${day}`}
             >
               <span

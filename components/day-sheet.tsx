@@ -357,7 +357,7 @@ export function DayTransactionsContent({
 
       <Drawer open={drawerOpen} onOpenChange={(open) => !open && closeDrawer()}>
         <DrawerContent
-          className="flex flex-col border-white/20 text-white pb-[env(safe-area-inset-bottom,0px)] min-h-0"
+          className="flex flex-col border-white/20 text-white pb-[env(safe-area-inset-bottom,0px)] min-h-0 max-h-[85dvh]"
           style={{ background: "linear-gradient(135deg, #4f6bed, #5b5bd6)" }}
         >
           {drawerMode === "actions" && selectedTransaction && (
