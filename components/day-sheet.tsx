@@ -138,9 +138,9 @@ export function DayTransactionsContent({
   }
 
   function closeDrawer() {
+    setDrawerMode("actions");
     setDrawerOpen(false);
     setSelectedTransaction(null);
-    setDrawerMode("actions");
     setScopeDialogOpen(false);
     setPendingEditPayload(null);
     setNextSegmentDate(null);
@@ -355,7 +355,11 @@ export function DayTransactionsContent({
         onSelectScope={confirmRecurringScope}
       />
 
-      <Drawer open={drawerOpen} onOpenChange={(open) => !open && closeDrawer()}>
+      <Drawer
+        open={drawerOpen}
+        onOpenChange={(open) => !open && closeDrawer()}
+        repositionInputs={false}
+      >
         <DrawerContent
           className="flex flex-col border-white/20 text-white pb-[env(safe-area-inset-bottom,0px)] min-h-0 max-h-[85dvh]"
           style={{ background: "linear-gradient(135deg, #4f6bed, #5b5bd6)" }}
