@@ -22,10 +22,33 @@ function parseCalendarQueryMonthYear(
   return { month, year };
 }
 
+function parseSelectedDate(
+  selectedStr: string | undefined,
+): string | undefined {
+  if (!selectedStr || selectedStr.length < 10) return undefined;
+  const ymd = selectedStr.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return undefined;
+  const y = Number(ymd.slice(0, 4));
+  const m = Number(ymd.slice(5, 7));
+  const d = Number(ymd.slice(8, 10));
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d))
+    return undefined;
+  if (m < 1 || m > 12 || d < 1 || d > 31) return undefined;
+  const date = new Date(y, m - 1, d);
+  if (
+    date.getFullYear() !== y ||
+    date.getMonth() !== m - 1 ||
+    date.getDate() !== d
+  ) {
+    return undefined;
+  }
+  return ymd;
+}
+
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; year?: string }>;
+  searchParams: Promise<{ month?: string; year?: string; selected?: string }>;
 }) {
   const params = await searchParams;
   const now = new Date();
@@ -34,5 +57,12 @@ export default async function HomePage({
     params.year,
     now,
   );
-  return <CalendarView initialMonth={month} initialYear={year} />;
+  const initialSelectedDate = parseSelectedDate(params.selected);
+  return (
+    <CalendarView
+      initialMonth={month}
+      initialYear={year}
+      initialSelectedDate={initialSelectedDate}
+    />
+  );
 }

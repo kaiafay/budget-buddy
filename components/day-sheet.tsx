@@ -60,7 +60,10 @@ export interface DayTransactionsContentProps {
   date: string;
   transactions: Transaction[];
   recurringRules: RecurringRule[];
-  onMutate: (opts?: { recurringTouch?: boolean }) => void;
+  onMutate: (opts?: {
+    recurringTouch?: boolean;
+    targetDate?: string;
+  }) => void;
   accountId: string | null;
 }
 
@@ -229,7 +232,7 @@ export function DayTransactionsContent({
       setEditError(error.message);
       return;
     }
-    onMutate();
+    onMutate({ targetDate: dateStr });
     closeDrawer();
   }
 
@@ -270,7 +273,7 @@ export function DayTransactionsContent({
     }
     setScopeDialogOpen(false);
     setPendingEditPayload(null);
-    onMutate({ recurringTouch: true });
+    onMutate({ recurringTouch: true, targetDate: p.newStartDate });
     closeDrawer();
   }
 
@@ -517,6 +520,7 @@ export function DayTransactionsContent({
                       <Calendar
                         mode="single"
                         selected={editDate}
+                        defaultMonth={editDate}
                         onSelect={setEditDate}
                         disabled={
                           nextSegmentLoading

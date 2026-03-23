@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
@@ -53,9 +54,15 @@ function getUserDisplayInitials(user: {
 interface CalendarViewProps {
   initialMonth: number;
   initialYear: number;
+  initialSelectedDate?: string;
 }
 
-export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
+export function CalendarView({
+  initialMonth,
+  initialYear,
+  initialSelectedDate,
+}: CalendarViewProps) {
+  const router = useRouter();
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -64,8 +71,20 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
   const [slideDirection, setSlideDirection] = useState<"prev" | "next" | null>(
     null,
   );
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(
+    () => initialSelectedDate ?? null,
+  );
   const [initials, setInitials] = useState("··");
+
+  useEffect(() => {
+    if (!initialSelectedDate || initialSelectedDate.length < 10) return;
+    setSelectedDate(initialSelectedDate);
+    const y = Number(initialSelectedDate.slice(0, 4));
+    const m = Number(initialSelectedDate.slice(5, 7));
+    if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return;
+    setYear(y);
+    setMonth(m);
+  }, [initialSelectedDate]);
 
   useEffect(() => {
     createClient()
@@ -247,6 +266,14 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
     }
   }
 
+  function handleDaySelect(date: string) {
+    setSelectedDate(date);
+    router.replace(
+      `/?month=${month}&year=${year}&selected=${date}`,
+      { scroll: false },
+    );
+  }
+
   return (
     <div className="flex flex-col pb-6">
       {/* Top bar */}
@@ -323,7 +350,7 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
             onNextMonth={onNextMonth}
             isLoading={isLoading && !calendarError}
             selectedDate={selectedDate}
-            onSelectedDateChange={setSelectedDate}
+            onSelectedDateChange={handleDaySelect}
           />
         </div>
         {needDaySheetMonth && daySheetMonthError ? (
@@ -343,6 +370,22 @@ export function CalendarView({ initialMonth, initialYear }: CalendarViewProps) {
             recurringRules={daySheetRecurringMapped}
             accountId={data?.account?.id ?? null}
             onMutate={(opts) => {
+              const td = opts?.targetDate;
+              if (td && td.length >= 10) {
+                setSelectedDate(td);
+                const ty = Number(td.slice(0, 4));
+                const tm = Number(td.slice(5, 7));
+                if (
+                  Number.isFinite(ty) &&
+                  Number.isFinite(tm) &&
+                  tm >= 1 &&
+                  tm <= 12 &&
+                  (tm !== month || ty !== year)
+                ) {
+                  setMonth(tm);
+                  setYear(ty);
+                }
+              }
               if (opts?.recurringTouch) {
                 invalidateNext12CalendarMonths();
                 mutate(calendarMonthSwrKey(month, year));

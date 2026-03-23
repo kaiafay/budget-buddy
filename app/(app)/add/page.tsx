@@ -225,7 +225,7 @@ function AddTransactionPage() {
       const currentYear = date.getFullYear();
       mutate(calendarMonthSwrKey(currentMonth, currentYear));
       mutate("transactions");
-      router.back();
+      router.push(`/?selected=${dateStr}`);
       return;
     }
 
@@ -280,7 +280,7 @@ function AddTransactionPage() {
       mutate(calendarMonthSwrKey(currentMonth, currentYear));
       mutate("transactions");
     }
-    router.back();
+    router.push(`/?selected=${dateStr}`);
   }
 
   async function handleDeleteAllFuture() {
@@ -339,7 +339,7 @@ function AddTransactionPage() {
     setScopeDialogOpen(false);
     setPendingRecurringEdit(null);
     invalidateNext12CalendarMonths();
-    router.back();
+    router.push(`/?selected=${p.newStartDate}`);
   }
 
   const submitButtonClass =
@@ -457,6 +457,7 @@ function AddTransactionPage() {
                 <Calendar
                   mode="single"
                   selected={date}
+                  defaultMonth={date}
                   onSelect={setDate}
                   initialFocus
                   disabled={

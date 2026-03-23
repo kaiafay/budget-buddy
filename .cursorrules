@@ -96,7 +96,7 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
   - Recurring rule mutations (edit, skip, delete): `invalidateNext12CalendarMonths()` from lib/swr-invalidate.ts (shared with add page); on the calendar home, `DayTransactionsContent` calls `onMutate({ recurringTouch: true })` so the parent also revalidates the visible `calendarMonthSwrKey(...)` keys (covers months outside the next-12-from-today window)
   - Category mutations: mutate("categories") only
   - Account settings save (auto, debounced): `mutate("transactions")` plus `mutate(calendarMonthSwrKey(now.getMonth() + 1, now.getFullYear()))`
-- Home calendar URL (`app/(app)/page.tsx`): optional `?month=` (1–12) and `?year=` (1900–2100); invalid or missing query values fall back to the current month/year
+- Home calendar URL (`app/(app)/page.tsx`): optional `?month=` (1–12) and `?year=` (1900–2100); invalid or missing query values fall back to the current month/year; optional `?selected=` (`yyyy-MM-dd`, validated) pre-selects that day and aligns the visible month (e.g. after save from `/add`). Tapping a day in `components/calendar-view.tsx` calls `router.replace` with `month`, `year`, and `selected` so `router.back()` from `/add` restores selection.
 - Calendar header avatar initials (`components/calendar-view.tsx`): derived from Supabase `user_metadata` name fields (`full_name`, `name`, `display_name`, `preferred_username`) when present; otherwise a neutral placeholder — not from email
 
 ## Design System
