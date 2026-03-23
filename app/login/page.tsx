@@ -48,6 +48,19 @@ export default function LoginPage() {
       return;
     }
 
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long.");
+      return;
+    }
+    if (!/\d/.test(password)) {
+      setError("Password must include at least one number.");
+      return;
+    }
+    if (!/[a-zA-Z]/.test(password)) {
+      setError("Password must include at least one letter.");
+      return;
+    }
+
     const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
