@@ -1,5 +1,6 @@
 import { addDays, format, min, parseISO, subDays } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
+import { assertUuid } from "@/lib/utils/uuid";
 
 export async function deleteTransaction(
   id: string,
@@ -257,7 +258,7 @@ const RULE_EDIT_SELECT =
   "id, start_date, root_rule_id, account_id, category_id";
 
 function chainOrFilter(rootId: string): string {
-  return `id.eq.${rootId},root_rule_id.eq.${rootId}`;
+  return `id.eq.${assertUuid(rootId)},root_rule_id.eq.${assertUuid(rootId)}`;
 }
 
 function normalizeRuleDate(value: string): string {

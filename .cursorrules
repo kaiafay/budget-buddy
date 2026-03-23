@@ -142,6 +142,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - components/transaction-leading-icon.tsx — `TransactionLeadingIcon` for category-colored row icon (day-sheet + transactions list)
 - lib/supabase/ — Supabase client helpers
 - lib/utils.ts — shared utility functions (cn)
+- lib/utils/uuid.ts — `assertUuid()` validates and returns a UUID string; used to sanitize IDs interpolated into raw PostgREST `.or()` filter strings (prevents filter injection)
 - lib/user-display.ts — `getUserDisplayNameFromMetadata`, `getUserGivenNameFromMetadata`, `getUserDisplayInitials` for Auth `user_metadata` (signup stores `given_name` / `family_name`)
 - lib/glass-classes.ts — shared glass UI className constants (`glassInputClass`, `glassAmountInputClass`, `glassCurrencyPrefixClass`, `glassSectionIconClass`)
 - lib/format-currency.ts — `formatCurrencyAmount()` (magnitude via `Math.abs`, `toLocaleString` fraction options)
@@ -174,6 +175,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - Safe area insets are applied once: pt-[env(safe-area-inset-top,0px)] on the content div, pb-[calc(56px+env(safe-area-inset-bottom,0px))] on the content div, pb-[env(safe-area-inset-bottom,0px)] on the nav inner div, and pb-[env(safe-area-inset-bottom,0px)] on any bottom drawer/sheet
 - Nav height is always 56px (--nav-height: 56px) — safe area is handled separately, never baked into --nav-height
 - Never apply safe area padding more than once on the same visual element — stacking causes nav/drawer to be too tall on iPhone
+- Security headers (X-Frame-Options, HSTS, CSP, etc.) are configured in `next.config.mjs` `headers()`. When adding external scripts, fonts, stylesheets, or API endpoints, update the CSP directives (especially `script-src`, `connect-src`, `font-src`) or the new resource will be blocked in production
 
 ## Code Cleanliness Rules
 
