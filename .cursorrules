@@ -142,7 +142,6 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - components/transaction-leading-icon.tsx — `TransactionLeadingIcon` for category-colored row icon (day-sheet + transactions list)
 - lib/supabase/ — Supabase client helpers
 - lib/utils.ts — shared utility functions (cn)
-- lib/utils/uuid.ts — `assertUuid()` validates and returns a UUID string; used to sanitize IDs interpolated into raw PostgREST `.or()` filter strings (prevents filter injection)
 - lib/user-display.ts — `getUserDisplayNameFromMetadata`, `getUserGivenNameFromMetadata`, `getUserDisplayInitials` for Auth `user_metadata` (signup stores `given_name` / `family_name`)
 - lib/glass-classes.ts — shared glass UI className constants (`glassInputClass`, `glassAmountInputClass`, `glassCurrencyPrefixClass`, `glassSectionIconClass`)
 - lib/format-currency.ts — `formatCurrencyAmount()` (magnitude via `Math.abs`, `toLocaleString` fraction options)
@@ -153,7 +152,8 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - lib/swr-keys.ts — `calendarMonthSwrKey(month, year)` for SWR keys matching `fetchCalendarData`
 - lib/types.ts — shared TypeScript types (Transaction, RecurringRule, RecurringException, Account, GroupedTransactions, Category)
 - lib/projection.ts — balance projection engine
-- lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, createTransaction, createRecurringRule, upsertModifiedRecurringException, moveRecurringOccurrence, applyRecurringEditFromDate, updateRecurringSegmentInPlace, splitRecurringRuleAtDate, createCategory, updateCategory, deleteCategory)
+- lib/validation.ts — Zod schemas and `safeParseMutation()` for mutation payloads; `accountSchema` defined for future use (account saves stay in settings-form); `uuidSchema.parse()` sanitizes IDs interpolated into raw PostgREST `.or()` filter strings in lib/api.ts and lib/transactions-mutations.ts (`chainOrFilter`, prevents filter injection)
+- lib/transactions-mutations.ts — mutation helpers (deleteTransaction, skipRecurringOccurrence, endRecurringRuleFuture, updateTransaction, createTransaction, createRecurringRule, upsertModifiedRecurringException, moveRecurringOccurrence, applyRecurringEditFromDate, updateRecurringSegmentInPlace, splitRecurringRuleAtDate, createCategory, updateCategory, deleteCategory); each entry point validates via `safeParseMutation` before Supabase (invalid input returns `{ error }`, not throws)
 - proxy.ts — edge auth (Next.js 16 `proxy` file convention); redirects unauthenticated users to /login, authenticated users away from /login
 - FUTURE.md — post-beta backlog, known limitations, and deferred architectural decisions
 - BETA_TEST.md — manual test checklist for releases and feature changes

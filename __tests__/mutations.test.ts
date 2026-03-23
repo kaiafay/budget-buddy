@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   applyRecurringEditFromDate,
   createRecurringRule,
+  createTransaction,
+  deleteCategory,
+  deleteTransaction,
   updateRecurringSegmentInPlace,
   splitRecurringRuleAtDate,
   skipRecurringOccurrence,
@@ -10,8 +13,17 @@ import {
   endRecurringRuleFuture,
   createCategory,
   updateCategory,
-  deleteCategory,
 } from "@/lib/transactions-mutations";
+
+const R1 = "11111111-1111-4111-8111-111111111111";
+const R2 = "22222222-2222-4222-8222-222222222222";
+const R_SEG2 = "33333333-3333-4333-8333-333333333333";
+const RA = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+const CAT1 = "44444444-4444-4444-8444-444444444444";
+const CAT_X = "55555555-5555-5555-8555-555555555555";
+const ACC1 = "66666666-6666-4666-8666-666666666666";
+const ACC123 = "77777777-7777-4777-8777-777777777777";
+const TX_NEW = "88888888-8888-4888-8888-888888888888";
 
 const mockEq2 = vi.fn().mockResolvedValue({ error: null });
 const mockEq1 = vi.fn().mockReturnValue({ eq: mockEq2 });
@@ -45,8 +57,7 @@ type RuleRow = {
   category_id: string | null;
 };
 
-const RULE_EDIT_COLS =
-  "id, start_date, root_rule_id, account_id, category_id";
+const RULE_EDIT_COLS = "id, start_date, root_rule_id, account_id, category_id";
 
 function ruleSelectChain(singleData: RuleRow) {
   return {
@@ -161,12 +172,12 @@ vi.mock("@/lib/supabase/client", () => ({
 
 describe("applyRecurringEditFromDate", () => {
   const baseRule: RuleRow = {
-    id: "rule-1",
+    id: R1,
     start_date: "2025-02-15",
     end_date: null,
     root_rule_id: null,
-    account_id: "acc-123",
-    category_id: "cat-1",
+    account_id: ACC123,
+    category_id: CAT1,
   };
 
   beforeEach(() => {
@@ -178,7 +189,7 @@ describe("applyRecurringEditFromDate", () => {
     mockExceptionDeleteIn.mockResolvedValue({ error: null });
     const rr = recurringRulesFromHandlers({
       fullSelectRules: [baseRule, baseRule],
-      chainIds: ["rule-1"],
+      chainIds: [R1],
       idSelectModes: ["chain"],
     });
     fromTableHandler = (table: string) => {
@@ -193,7 +204,7 @@ describe("applyRecurringEditFromDate", () => {
   });
 
   it("uses in-place update when occurrenceDate equals segment start_date", async () => {
-    const result = await applyRecurringEditFromDate("rule-1", "2025-02-15", {
+    const result = await applyRecurringEditFromDate(R1, "2025-02-15", {
       label: "Updated",
       amount: -40,
       frequency: "monthly",
@@ -203,7 +214,7 @@ describe("applyRecurringEditFromDate", () => {
       label: "Updated",
       amount: -40,
       frequency: "monthly",
-      category_id: "cat-1",
+      category_id: CAT1,
     });
     expect(mockInsert).not.toHaveBeenCalled();
     expect(mockExceptionDelete).toHaveBeenCalled();
@@ -211,7 +222,7 @@ describe("applyRecurringEditFromDate", () => {
       "exception_date",
       "2025-02-15",
     );
-    expect(mockExceptionDeleteIn).toHaveBeenCalledWith("rule_id", ["rule-1"]);
+    expect(mockExceptionDeleteIn).toHaveBeenCalledWith("rule_id", [R1]);
   });
 
   it("splits at occurrence and inserts segment with root_rule_id when pivot is after start", async () => {
@@ -222,7 +233,7 @@ describe("applyRecurringEditFromDate", () => {
     const rr = recurringRulesFromHandlers({
       fullSelectRules: [splitRule, splitRule],
       existingAtPivot: null,
-      chainIds: ["rule-1"],
+      chainIds: [R1],
       nextSegment: null,
       idSelectModes: ["existing", "chain"],
     });
@@ -236,7 +247,7 @@ describe("applyRecurringEditFromDate", () => {
       return {};
     };
 
-    const result = await applyRecurringEditFromDate("rule-1", "2025-02-15", {
+    const result = await applyRecurringEditFromDate(R1, "2025-02-15", {
       label: "New Rent",
       amount: -25,
       frequency: "monthly",
@@ -246,20 +257,20 @@ describe("applyRecurringEditFromDate", () => {
     expect(mockUpdate).toHaveBeenCalledWith({ end_date: "2025-02-14" });
     expect(mockInsert).toHaveBeenCalledWith({
       user_id: "user-1",
-      account_id: "acc-123",
+      account_id: ACC123,
       label: "New Rent",
       amount: -25,
       frequency: "monthly",
       start_date: "2025-02-15",
       end_date: null,
-      root_rule_id: "rule-1",
-      category_id: "cat-1",
+      root_rule_id: R1,
+      category_id: CAT1,
     });
     expect(mockExceptionDeleteGte).toHaveBeenCalledWith(
       "exception_date",
       "2025-02-15",
     );
-    expect(mockExceptionDeleteIn).toHaveBeenCalledWith("rule_id", ["rule-1"]);
+    expect(mockExceptionDeleteIn).toHaveBeenCalledWith("rule_id", [R1]);
   });
 
   it("updates existing chain segment in place when pivot matches another segment start_date (no insert)", async () => {
@@ -267,19 +278,19 @@ describe("applyRecurringEditFromDate", () => {
       ...baseRule,
       start_date: "2025-01-01",
     };
-    const existingSeg = { id: "rule-seg-2" };
+    const existingSeg = { id: R_SEG2 };
     const ruleAtSeg2: RuleRow = {
-      id: "rule-seg-2",
+      id: R_SEG2,
       start_date: "2025-02-15",
       end_date: null,
-      root_rule_id: "rule-1",
-      account_id: "acc-123",
-      category_id: "cat-1",
+      root_rule_id: R1,
+      account_id: ACC123,
+      category_id: CAT1,
     };
     const rr = recurringRulesFromHandlers({
       fullSelectRules: [splitRule, splitRule, ruleAtSeg2],
       existingAtPivot: existingSeg,
-      chainIds: ["rule-1", "rule-seg-2"],
+      chainIds: [R1, R_SEG2],
       idSelectModes: ["existing", "chain"],
     });
     fromTableHandler = (table: string) => {
@@ -292,7 +303,7 @@ describe("applyRecurringEditFromDate", () => {
       return {};
     };
 
-    const result = await applyRecurringEditFromDate("rule-1", "2025-02-15", {
+    const result = await applyRecurringEditFromDate(R1, "2025-02-15", {
       label: "Merged",
       amount: -10,
       frequency: "weekly",
@@ -303,28 +314,25 @@ describe("applyRecurringEditFromDate", () => {
       label: "Merged",
       amount: -10,
       frequency: "weekly",
-      category_id: "cat-1",
+      category_id: CAT1,
     });
     expect(mockInsert).not.toHaveBeenCalled();
-    expect(mockExceptionDeleteIn).toHaveBeenCalledWith("rule_id", [
-      "rule-1",
-      "rule-seg-2",
-    ]);
+    expect(mockExceptionDeleteIn).toHaveBeenCalledWith("rule_id", [R1, R_SEG2]);
   });
 
   it("caps new segment end_date when a later chain segment exists", async () => {
     const splitRule: RuleRow = {
-      id: "rule-A",
+      id: RA,
       start_date: "2025-01-01",
       end_date: null,
       root_rule_id: null,
-      account_id: "acc-123",
-      category_id: "cat-1",
+      account_id: ACC123,
+      category_id: CAT1,
     };
     const rr = recurringRulesFromHandlers({
       fullSelectRules: [splitRule, splitRule],
       existingAtPivot: null,
-      chainIds: ["rule-A"],
+      chainIds: [RA],
       nextSegment: { start_date: "2026-03-01" },
       idSelectModes: ["existing", "chain"],
     });
@@ -338,7 +346,7 @@ describe("applyRecurringEditFromDate", () => {
       return {};
     };
 
-    const result = await applyRecurringEditFromDate("rule-A", "2026-02-01", {
+    const result = await applyRecurringEditFromDate(RA, "2026-02-01", {
       label: "Rent",
       amount: -150,
       frequency: "monthly",
@@ -348,7 +356,7 @@ describe("applyRecurringEditFromDate", () => {
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({
         end_date: "2026-02-28",
-        root_rule_id: "rule-A",
+        root_rule_id: RA,
       }),
     );
   });
@@ -361,12 +369,12 @@ describe("applyRecurringEditFromDate", () => {
       mockUpdate.mockReturnValue({ eq: mockEq1 });
       mockInsert.mockResolvedValue({ error: null });
       const lateStartRule: RuleRow = {
-        id: "rule-1",
+        id: R1,
         start_date: "2026-02-01",
         end_date: null,
         root_rule_id: null,
-        account_id: "acc-123",
-        category_id: "cat-1",
+        account_id: ACC123,
+        category_id: CAT1,
       };
       const rr = recurringRulesFromHandlers({
         fullSelectRules: [lateStartRule],
@@ -385,11 +393,11 @@ describe("applyRecurringEditFromDate", () => {
     });
 
     it("returns error when occurrenceDate is before rule start_date", async () => {
-      const result = await applyRecurringEditFromDate(
-        "rule-1",
-        "2026-01-01",
-        { label: "Test", amount: -100, frequency: "monthly" },
-      );
+      const result = await applyRecurringEditFromDate(R1, "2026-01-01", {
+        label: "Test",
+        amount: -100,
+        frequency: "monthly",
+      });
       expect(result.error).not.toBeNull();
       expect(result.error?.message).toMatch(/before/i);
     });
@@ -410,7 +418,7 @@ describe("createRecurringRule", () => {
 
   it("sets root_rule_id to null on new rules", async () => {
     await createRecurringRule({
-      accountId: "acc-1",
+      accountId: ACC1,
       label: "Rent",
       amount: -500,
       frequency: "monthly",
@@ -425,7 +433,7 @@ describe("createRecurringRule", () => {
 
 describe("updateRecurringSegmentInPlace", () => {
   const rule: RuleRow = {
-    id: "rule-1",
+    id: R1,
     start_date: "2025-03-01",
     end_date: null,
     root_rule_id: null,
@@ -441,7 +449,7 @@ describe("updateRecurringSegmentInPlace", () => {
     mockExceptionDeleteIn.mockResolvedValue({ error: null });
     const rr = recurringRulesFromHandlers({
       fullSelectRules: [rule, rule],
-      chainIds: ["rule-1", "rule-2"],
+      chainIds: [R1, R2],
       idSelectModes: ["chain"],
     });
     fromTableHandler = (table: string) => {
@@ -456,16 +464,13 @@ describe("updateRecurringSegmentInPlace", () => {
   });
 
   it("deletes modified exceptions for the chain from segment start_date", async () => {
-    const result = await updateRecurringSegmentInPlace("rule-1", {
+    const result = await updateRecurringSegmentInPlace(R1, {
       label: "X",
       amount: -1,
       frequency: "monthly",
     });
     expect(result.error).toBeNull();
-    expect(mockExceptionDeleteIn).toHaveBeenCalledWith("rule_id", [
-      "rule-1",
-      "rule-2",
-    ]);
+    expect(mockExceptionDeleteIn).toHaveBeenCalledWith("rule_id", [R1, R2]);
     expect(mockExceptionDeleteGte).toHaveBeenCalledWith(
       "exception_date",
       "2025-03-01",
@@ -473,7 +478,7 @@ describe("updateRecurringSegmentInPlace", () => {
   });
 
   it("updates start_date when newStartDate differs and uses min date for exception cleanup pivot", async () => {
-    const result = await updateRecurringSegmentInPlace("rule-1", {
+    const result = await updateRecurringSegmentInPlace(R1, {
       label: "X",
       amount: -1,
       frequency: "monthly",
@@ -499,7 +504,7 @@ describe("updateRecurringSegmentInPlace", () => {
     };
     const rr = recurringRulesFromHandlers({
       fullSelectRules: [laterStart],
-      chainIds: ["rule-1", "rule-2"],
+      chainIds: [R1, R2],
       idSelectModes: ["chain"],
     });
     fromTableHandler = (table: string) => {
@@ -512,7 +517,7 @@ describe("updateRecurringSegmentInPlace", () => {
       return {};
     };
 
-    const result = await updateRecurringSegmentInPlace("rule-1", {
+    const result = await updateRecurringSegmentInPlace(R1, {
       label: "X",
       amount: -1,
       frequency: "monthly",
@@ -541,7 +546,7 @@ describe("splitRecurringRuleAtDate", () => {
 
   it("returns error when occurrence is not after segment start_date", async () => {
     const rule: RuleRow = {
-      id: "rule-1",
+      id: R1,
       start_date: "2025-02-15",
       end_date: null,
       root_rule_id: null,
@@ -550,7 +555,7 @@ describe("splitRecurringRuleAtDate", () => {
     };
     const rr = recurringRulesFromHandlers({
       fullSelectRules: [rule],
-      chainIds: ["rule-1"],
+      chainIds: [R1],
       idSelectModes: [],
     });
     fromTableHandler = (table: string) => {
@@ -559,7 +564,7 @@ describe("splitRecurringRuleAtDate", () => {
       }
       return {};
     };
-    const result = await splitRecurringRuleAtDate("rule-1", "2025-02-15", {
+    const result = await splitRecurringRuleAtDate(R1, "2025-02-15", {
       label: "X",
       amount: -1,
       frequency: "monthly",
@@ -570,17 +575,17 @@ describe("splitRecurringRuleAtDate", () => {
 
   it("inserts new segment with newStartDate as start_date when it differs from occurrenceDate", async () => {
     const splitRule: RuleRow = {
-      id: "rule-1",
+      id: R1,
       start_date: "2025-01-01",
       end_date: null,
       root_rule_id: null,
-      account_id: "acc-123",
-      category_id: "cat-1",
+      account_id: ACC123,
+      category_id: CAT1,
     };
     const rr = recurringRulesFromHandlers({
       fullSelectRules: [splitRule],
       existingAtPivot: null,
-      chainIds: ["rule-1"],
+      chainIds: [R1],
       nextSegment: null,
       idSelectModes: ["existing", "chain"],
     });
@@ -594,7 +599,7 @@ describe("splitRecurringRuleAtDate", () => {
       return {};
     };
 
-    const result = await splitRecurringRuleAtDate("rule-1", "2025-02-15", {
+    const result = await splitRecurringRuleAtDate(R1, "2025-02-15", {
       label: "Rent",
       amount: -25,
       frequency: "monthly",
@@ -629,16 +634,15 @@ describe("upsertModifiedRecurringException", () => {
   });
 
   it("upserts recurring_exceptions with type modified, modified_amount, modified_label, rule_id, exception_date, user_id and onConflict rule_id,exception_date", async () => {
-    const result = await upsertModifiedRecurringException(
-      "rule-1",
-      "2025-03-01",
-      { label: "Adjusted", amount: -99.5 },
-    );
+    const result = await upsertModifiedRecurringException(R1, "2025-03-01", {
+      label: "Adjusted",
+      amount: -99.5,
+    });
     expect(result.error).toBeNull();
     expect(mockUpsert).toHaveBeenCalledWith(
       {
         user_id: "user-1",
-        rule_id: "rule-1",
+        rule_id: R1,
         exception_date: "2025-03-01",
         type: "modified",
         modified_amount: -99.5,
@@ -650,21 +654,21 @@ describe("upsertModifiedRecurringException", () => {
   });
 
   it("includes category_id in upsert row when provided", async () => {
-    const result = await upsertModifiedRecurringException(
-      "rule-1",
-      "2025-03-01",
-      { label: "Adjusted", amount: -10, category_id: "cat-x" },
-    );
+    const result = await upsertModifiedRecurringException(R1, "2025-03-01", {
+      label: "Adjusted",
+      amount: -10,
+      category_id: CAT_X,
+    });
     expect(result.error).toBeNull();
     expect(mockUpsert).toHaveBeenCalledWith(
       {
         user_id: "user-1",
-        rule_id: "rule-1",
+        rule_id: R1,
         exception_date: "2025-03-01",
         type: "modified",
         modified_amount: -10,
         modified_label: "Adjusted",
-        category_id: "cat-x",
+        category_id: CAT_X,
       },
       { onConflict: "rule_id,exception_date" },
     );
@@ -672,11 +676,10 @@ describe("upsertModifiedRecurringException", () => {
 
   it("returns error when upsert fails", async () => {
     mockUpsert.mockResolvedValueOnce({ error: { message: "DB error" } });
-    const result = await upsertModifiedRecurringException(
-      "rule-1",
-      "2025-03-01",
-      { label: "Adjusted", amount: -10 },
-    );
+    const result = await upsertModifiedRecurringException(R1, "2025-03-01", {
+      label: "Adjusted",
+      amount: -10,
+    });
     expect(result.error).not.toBeNull();
   });
 });
@@ -694,12 +697,12 @@ describe("skipRecurringOccurrence", () => {
   });
 
   it("upserts recurring_exceptions with type skip and onConflict rule_id,exception_date", async () => {
-    const result = await skipRecurringOccurrence("rule-1", "2025-02-15");
+    const result = await skipRecurringOccurrence(R1, "2025-02-15");
     expect(result.error).toBeNull();
     expect(mockUpsert).toHaveBeenCalledWith(
       {
         user_id: "user-1",
-        rule_id: "rule-1",
+        rule_id: R1,
         exception_date: "2025-02-15",
         type: "skip",
       },
@@ -709,7 +712,7 @@ describe("skipRecurringOccurrence", () => {
 
   it("returns error when upsert fails", async () => {
     mockUpsert.mockResolvedValueOnce({ error: { message: "DB error" } });
-    const result = await skipRecurringOccurrence("rule-1", "2025-02-15");
+    const result = await skipRecurringOccurrence(R1, "2025-02-15");
     expect(result.error).not.toBeNull();
   });
 });
@@ -726,7 +729,7 @@ describe("moveRecurringOccurrence", () => {
     vi.clearAllMocks();
     mockUpsert.mockResolvedValue({ error: null });
     mockTxSingle.mockResolvedValue({
-      data: { id: "tx-new" },
+      data: { id: TX_NEW },
       error: null,
     });
     mockTxDeleteEq2.mockResolvedValue({ error: null });
@@ -745,23 +748,23 @@ describe("moveRecurringOccurrence", () => {
 
   it("when date unchanged calls upsert modified only, not insert or skip path on transactions", async () => {
     const result = await moveRecurringOccurrence({
-      ruleId: "rule-1",
+      ruleId: R1,
       originalOccurrenceDate: "2025-03-01",
       targetDate: "2025-03-01",
-      accountId: "acc-1",
+      accountId: ACC1,
       label: "Adjusted",
       amount: -10,
-      category_id: "cat-x",
+      category_id: CAT_X,
     });
     expect(result.error).toBeNull();
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        rule_id: "rule-1",
+        rule_id: R1,
         exception_date: "2025-03-01",
         type: "modified",
         modified_label: "Adjusted",
         modified_amount: -10,
-        category_id: "cat-x",
+        category_id: CAT_X,
       }),
       { onConflict: "rule_id,exception_date" },
     );
@@ -770,10 +773,10 @@ describe("moveRecurringOccurrence", () => {
 
   it("when date changed inserts transaction then skips occurrence", async () => {
     const result = await moveRecurringOccurrence({
-      ruleId: "rule-1",
+      ruleId: R1,
       originalOccurrenceDate: "2025-03-01",
       targetDate: "2025-03-05",
-      accountId: "acc-1",
+      accountId: ACC1,
       label: "Moved",
       amount: -20,
       category_id: null,
@@ -785,7 +788,7 @@ describe("moveRecurringOccurrence", () => {
     expect(mockUpsert).toHaveBeenCalledWith(
       {
         user_id: "user-1",
-        rule_id: "rule-1",
+        rule_id: R1,
         exception_date: "2025-03-01",
         type: "skip",
       },
@@ -797,15 +800,15 @@ describe("moveRecurringOccurrence", () => {
   it("when date changed and skip fails rolls back by deleting new transaction", async () => {
     mockUpsert.mockResolvedValueOnce({ error: { message: "skip failed" } });
     const result = await moveRecurringOccurrence({
-      ruleId: "rule-1",
+      ruleId: R1,
       originalOccurrenceDate: "2025-03-01",
       targetDate: "2025-03-05",
-      accountId: "acc-1",
+      accountId: ACC1,
       label: "Moved",
       amount: -20,
     });
     expect(result.error?.message).toBe("skip failed");
-    expect(mockTxDeleteEq1).toHaveBeenCalledWith("id", "tx-new");
+    expect(mockTxDeleteEq1).toHaveBeenCalledWith("id", TX_NEW);
     expect(mockTxDeleteEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
@@ -815,10 +818,10 @@ describe("moveRecurringOccurrence", () => {
       error: { message: "insert failed" },
     });
     const result = await moveRecurringOccurrence({
-      ruleId: "rule-1",
+      ruleId: R1,
       originalOccurrenceDate: "2025-03-01",
       targetDate: "2025-03-05",
-      accountId: "acc-1",
+      accountId: ACC1,
       label: "Moved",
       amount: -20,
     });
@@ -842,16 +845,16 @@ describe("endRecurringRuleFuture", () => {
   });
 
   it("updates recurring_rules with end_date day before occurrence and filters by id and user_id", async () => {
-    const result = await endRecurringRuleFuture("rule-1", "2025-03-15");
+    const result = await endRecurringRuleFuture(R1, "2025-03-15");
     expect(result.error).toBeNull();
     expect(mockUpdate).toHaveBeenCalledWith({ end_date: "2025-03-14" });
-    expect(mockEq1).toHaveBeenCalledWith("id", "rule-1");
+    expect(mockEq1).toHaveBeenCalledWith("id", R1);
     expect(mockEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("returns error when update fails", async () => {
     mockEq2.mockResolvedValueOnce({ error: { message: "DB error" } });
-    const result = await endRecurringRuleFuture("rule-1", "2025-03-15");
+    const result = await endRecurringRuleFuture(R1, "2025-03-15");
     expect(result.error).not.toBeNull();
   });
 });
@@ -909,7 +912,7 @@ describe("updateCategory", () => {
   });
 
   it("updates category with payload and filters by id and user_id", async () => {
-    const result = await updateCategory("cat-1", {
+    const result = await updateCategory(CAT1, {
       name: "Food",
       icon: "UtensilsCrossed",
       type: "expense",
@@ -920,13 +923,13 @@ describe("updateCategory", () => {
       icon: "UtensilsCrossed",
       type: "expense",
     });
-    expect(mockEq1).toHaveBeenCalledWith("id", "cat-1");
+    expect(mockEq1).toHaveBeenCalledWith("id", CAT1);
     expect(mockEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("returns error when update fails", async () => {
     mockEq2.mockResolvedValueOnce({ error: { message: "DB error" } });
-    const result = await updateCategory("cat-1", { name: "Food" });
+    const result = await updateCategory(CAT1, { name: "Food" });
     expect(result.error).not.toBeNull();
   });
 });
@@ -946,16 +949,53 @@ describe("deleteCategory", () => {
   });
 
   it("deletes category and filters by id and user_id", async () => {
-    const result = await deleteCategory("cat-1");
+    const result = await deleteCategory(CAT1);
     expect(result.error).toBeNull();
     expect(mockDelete).toHaveBeenCalled();
-    expect(mockDeleteEq1).toHaveBeenCalledWith("id", "cat-1");
+    expect(mockDeleteEq1).toHaveBeenCalledWith("id", CAT1);
     expect(mockDeleteEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("returns error when delete fails", async () => {
     mockDeleteEq2.mockResolvedValueOnce({ error: { message: "DB error" } });
-    const result = await deleteCategory("cat-1");
+    const result = await deleteCategory(CAT1);
     expect(result.error).not.toBeNull();
+  });
+});
+
+describe("mutation payload validation (Zod)", () => {
+  it("deleteTransaction returns { error } with message for invalid id", async () => {
+    const result = await deleteTransaction("not-a-uuid");
+    expect(result.error).not.toBeNull();
+    expect(result.error?.message.length).toBeGreaterThan(0);
+    expect(result.error?.message).toMatch(/invalid|uuid/i);
+  });
+
+  it("createTransaction returns { data: null, error } for invalid date", async () => {
+    const result = await createTransaction({
+      accountId: ACC1,
+      label: "Test",
+      amount: -10,
+      date: "03-15-2025",
+    });
+    expect(result.data).toBeNull();
+    expect(result.error).not.toBeNull();
+    expect(result.error?.message).toMatch(/date/i);
+  });
+
+  it("skipRecurringOccurrence returns { error } for invalid rule id", async () => {
+    const result = await skipRecurringOccurrence("bad-id", "2025-03-01");
+    expect(result.error).not.toBeNull();
+    expect(result.error?.message).toMatch(/ruleId|uuid/i);
+  });
+
+  it("createCategory returns { error } for empty name after trim", async () => {
+    const result = await createCategory({
+      name: "   ",
+      icon: "ShoppingCart",
+      type: "expense",
+    });
+    expect(result.error).not.toBeNull();
+    expect(result.error?.message).toMatch(/name/i);
   });
 });

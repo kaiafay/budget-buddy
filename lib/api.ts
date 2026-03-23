@@ -6,7 +6,7 @@ import type {
   Transaction,
 } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
-import { assertUuid } from "@/lib/utils/uuid";
+import { uuidSchema } from "@/lib/validation";
 
 export async function fetchCalendarData(
   month: number,
@@ -262,12 +262,13 @@ export async function fetchNextChainSegment(
   if (ruleError || !rule) return null;
 
   const rootId = rule.root_rule_id ?? ruleId;
+  const safeId = uuidSchema.parse(rootId);
 
   const { data: next, error: nextError } = await supabase
     .from("recurring_rules")
     .select("start_date")
     .eq("user_id", user.id)
-    .or(`id.eq.${assertUuid(rootId)},root_rule_id.eq.${assertUuid(rootId)}`)
+    .or(`id.eq.${safeId},root_rule_id.eq.${safeId}`)
     .gt("start_date", occ)
     .order("start_date", { ascending: true })
     .limit(1)

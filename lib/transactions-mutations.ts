@@ -1,10 +1,28 @@
 import { addDays, format, min, parseISO, subDays } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
-import { assertUuid } from "@/lib/utils/uuid";
+import {
+  applyRecurringEditFromDateArgsSchema,
+  createCategoryPayloadSchema,
+  createRecurringRulePayloadSchema,
+  createTransactionPayloadSchema,
+  endRecurringRuleFutureArgsSchema,
+  moveRecurringOccurrencePayloadSchema,
+  safeParseMutation,
+  skipRecurringOccurrenceArgsSchema,
+  splitRecurringRuleAtDateArgsSchema,
+  updateCategoryPayloadSchema,
+  updateRecurringSegmentInPlaceArgsSchema,
+  updateTransactionPayloadSchema,
+  upsertModifiedRecurringExceptionArgsSchema,
+  uuidSchema,
+} from "@/lib/validation";
 
 export async function deleteTransaction(
   id: string,
 ): Promise<{ error: Error | null }> {
+  const idParsed = safeParseMutation(uuidSchema, id);
+  if (!idParsed.ok) return { error: idParsed.error };
+  const parsedId = idParsed.data;
   const supabase = createClient();
   const {
     data: { user },
@@ -13,7 +31,7 @@ export async function deleteTransaction(
   const { error } = await supabase
     .from("transactions")
     .delete()
-    .eq("id", id)
+    .eq("id", parsedId)
     .eq("user_id", user.id);
   return { error: error ?? null };
 }
@@ -22,6 +40,13 @@ export async function skipRecurringOccurrence(
   ruleId: string,
   exceptionDate: string,
 ): Promise<{ error: Error | null }> {
+  const argsParsed = safeParseMutation(skipRecurringOccurrenceArgsSchema, {
+    ruleId,
+    exceptionDate,
+  });
+  if (!argsParsed.ok) return { error: argsParsed.error };
+  const { ruleId: parsedRuleId, exceptionDate: parsedExceptionDate } =
+    argsParsed.data;
   const supabase = createClient();
   const {
     data: { user },
@@ -30,8 +55,8 @@ export async function skipRecurringOccurrence(
   const { error } = await supabase.from("recurring_exceptions").upsert(
     {
       user_id: user.id,
-      rule_id: ruleId,
-      exception_date: exceptionDate,
+      rule_id: parsedRuleId,
+      exception_date: parsedExceptionDate,
       type: "skip",
     },
     { onConflict: "rule_id,exception_date" },
@@ -44,6 +69,17 @@ export async function upsertModifiedRecurringException(
   exceptionDate: string,
   payload: { label: string; amount: number; category_id?: string | null },
 ): Promise<{ error: Error | null }> {
+  const argsParsed = safeParseMutation(upsertModifiedRecurringExceptionArgsSchema, {
+    ruleId,
+    exceptionDate,
+    payload,
+  });
+  if (!argsParsed.ok) return { error: argsParsed.error };
+  const {
+    ruleId: parsedRuleId,
+    exceptionDate: parsedExceptionDate,
+    payload: parsedPayload,
+  } = argsParsed.data;
   const supabase = createClient();
   const {
     data: { user },
@@ -59,12 +95,12 @@ export async function upsertModifiedRecurringException(
     category_id: string | null;
   } = {
     user_id: user.id,
-    rule_id: ruleId,
-    exception_date: exceptionDate,
+    rule_id: parsedRuleId,
+    exception_date: parsedExceptionDate,
     type: "modified",
-    modified_amount: payload.amount,
-    modified_label: payload.label,
-    category_id: payload.category_id ?? null,
+    modified_amount: parsedPayload.amount,
+    modified_label: parsedPayload.label,
+    category_id: parsedPayload.category_id ?? null,
   };
   const { error } = await supabase.from("recurring_exceptions").upsert(row, {
     onConflict: "rule_id,exception_date",
@@ -76,19 +112,22 @@ export async function endRecurringRuleFuture(
   ruleId: string,
   lastOccurrenceDate: string,
 ): Promise<{ error: Error | null }> {
+  const argsParsed = safeParseMutation(endRecurringRuleFutureArgsSchema, {
+    ruleId,
+    lastOccurrenceDate,
+  });
+  if (!argsParsed.ok) return { error: argsParsed.error };
+  const { ruleId: parsedRuleId, lastOccurrenceDate: parsedLast } = argsParsed.data;
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: new Error("Not authenticated") };
-  const lastDay = format(
-    subDays(parseISO(lastOccurrenceDate), 1),
-    "yyyy-MM-dd",
-  );
+  const lastDay = format(subDays(parseISO(parsedLast), 1), "yyyy-MM-dd");
   const { error } = await supabase
     .from("recurring_rules")
     .update({ end_date: lastDay })
-    .eq("id", ruleId)
+    .eq("id", parsedRuleId)
     .eq("user_id", user.id);
   return { error: error ?? null };
 }
@@ -100,6 +139,8 @@ export async function createTransaction(payload: {
   date: string;
   category_id?: string | null;
 }): Promise<{ data: { id: string } | null; error: Error | null }> {
+  const parsed = safeParseMutation(createTransactionPayloadSchema, payload);
+  if (!parsed.ok) return { data: null, error: parsed.error };
   const supabase = createClient();
   const {
     data: { user },
@@ -114,12 +155,14 @@ export async function createTransaction(payload: {
     category_id?: string | null;
   } = {
     user_id: user.id,
-    account_id: payload.accountId,
-    label: payload.label,
-    amount: payload.amount,
-    date: payload.date,
+    account_id: parsed.data.accountId,
+    label: parsed.data.label,
+    amount: parsed.data.amount,
+    date: parsed.data.date,
   };
-  if (payload.category_id !== undefined) row.category_id = payload.category_id;
+  if (parsed.data.category_id !== undefined) {
+    row.category_id = parsed.data.category_id;
+  }
   const { data, error } = await supabase
     .from("transactions")
     .insert(row)
@@ -144,33 +187,33 @@ export async function moveRecurringOccurrence(payload: {
   amount: number;
   category_id?: string | null;
 }): Promise<{ error: Error | null }> {
-  const orig = String(payload.originalOccurrenceDate).slice(0, 10);
-  const target = String(payload.targetDate).slice(0, 10);
+  const parsed = safeParseMutation(moveRecurringOccurrencePayloadSchema, payload);
+  if (!parsed.ok) return { error: parsed.error };
+  const p = parsed.data;
+  const orig = String(p.originalOccurrenceDate).slice(0, 10);
+  const target = String(p.targetDate).slice(0, 10);
   if (orig === target) {
-    return upsertModifiedRecurringException(payload.ruleId, orig, {
-      label: payload.label,
-      amount: payload.amount,
-      category_id: payload.category_id,
+    return upsertModifiedRecurringException(p.ruleId, orig, {
+      label: p.label,
+      amount: p.amount,
+      category_id: p.category_id,
     });
   }
-  if (!payload.accountId.trim()) {
+  if (!p.accountId.trim()) {
     return { error: new Error("No account found — cannot move occurrence") };
   }
   const { data, error: insertError } = await createTransaction({
-    accountId: payload.accountId.trim(),
-    label: payload.label,
-    amount: payload.amount,
+    accountId: p.accountId.trim(),
+    label: p.label,
+    amount: p.amount,
     date: target,
-    category_id: payload.category_id,
+    category_id: p.category_id,
   });
   if (insertError) return { error: insertError };
   if (!data?.id) {
     return { error: new Error("Insert succeeded but no id returned") };
   }
-  const { error: skipError } = await skipRecurringOccurrence(
-    payload.ruleId,
-    orig,
-  );
+  const { error: skipError } = await skipRecurringOccurrence(p.ruleId, orig);
   if (skipError) {
     await deleteTransaction(data.id);
     return { error: skipError };
@@ -186,6 +229,8 @@ export async function createRecurringRule(payload: {
   startDate: string;
   category_id?: string | null;
 }): Promise<{ error: Error | null }> {
+  const parsed = safeParseMutation(createRecurringRulePayloadSchema, payload);
+  if (!parsed.ok) return { error: parsed.error };
   const supabase = createClient();
   const {
     data: { user },
@@ -201,13 +246,15 @@ export async function createRecurringRule(payload: {
     category_id?: string | null;
   } = {
     user_id: user.id,
-    account_id: payload.accountId,
-    label: payload.label,
-    amount: payload.amount,
-    frequency: payload.frequency,
-    start_date: payload.startDate,
+    account_id: parsed.data.accountId,
+    label: parsed.data.label,
+    amount: parsed.data.amount,
+    frequency: parsed.data.frequency,
+    start_date: parsed.data.startDate,
   };
-  if (payload.category_id !== undefined) row.category_id = payload.category_id;
+  if (parsed.data.category_id !== undefined) {
+    row.category_id = parsed.data.category_id;
+  }
   const insertRow = { ...row, root_rule_id: null as string | null };
   const { error } = await supabase.from("recurring_rules").insert(insertRow);
   return { error: error ?? null };
@@ -222,6 +269,10 @@ export async function updateTransaction(
     category_id?: string | null;
   },
 ): Promise<{ error: Error | null }> {
+  const idParsed = safeParseMutation(uuidSchema, id);
+  if (!idParsed.ok) return { error: idParsed.error };
+  const payloadParsed = safeParseMutation(updateTransactionPayloadSchema, payload);
+  if (!payloadParsed.ok) return { error: payloadParsed.error };
   const supabase = createClient();
   const {
     data: { user },
@@ -233,15 +284,17 @@ export async function updateTransaction(
     date: string;
     category_id?: string | null;
   } = {
-    label: payload.label,
-    amount: payload.amount,
-    date: payload.date,
+    label: payloadParsed.data.label,
+    amount: payloadParsed.data.amount,
+    date: payloadParsed.data.date,
   };
-  if (payload.category_id !== undefined) update.category_id = payload.category_id;
+  if (payloadParsed.data.category_id !== undefined) {
+    update.category_id = payloadParsed.data.category_id;
+  }
   const { error } = await supabase
     .from("transactions")
     .update(update)
-    .eq("id", id)
+    .eq("id", idParsed.data)
     .eq("user_id", user.id);
   return { error: error ?? null };
 }
@@ -258,7 +311,8 @@ const RULE_EDIT_SELECT =
   "id, start_date, root_rule_id, account_id, category_id";
 
 function chainOrFilter(rootId: string): string {
-  return `id.eq.${assertUuid(rootId)},root_rule_id.eq.${assertUuid(rootId)}`;
+  const safeId = uuidSchema.parse(rootId);
+  return `id.eq.${safeId},root_rule_id.eq.${safeId}`;
 }
 
 function normalizeRuleDate(value: string): string {
@@ -338,6 +392,12 @@ export async function updateRecurringSegmentInPlace(
   ruleId: string,
   payload: RecurringSegmentPayload,
 ): Promise<{ error: Error | null }> {
+  const argsParsed = safeParseMutation(updateRecurringSegmentInPlaceArgsSchema, {
+    ruleId,
+    payload,
+  });
+  if (!argsParsed.ok) return { error: argsParsed.error };
+  const { ruleId: parsedRuleId, payload: parsedPayload } = argsParsed.data;
   const supabase = createClient();
   const {
     data: { user },
@@ -346,7 +406,7 @@ export async function updateRecurringSegmentInPlace(
   const { data: rule, error: fetchError } = await fetchRuleForEdit(
     supabase,
     user.id,
-    ruleId,
+    parsedRuleId,
   );
   if (fetchError) return { error: fetchError };
   if (!rule) return { error: new Error("Rule not found") };
@@ -360,7 +420,9 @@ export async function updateRecurringSegmentInPlace(
   if (chainError) return { error: chainError };
 
   const categoryId =
-    payload.category_id !== undefined ? payload.category_id : rule.category_id;
+    parsedPayload.category_id !== undefined
+      ? parsedPayload.category_id
+      : rule.category_id;
 
   const updateRow: {
     label: string;
@@ -369,14 +431,14 @@ export async function updateRecurringSegmentInPlace(
     category_id?: string | null;
     start_date?: string;
   } = {
-    label: payload.label,
-    amount: payload.amount,
-    frequency: payload.frequency,
+    label: parsedPayload.label,
+    amount: parsedPayload.amount,
+    frequency: parsedPayload.frequency,
   };
   if (categoryId !== undefined) updateRow.category_id = categoryId;
 
-  const normalizedNewStart = payload.newStartDate
-    ? normalizeRuleDate(payload.newStartDate)
+  const normalizedNewStart = parsedPayload.newStartDate
+    ? normalizeRuleDate(parsedPayload.newStartDate)
     : null;
   if (normalizedNewStart && normalizedNewStart !== rule.start_date) {
     updateRow.start_date = normalizedNewStart;
@@ -385,7 +447,7 @@ export async function updateRecurringSegmentInPlace(
   const { error: updateError } = await supabase
     .from("recurring_rules")
     .update(updateRow)
-    .eq("id", ruleId)
+    .eq("id", parsedRuleId)
     .eq("user_id", user.id);
   if (updateError) return { error: updateError };
 
@@ -410,7 +472,18 @@ export async function splitRecurringRuleAtDate(
   occurrenceDate: string,
   payload: RecurringSegmentPayload,
 ): Promise<{ error: Error | null }> {
-  const occurrence = normalizeRuleDate(occurrenceDate);
+  const argsParsed = safeParseMutation(splitRecurringRuleAtDateArgsSchema, {
+    ruleId,
+    occurrenceDate,
+    payload,
+  });
+  if (!argsParsed.ok) return { error: argsParsed.error };
+  const {
+    ruleId: parsedRuleId,
+    occurrenceDate: parsedOccurrenceDate,
+    payload: parsedPayload,
+  } = argsParsed.data;
+  const occurrence = normalizeRuleDate(parsedOccurrenceDate);
   const supabase = createClient();
   const {
     data: { user },
@@ -420,7 +493,7 @@ export async function splitRecurringRuleAtDate(
   const { data: rule, error: fetchError } = await fetchRuleForEdit(
     supabase,
     user.id,
-    ruleId,
+    parsedRuleId,
   );
   if (fetchError) return { error: fetchError };
   if (!rule) return { error: new Error("Rule not found") };
@@ -440,7 +513,7 @@ export async function splitRecurringRuleAtDate(
     .maybeSingle();
   if (existingError) return { error: existingError };
   if (existingAtDate?.id) {
-    return updateRecurringSegmentInPlace(existingAtDate.id, payload);
+    return updateRecurringSegmentInPlace(existingAtDate.id, parsedPayload);
   }
 
   const { ids: chainRuleIds, error: chainError } = await getChainRuleIds(
@@ -454,7 +527,7 @@ export async function splitRecurringRuleAtDate(
   const { error: endError } = await supabase
     .from("recurring_rules")
     .update({ end_date: lastDayOldRule })
-    .eq("id", ruleId)
+    .eq("id", parsedRuleId)
     .eq("user_id", user.id);
   if (endError) return { error: endError };
 
@@ -477,19 +550,21 @@ export async function splitRecurringRuleAtDate(
     : null;
 
   const newRuleCategoryId =
-    payload.category_id !== undefined ? payload.category_id : rule.category_id;
-  const newRootRuleId = rule.root_rule_id ?? ruleId;
+    parsedPayload.category_id !== undefined
+      ? parsedPayload.category_id
+      : rule.category_id;
+  const newRootRuleId = rule.root_rule_id ?? parsedRuleId;
 
   const segmentStartDate = normalizeRuleDate(
-    payload.newStartDate ?? occurrence,
+    parsedPayload.newStartDate ?? occurrence,
   );
 
   const { error: insertError } = await supabase.from("recurring_rules").insert({
     user_id: user.id,
     account_id: rule.account_id,
-    label: payload.label,
-    amount: payload.amount,
-    frequency: payload.frequency,
+    label: parsedPayload.label,
+    amount: parsedPayload.amount,
+    frequency: parsedPayload.frequency,
     start_date: segmentStartDate,
     end_date: newRuleEndDate,
     root_rule_id: newRootRuleId,
@@ -510,26 +585,37 @@ export async function applyRecurringEditFromDate(
   occurrenceDate: string,
   payload: RecurringSegmentPayload,
 ): Promise<{ error: Error | null }> {
+  const argsParsed = safeParseMutation(applyRecurringEditFromDateArgsSchema, {
+    ruleId,
+    occurrenceDate,
+    payload,
+  });
+  if (!argsParsed.ok) return { error: argsParsed.error };
+  const {
+    ruleId: parsedRuleId,
+    occurrenceDate: parsedOccurrenceDate,
+    payload: parsedPayload,
+  } = argsParsed.data;
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: new Error("Not authenticated") };
 
-  const occurrence = normalizeRuleDate(occurrenceDate);
+  const occurrence = normalizeRuleDate(parsedOccurrenceDate);
   const { data: rule, error: fetchError } = await fetchRuleForEdit(
     supabase,
     user.id,
-    ruleId,
+    parsedRuleId,
   );
   if (fetchError) return { error: fetchError };
   if (!rule) return { error: new Error("Rule not found") };
 
   if (occurrence === rule.start_date) {
-    return updateRecurringSegmentInPlace(ruleId, payload);
+    return updateRecurringSegmentInPlace(parsedRuleId, parsedPayload);
   }
   if (occurrence > rule.start_date) {
-    return splitRecurringRuleAtDate(ruleId, occurrence, payload);
+    return splitRecurringRuleAtDate(parsedRuleId, occurrence, parsedPayload);
   }
   return { error: new Error("Occurrence is before this segment start date") };
 }
@@ -539,6 +625,8 @@ export async function createCategory(payload: {
   icon: string;
   type: "expense" | "income";
 }): Promise<{ error: Error | null }> {
+  const parsed = safeParseMutation(createCategoryPayloadSchema, payload);
+  if (!parsed.ok) return { error: parsed.error };
   const supabase = createClient();
   const {
     data: { user },
@@ -546,9 +634,9 @@ export async function createCategory(payload: {
   if (!user) return { error: new Error("Not authenticated") };
   const { error } = await supabase.from("categories").insert({
     user_id: user.id,
-    name: payload.name,
-    icon: payload.icon,
-    type: payload.type,
+    name: parsed.data.name,
+    icon: parsed.data.icon,
+    type: parsed.data.type,
   });
   return { error: error ?? null };
 }
@@ -561,24 +649,30 @@ export async function updateCategory(
     type?: "expense" | "income";
   },
 ): Promise<{ error: Error | null }> {
+  const idParsed = safeParseMutation(uuidSchema, id);
+  if (!idParsed.ok) return { error: idParsed.error };
+  const payloadParsed = safeParseMutation(updateCategoryPayloadSchema, payload);
+  if (!payloadParsed.ok) return { error: payloadParsed.error };
   const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: new Error("Not authenticated") };
   const update: { name?: string; icon?: string; type?: string } = {};
-  if (payload.name !== undefined) update.name = payload.name;
-  if (payload.icon !== undefined) update.icon = payload.icon;
-  if (payload.type !== undefined) update.type = payload.type;
+  if (payloadParsed.data.name !== undefined) update.name = payloadParsed.data.name;
+  if (payloadParsed.data.icon !== undefined) update.icon = payloadParsed.data.icon;
+  if (payloadParsed.data.type !== undefined) update.type = payloadParsed.data.type;
   const { error } = await supabase
     .from("categories")
     .update(update)
-    .eq("id", id)
+    .eq("id", idParsed.data)
     .eq("user_id", user.id);
   return { error: error ?? null };
 }
 
 export async function deleteCategory(id: string): Promise<{ error: Error | null }> {
+  const idParsed = safeParseMutation(uuidSchema, id);
+  if (!idParsed.ok) return { error: idParsed.error };
   const supabase = createClient();
   const {
     data: { user },
@@ -587,7 +681,7 @@ export async function deleteCategory(id: string): Promise<{ error: Error | null 
   const { error } = await supabase
     .from("categories")
     .delete()
-    .eq("id", id)
+    .eq("id", idParsed.data)
     .eq("user_id", user.id);
   return { error: error ?? null };
 }
