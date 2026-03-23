@@ -135,7 +135,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - components/category-icons.tsx — category icon map, getCategoryColor, ALLOWED_CATEGORY_ICON_NAMES
 - components/error-banner.tsx — `ErrorBanner` (fetch/network + retry), `glassRetryButtonClassName` for glass outline retry on gradient backgrounds
 - components/glass-category-select-trigger.tsx — `GlassCategorySelectTrigger` for glass-styled category `<Select>` (add page + day-sheet edit)
-- components/glass-expense-income-toggle.tsx — `GlassExpenseIncomeToggle` for glass expense/income segmented control (add page + day-sheet edit)
+- components/glass-expense-income-toggle.tsx — `GlassExpenseIncomeToggle` (`variant` `glass` default: add page + day-sheet; `settings`: category dialog in settings-form)
 - components/glass-icon-button.tsx — `GlassIconButton` for glass shell icon controls (back, month nav, drawer close)
 - components/inline-error.tsx — `InlineError` for form/API inline errors (`text-sm text-destructive`, `role="alert"`)
 - components/amount-text.tsx — `AmountText` for signed currency display (`formatCurrencyAmount` + sign/`$` rules by variant)

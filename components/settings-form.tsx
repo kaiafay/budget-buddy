@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import useSWR from "swr";
+import { GlassExpenseIncomeToggle } from "@/components/glass-expense-income-toggle";
 import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -457,36 +458,13 @@ export default function SettingsForm({
                 <Label className="text-sm font-medium text-muted-foreground">
                   Type
                 </Label>
-                <div className="flex gap-2 rounded-2xl bg-muted p-1">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCategoryForm((f) => ({ ...f, type: "expense" }))
-                    }
-                    className={cn(
-                      "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
-                      categoryForm.type === "expense"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground active:bg-white/15",
-                    )}
-                  >
-                    Expense
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCategoryForm((f) => ({ ...f, type: "income" }))
-                    }
-                    className={cn(
-                      "flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-medium transition-all",
-                      categoryForm.type === "income"
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground active:bg-white/15",
-                    )}
-                  >
-                    Income
-                  </button>
-                </div>
+                <GlassExpenseIncomeToggle
+                  variant="settings"
+                  value={categoryForm.type}
+                  onChange={(type) =>
+                    setCategoryForm((f) => ({ ...f, type }))
+                  }
+                />
               </div>
               <div className="flex flex-col gap-2">
                 <Label className="text-sm font-medium text-muted-foreground">
