@@ -294,6 +294,11 @@ export default function SettingsForm({
           </span>
         </div>
         <div className="flex flex-col gap-2">
+          {/* TODO: replace in v.1.1 */}
+          <p className="text-xs text-white/50">
+            Balance before tracking in Budget Buddy. Set this to your account
+            balance when you started.
+          </p>
           <Label
             htmlFor="balance"
             className="text-xs font-medium text-white/70"
@@ -461,9 +466,7 @@ export default function SettingsForm({
                 <GlassExpenseIncomeToggle
                   variant="settings"
                   value={categoryForm.type}
-                  onChange={(type) =>
-                    setCategoryForm((f) => ({ ...f, type }))
-                  }
+                  onChange={(type) => setCategoryForm((f) => ({ ...f, type }))}
                 />
               </div>
               <div className="flex flex-col gap-2">
@@ -494,10 +497,7 @@ export default function SettingsForm({
               {categoryFormError && (
                 <InlineError>{categoryFormError}</InlineError>
               )}
-              <Button
-                type="submit"
-                className={dialogSubmitButtonClass}
-              >
+              <Button type="submit" className={dialogSubmitButtonClass}>
                 {editingCategory ? "Save changes" : "Add category"}
               </Button>
             </form>
