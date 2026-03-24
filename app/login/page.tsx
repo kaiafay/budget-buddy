@@ -11,12 +11,16 @@ import { Label } from "@/components/ui/label";
 
 type Mode = "signin" | "signup";
 
+const inviteGateEnabled =
+  (process.env.NEXT_PUBLIC_INVITE_CODE ?? "") !== "";
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [mode, setMode] = useState<Mode>("signin");
   const [error, setError] = useState<string | null>(null);
   const [signUpSuccess, setSignUpSuccess] = useState(false);
@@ -61,6 +65,14 @@ export default function LoginPage() {
       return;
     }
 
+    const expectedInvite = process.env.NEXT_PUBLIC_INVITE_CODE ?? "";
+    if (expectedInvite !== "") {
+      if (inviteCode.trim() !== expectedInvite) {
+        setError("Invalid invite code.");
+        return;
+      }
+    }
+
     const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -84,6 +96,7 @@ export default function LoginPage() {
     setSignUpSuccess(false);
     setFirstName("");
     setLastName("");
+    setInviteCode("");
   }
 
   return (
@@ -149,6 +162,26 @@ export default function LoginPage() {
                   required
                 />
               </div>
+              {inviteGateEnabled && (
+                <div className="flex flex-col gap-2">
+                  <Label
+                    htmlFor="inviteCode"
+                    className="text-sm font-medium text-white/70"
+                  >
+                    Invite code
+                  </Label>
+                  <Input
+                    id="inviteCode"
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Enter invite code"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    className={glassInputClass}
+                    required={inviteGateEnabled}
+                  />
+                </div>
+              )}
             </>
           )}
 

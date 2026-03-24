@@ -127,7 +127,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 ## File Structure
 
 - app/(app)/ — protected app pages (calendar, transactions, add, settings)
-- app/login/ — public auth page
+- app/login/ — public auth page (signup only: optional `NEXT_PUBLIC_INVITE_CODE` in `.env.local`; when set and non-empty, the invite field must match before `signUp`; unset or empty disables the gate)
 - components/ — shared components
 - hooks/use-sorted-categories.ts — `useSortedCategories()` for category dropdown ordering (expense vs income first)
 - components/ui/ — shadcn primitives (edit directly for global changes, see Component Rules)
