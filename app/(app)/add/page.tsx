@@ -20,9 +20,7 @@ import {
   createTransaction,
   createRecurringRule,
   updateTransaction,
-  applyRecurringEditFromDate,
   endRecurringRuleFuture,
-  moveRecurringOccurrence,
 } from "@/lib/transactions-mutations";
 import { ErrorBanner } from "@/components/error-banner";
 import { GlassExpenseIncomeToggle } from "@/components/glass-expense-income-toggle";
@@ -48,6 +46,7 @@ import { Switch } from "@/components/ui/switch";
 import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dialog";
 import { USER_FACING_ERROR } from "@/lib/errors";
 import { useSortedCategories } from "@/hooks/use-sorted-categories";
+import { useRecurringEditScope } from "@/hooks/use-recurring-edit-scope";
 import {
   glassAmountInputClass,
   glassCurrencyPrefixClass,
@@ -93,19 +92,7 @@ function AddTransactionPage() {
   const [editLoadError, setEditLoadError] = useState<string | null>(null);
   const [editRetryKey, setEditRetryKey] = useState(0);
   const [editLoading, setEditLoading] = useState(!!isEditMode);
-  const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
-  const [nextSegmentDate, setNextSegmentDate] = useState<string | null>(null);
-  const [nextSegmentLoading, setNextSegmentLoading] = useState(false);
-  const [recurringEditOccurrenceDate, setRecurringEditOccurrenceDate] =
-    useState<string | null>(null);
-  const [pendingRecurringEdit, setPendingRecurringEdit] = useState<{
-    label: string;
-    amount: number;
-    frequency: "weekly" | "biweekly" | "monthly" | "yearly";
-    category_id: string | null;
-    occurrenceDate: string;
-    newStartDate: string;
-  } | null>(null);
+  const scope = useRecurringEditScope(accountId);
 
   const { data: categories = [] } = useSWR("categories", fetchCategories);
   const sortedCategories = useSortedCategories(categories, type);
@@ -133,18 +120,18 @@ function AddTransactionPage() {
 
   useEffect(() => {
     if (!editTxId && !editRuleId) {
-      setNextSegmentDate(null);
-      setNextSegmentLoading(false);
-      setRecurringEditOccurrenceDate(null);
+      scope.setNextSegmentDate(null);
+      scope.setNextSegmentLoading(false);
+      scope.setOccurrenceDate(null);
       setEditLoadError(null);
       setEditRetryKey(0);
       setEditLoading(false);
       return;
     }
     if (editTxId) {
-      setNextSegmentDate(null);
-      setNextSegmentLoading(false);
-      setRecurringEditOccurrenceDate(null);
+      scope.setNextSegmentDate(null);
+      scope.setNextSegmentLoading(false);
+      scope.setOccurrenceDate(null);
       setEditLoadError(null);
       fetchTransaction(editTxId)
         .then((tx) => {
@@ -163,9 +150,9 @@ function AddTransactionPage() {
       return;
     }
     if (editRuleId) {
-      setNextSegmentDate(null);
-      setNextSegmentLoading(false);
-      setRecurringEditOccurrenceDate(null);
+      scope.setNextSegmentDate(null);
+      scope.setNextSegmentLoading(false);
+      scope.setOccurrenceDate(null);
       setEditLoadError(null);
       fetchRecurringRule(editRuleId)
         .then((rule) => {
@@ -182,12 +169,12 @@ function AddTransactionPage() {
             dateFromParams && dateFromParams.length >= 10
               ? dateFromParams.slice(0, 10)
               : String(rule.start_date).slice(0, 10);
-          setRecurringEditOccurrenceDate(occDate);
-          setNextSegmentLoading(true);
+          scope.setOccurrenceDate(occDate);
+          scope.setNextSegmentLoading(true);
           void fetchNextChainSegment(editRuleId, occDate)
-            .then(setNextSegmentDate)
-            .catch(() => setNextSegmentDate(null))
-            .finally(() => setNextSegmentLoading(false));
+            .then(scope.setNextSegmentDate)
+            .catch(() => scope.setNextSegmentDate(null))
+            .finally(() => scope.setNextSegmentLoading(false));
           setDate(
             dateFromParams
               ? parseISO(dateFromParams)
@@ -199,6 +186,7 @@ function AddTransactionPage() {
         .catch(() => setEditLoadError(USER_FACING_ERROR))
         .finally(() => setEditLoading(false));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editTxId, editRuleId, searchParams.get("date"), editRetryKey]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -238,7 +226,8 @@ function AddTransactionPage() {
           : date
             ? format(date, "yyyy-MM-dd")
             : format(new Date(), "yyyy-MM-dd");
-      setPendingRecurringEdit({
+      scope.openScope({
+        ruleId: editRuleId,
         label: label.trim(),
         amount: finalAmount,
         frequency,
@@ -246,7 +235,6 @@ function AddTransactionPage() {
         occurrenceDate,
         newStartDate: dateStr,
       });
-      setScopeDialogOpen(true);
       return;
     }
 
@@ -288,7 +276,7 @@ function AddTransactionPage() {
     if (!editRuleId) return;
     setError(null);
     const occurrenceAnchor =
-      recurringEditOccurrenceDate ??
+      scope.occurrenceDate ??
       (date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"));
     const { error: endError } = await endRecurringRuleFuture(
       editRuleId,
@@ -302,45 +290,15 @@ function AddTransactionPage() {
     router.back();
   }
 
-  async function confirmRecurringEditScope(scope: "once" | "fromDate") {
-    if (!editRuleId || !pendingRecurringEdit) return;
+  async function confirmRecurringEditScope(s: "once" | "fromDate") {
     setError(null);
-    const p = pendingRecurringEdit;
-    if (scope === "once") {
-      const { error: moveError } = await moveRecurringOccurrence({
-        ruleId: editRuleId,
-        originalOccurrenceDate: p.occurrenceDate,
-        targetDate: p.newStartDate ?? p.occurrenceDate,
-        accountId: accountId ?? "",
-        label: p.label,
-        amount: p.amount,
-        category_id: p.category_id,
-      });
-      if (moveError) {
-        setError(USER_FACING_ERROR);
-        return;
-      }
-    } else {
-      const { error: updateError } = await applyRecurringEditFromDate(
-        editRuleId,
-        p.occurrenceDate,
-        {
-          label: p.label,
-          amount: p.amount,
-          frequency: p.frequency,
-          category_id: p.category_id,
-          newStartDate: p.newStartDate,
-        },
-      );
-      if (updateError) {
-        setError(USER_FACING_ERROR);
-        return;
-      }
+    const result = await scope.confirmScope(s);
+    if (!result) {
+      setError(USER_FACING_ERROR);
+      return;
     }
-    setScopeDialogOpen(false);
-    setPendingRecurringEdit(null);
     invalidateNext12CalendarMonths();
-    router.push(`/?selected=${p.newStartDate}`);
+    router.push(`/?selected=${result.targetDate}`);
   }
 
   const submitButtonClass =
@@ -362,13 +320,8 @@ function AddTransactionPage() {
       </header>
 
       <RecurringEditScopeDialog
-        open={scopeDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setScopeDialogOpen(false);
-            setPendingRecurringEdit(null);
-          }
-        }}
+        open={scope.scopeDialogOpen}
+        onOpenChange={(open) => !open && scope.cancelScope()}
         onSelectScope={confirmRecurringEditScope}
       />
 
@@ -462,16 +415,16 @@ function AddTransactionPage() {
                   onSelect={setDate}
                   initialFocus
                   disabled={
-                    nextSegmentLoading
+                    scope.nextSegmentLoading
                       ? () => true
                       : editRuleId
                         ? (d) => {
                             const ds = format(d, "yyyy-MM-dd");
                             const tooEarly =
-                              recurringEditOccurrenceDate != null &&
-                              ds < recurringEditOccurrenceDate;
-                            const tooLate = nextSegmentDate
-                              ? ds >= nextSegmentDate
+                              scope.occurrenceDate != null &&
+                              ds < scope.occurrenceDate;
+                            const tooLate = scope.nextSegmentDate
+                              ? ds >= scope.nextSegmentDate
                               : false;
                             return tooEarly || tooLate;
                           }

@@ -46,3 +46,13 @@ export type GroupedTransactions = {
   formatted: string;
   transactions: Transaction[];
 };
+
+export type PendingRecurringEdit = {
+  ruleId: string;
+  label: string;
+  amount: number;
+  frequency: "weekly" | "biweekly" | "monthly" | "yearly";
+  category_id: string | null;
+  occurrenceDate: string;
+  newStartDate: string;
+};
