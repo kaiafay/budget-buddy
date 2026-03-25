@@ -131,10 +131,7 @@ export function DayTransactionsContent({
       setNextSegmentLoading(true);
       void fetchNextChainSegment(ruleId, occDate)
         .then(setNextSegmentDate)
-        .catch((err) => {
-          console.error("fetchNextChainSegment failed:", err);
-          return null;
-        })
+        .catch(() => null)
         .finally(() => setNextSegmentLoading(false));
       const rule = recurringRules.find((r) => r.id === ruleId);
       setEditFrequency(rule?.frequency ?? "monthly");
@@ -246,7 +243,7 @@ export function DayTransactionsContent({
       category_id: editCategoryId,
     });
     if (error) {
-      setEditError(error.message);
+      setEditError(USER_FACING_ERROR);
       return;
     }
     onMutate({ targetDate: dateStr });
@@ -268,7 +265,7 @@ export function DayTransactionsContent({
         category_id: p.category_id,
       });
       if (error) {
-        setEditError(error.message);
+        setEditError(USER_FACING_ERROR);
         return;
       }
     } else {
@@ -284,7 +281,7 @@ export function DayTransactionsContent({
         },
       );
       if (error) {
-        setEditError(error.message);
+        setEditError(USER_FACING_ERROR);
         return;
       }
     }

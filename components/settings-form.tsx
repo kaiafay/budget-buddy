@@ -11,14 +11,13 @@ import {
   Plus,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { GlassExpenseIncomeToggle } from "@/components/glass-expense-income-toggle";
 import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
-import { useSWRConfig } from "swr";
 import { glassInputClass, glassSectionIconClass } from "@/lib/glass-classes";
 import { calendarMonthSwrKey } from "@/lib/swr-keys";
 import {
