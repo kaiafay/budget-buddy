@@ -828,6 +828,20 @@ describe("moveRecurringOccurrence", () => {
     expect(result.error?.message).toBe("insert failed");
     expect(mockUpsert).not.toHaveBeenCalled();
   });
+
+  it("when date changed and accountId is blank returns error without touching DB", async () => {
+    const result = await moveRecurringOccurrence({
+      ruleId: R1,
+      originalOccurrenceDate: "2025-03-01",
+      targetDate: "2025-03-05",
+      accountId: "   ",
+      label: "Moved",
+      amount: -20,
+    });
+    expect(result.error?.message).toMatch(/account/i);
+    expect(mockTxInsert).not.toHaveBeenCalled();
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
 });
 
 describe("endRecurringRuleFuture", () => {
