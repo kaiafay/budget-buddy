@@ -48,6 +48,8 @@ import type { Transaction, RecurringRule } from "@/lib/types";
 import { useSortedCategories } from "@/hooks/use-sorted-categories";
 import { cn } from "@/lib/utils";
 
+const NO_CATEGORY_VALUE = "__none__";
+
 function getRecurringRuleIdAndDate(id: string): {
   ruleId: string;
   date: string;
@@ -94,7 +96,6 @@ export function DayTransactionsContent({
   const [editFrequency, setEditFrequency] = useState<
     "weekly" | "biweekly" | "monthly" | "yearly"
   >("monthly");
-  const NO_CATEGORY_VALUE = "__none__";
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
   const [nextSegmentDate, setNextSegmentDate] = useState<string | null>(null);

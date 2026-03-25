@@ -69,6 +69,8 @@ function getInitialDate(
   }
 }
 
+const NO_CATEGORY_VALUE = "__none__";
+
 function AddTransactionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -80,13 +82,12 @@ function AddTransactionPage() {
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<"expense" | "income">("expense");
-  const NO_CATEGORY_VALUE = "__none__";
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [date, setDate] = useState<Date | undefined>(() =>
     getInitialDate(searchParams),
   );
   const [recurring, setRecurring] = useState(false);
-  const [frequency, setFrequency] = useState<string>("monthly");
+  const [frequency, setFrequency] = useState<"weekly" | "biweekly" | "monthly" | "yearly">("monthly");
   const [accountId, setAccountId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editLoadError, setEditLoadError] = useState<string | null>(null);
@@ -240,7 +241,7 @@ function AddTransactionPage() {
       setPendingRecurringEdit({
         label: label.trim(),
         amount: finalAmount,
-        frequency: frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+        frequency,
         category_id: categoryId,
         occurrenceDate,
         newStartDate: dateStr,
@@ -254,7 +255,7 @@ function AddTransactionPage() {
         accountId,
         label: label.trim(),
         amount: finalAmount,
-        frequency: frequency as "weekly" | "biweekly" | "monthly" | "yearly",
+        frequency,
         startDate: dateStr,
         category_id: categoryId,
       });
@@ -510,7 +511,7 @@ function AddTransactionPage() {
                 <Label className="text-xs font-medium text-white/70">
                   Frequency
                 </Label>
-                <Select value={frequency} onValueChange={setFrequency}>
+                <Select value={frequency} onValueChange={(v) => setFrequency(v as "weekly" | "biweekly" | "monthly" | "yearly")}>
                   <SelectTrigger className="h-11 rounded-xl border-white/20 bg-white/10 text-white">
                     <SelectValue />
                   </SelectTrigger>
