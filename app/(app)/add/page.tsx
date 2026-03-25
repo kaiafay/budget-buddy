@@ -9,12 +9,7 @@ import { mutate } from "swr";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
 import { calendarMonthSwrKey } from "@/lib/swr-keys";
 import { createClient } from "@/lib/supabase/client";
-import {
-  fetchTransaction,
-  fetchRecurringRule,
-  fetchCategories,
-  fetchNextChainSegment,
-} from "@/lib/api";
+import { fetchCategories } from "@/lib/api";
 import { GlassCategorySelectTrigger } from "@/components/glass-category-select-trigger";
 import {
   createTransaction,
@@ -47,6 +42,7 @@ import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dial
 import { USER_FACING_ERROR } from "@/lib/errors";
 import { useSortedCategories } from "@/hooks/use-sorted-categories";
 import { useRecurringEditScope } from "@/hooks/use-recurring-edit-scope";
+import { useEditLoader } from "@/hooks/use-edit-loader";
 import {
   glassAmountInputClass,
   glassCurrencyPrefixClass,
@@ -89,10 +85,23 @@ function AddTransactionPage() {
   const [frequency, setFrequency] = useState<"weekly" | "biweekly" | "monthly" | "yearly">("monthly");
   const [accountId, setAccountId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [editLoadError, setEditLoadError] = useState<string | null>(null);
-  const [editRetryKey, setEditRetryKey] = useState(0);
-  const [editLoading, setEditLoading] = useState(!!isEditMode);
   const scope = useRecurringEditScope(accountId);
+  const {
+    loading: editLoading,
+    error: editLoadError,
+    retry: retryEditLoad,
+  } = useEditLoader(editTxId, editRuleId, searchParams.get("date"), {
+    setLabel,
+    setAmount,
+    setType,
+    setCategoryId,
+    setDate,
+    setRecurring,
+    setFrequency,
+    setScopeOccurrenceDate: scope.setOccurrenceDate,
+    setScopeNextSegmentDate: scope.setNextSegmentDate,
+    setScopeNextSegmentLoading: scope.setNextSegmentLoading,
+  });
 
   const { data: categories = [] } = useSWR("categories", fetchCategories);
   const sortedCategories = useSortedCategories(categories, type);
@@ -117,77 +126,6 @@ function AddTransactionPage() {
     }
     loadAccount();
   }, []);
-
-  useEffect(() => {
-    if (!editTxId && !editRuleId) {
-      scope.setNextSegmentDate(null);
-      scope.setNextSegmentLoading(false);
-      scope.setOccurrenceDate(null);
-      setEditLoadError(null);
-      setEditRetryKey(0);
-      setEditLoading(false);
-      return;
-    }
-    if (editTxId) {
-      scope.setNextSegmentDate(null);
-      scope.setNextSegmentLoading(false);
-      scope.setOccurrenceDate(null);
-      setEditLoadError(null);
-      fetchTransaction(editTxId)
-        .then((tx) => {
-          if (!tx) {
-            setEditLoadError("Couldn't find this transaction.");
-            return;
-          }
-          setLabel(tx.label);
-          setAmount(Math.abs(Number(tx.amount)).toFixed(2));
-          setType(Number(tx.amount) >= 0 ? "income" : "expense");
-          setCategoryId(tx.category_id ?? null);
-          setDate(parseISO(tx.date));
-        })
-        .catch(() => setEditLoadError(USER_FACING_ERROR))
-        .finally(() => setEditLoading(false));
-      return;
-    }
-    if (editRuleId) {
-      scope.setNextSegmentDate(null);
-      scope.setNextSegmentLoading(false);
-      scope.setOccurrenceDate(null);
-      setEditLoadError(null);
-      fetchRecurringRule(editRuleId)
-        .then((rule) => {
-          if (!rule) {
-            setEditLoadError("Couldn't find this recurring rule.");
-            return;
-          }
-          setLabel(rule.label);
-          setAmount(Math.abs(rule.amount).toFixed(2));
-          setType(rule.amount >= 0 ? "income" : "expense");
-          setCategoryId(rule.category_id ?? null);
-          const dateFromParams = searchParams.get("date");
-          const occDate =
-            dateFromParams && dateFromParams.length >= 10
-              ? dateFromParams.slice(0, 10)
-              : String(rule.start_date).slice(0, 10);
-          scope.setOccurrenceDate(occDate);
-          scope.setNextSegmentLoading(true);
-          void fetchNextChainSegment(editRuleId, occDate)
-            .then(scope.setNextSegmentDate)
-            .catch(() => scope.setNextSegmentDate(null))
-            .finally(() => scope.setNextSegmentLoading(false));
-          setDate(
-            dateFromParams
-              ? parseISO(dateFromParams)
-              : parseISO(rule.start_date),
-          );
-          setRecurring(true);
-          setFrequency(rule.frequency);
-        })
-        .catch(() => setEditLoadError(USER_FACING_ERROR))
-        .finally(() => setEditLoading(false));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editTxId, editRuleId, searchParams.get("date"), editRetryKey]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -485,11 +423,7 @@ function AddTransactionPage() {
             <ErrorBanner
               variant="inline"
               message={editLoadError}
-              onRetry={() => {
-                setEditLoadError(null);
-                setEditLoading(true);
-                setEditRetryKey((k) => k + 1);
-              }}
+              onRetry={retryEditLoad}
             />
           )}
           {error && <InlineError>{error}</InlineError>}
