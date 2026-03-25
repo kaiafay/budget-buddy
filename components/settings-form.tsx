@@ -242,23 +242,40 @@ export default function SettingsForm({
 
   async function requestDeleteCategory(cat: Category) {
     setCategoryDeleteError(null);
-    const count = await fetchCategoryUsageCount(cat.id);
-    setDeleteUsageCount(count);
-    setCategoryToDelete(cat);
+    try {
+      const count = await fetchCategoryUsageCount(cat.id);
+      if (count.transactions === 0 && count.rules === 0) {
+        const { error: err } = await deleteCategory(cat.id);
+        if (err) {
+          setCategoryDeleteError(USER_FACING_ERROR);
+          return;
+        }
+        mutate("categories");
+        return;
+      }
+      setDeleteUsageCount(count);
+      setCategoryToDelete(cat);
+    } catch {
+      setCategoryDeleteError(USER_FACING_ERROR);
+    }
   }
 
   async function confirmDeleteCategory() {
-    const id = categoryToDelete?.id;
-    if (!id) return;
-    setCategoryDeleteError(null);
-    const { error: err } = await deleteCategory(id);
-    if (err) {
-      setCategoryDeleteError(err.message);
-      return;
+    try {
+      const id = categoryToDelete?.id;
+      if (!id) return;
+      setCategoryDeleteError(null);
+      const { error: err } = await deleteCategory(id);
+      if (err) {
+        setCategoryDeleteError(USER_FACING_ERROR);
+        return;
+      }
+      mutate("categories");
+      setCategoryToDelete(null);
+      setDeleteUsageCount(null);
+    } catch {
+      setCategoryDeleteError(USER_FACING_ERROR);
     }
-    mutate("categories");
-    setCategoryToDelete(null);
-    setDeleteUsageCount(null);
   }
 
   const signOutButtonClass =
@@ -401,6 +418,9 @@ export default function SettingsForm({
               </li>
             ))}
           </ul>
+        )}
+        {categoryDeleteError && !categoryToDelete && (
+          <InlineError>{categoryDeleteError}</InlineError>
         )}
         <Button
           type="button"
