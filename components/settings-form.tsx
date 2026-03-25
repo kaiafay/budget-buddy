@@ -48,6 +48,7 @@ import {
   updateCategory,
   deleteCategory,
 } from "@/lib/transactions-mutations";
+import { USER_FACING_ERROR } from "@/lib/errors";
 import type { Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -207,7 +208,14 @@ export default function SettingsForm({
         type: categoryForm.type,
       });
       if (err) {
-        setCategoryFormError(err.message);
+        if (
+          err.message.includes("categories_user_id_name_key") ||
+          err.message.includes("duplicate key")
+        ) {
+          setCategoryFormError("A category with this name already exists.");
+        } else {
+          setCategoryFormError(USER_FACING_ERROR);
+        }
         return;
       }
     } else {
@@ -217,7 +225,14 @@ export default function SettingsForm({
         type: categoryForm.type,
       });
       if (err) {
-        setCategoryFormError(err.message);
+        if (
+          err.message.includes("categories_user_id_name_key") ||
+          err.message.includes("duplicate key")
+        ) {
+          setCategoryFormError("A category with this name already exists.");
+        } else {
+          setCategoryFormError(USER_FACING_ERROR);
+        }
         return;
       }
     }
