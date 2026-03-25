@@ -30,6 +30,7 @@ import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dial
 import { GlassCategorySelectTrigger } from "@/components/glass-category-select-trigger";
 import { TransactionLeadingIcon } from "@/components/transaction-leading-icon";
 import { fetchCategories, fetchNextChainSegment } from "@/lib/api";
+import { getRecurringRuleIdAndDate } from "@/lib/recurring-rules";
 import {
   glassAmountInputClass,
   glassCurrencyPrefixClass,
@@ -49,15 +50,6 @@ import { useSortedCategories } from "@/hooks/use-sorted-categories";
 import { cn } from "@/lib/utils";
 
 const NO_CATEGORY_VALUE = "__none__";
-
-function getRecurringRuleIdAndDate(id: string): {
-  ruleId: string;
-  date: string;
-} {
-  const date = id.slice(-10);
-  const ruleId = id.slice(0, -11);
-  return { ruleId, date };
-}
 
 export interface DayTransactionsContentProps {
   date: string;
