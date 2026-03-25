@@ -1,5 +1,14 @@
 import type { RecurringRule } from "@/lib/types";
 
+export function getRecurringRuleIdAndDate(id: string): {
+  ruleId: string;
+  date: string;
+} {
+  const date = id.slice(-10);
+  const ruleId = id.slice(0, -11);
+  return { ruleId, date };
+}
+
 export type RecurringRuleRowInput = {
   id: string;
   start_date: string;

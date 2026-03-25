@@ -30,6 +30,7 @@ import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dial
 import { GlassCategorySelectTrigger } from "@/components/glass-category-select-trigger";
 import { TransactionLeadingIcon } from "@/components/transaction-leading-icon";
 import { fetchCategories, fetchNextChainSegment } from "@/lib/api";
+import { getRecurringRuleIdAndDate } from "@/lib/recurring-rules";
 import {
   glassAmountInputClass,
   glassCurrencyPrefixClass,
@@ -48,14 +49,7 @@ import type { Transaction, RecurringRule } from "@/lib/types";
 import { useSortedCategories } from "@/hooks/use-sorted-categories";
 import { cn } from "@/lib/utils";
 
-function getRecurringRuleIdAndDate(id: string): {
-  ruleId: string;
-  date: string;
-} {
-  const date = id.slice(-10);
-  const ruleId = id.slice(0, -11);
-  return { ruleId, date };
-}
+const NO_CATEGORY_VALUE = "__none__";
 
 export interface DayTransactionsContentProps {
   date: string;
@@ -94,7 +88,6 @@ export function DayTransactionsContent({
   const [editFrequency, setEditFrequency] = useState<
     "weekly" | "biweekly" | "monthly" | "yearly"
   >("monthly");
-  const NO_CATEGORY_VALUE = "__none__";
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
   const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
   const [nextSegmentDate, setNextSegmentDate] = useState<string | null>(null);
@@ -131,10 +124,7 @@ export function DayTransactionsContent({
       setNextSegmentLoading(true);
       void fetchNextChainSegment(ruleId, occDate)
         .then(setNextSegmentDate)
-        .catch((err) => {
-          console.error("fetchNextChainSegment failed:", err);
-          return null;
-        })
+        .catch(() => null)
         .finally(() => setNextSegmentLoading(false));
       const rule = recurringRules.find((r) => r.id === ruleId);
       setEditFrequency(rule?.frequency ?? "monthly");
@@ -246,7 +236,7 @@ export function DayTransactionsContent({
       category_id: editCategoryId,
     });
     if (error) {
-      setEditError(error.message);
+      setEditError(USER_FACING_ERROR);
       return;
     }
     onMutate({ targetDate: dateStr });
@@ -268,7 +258,7 @@ export function DayTransactionsContent({
         category_id: p.category_id,
       });
       if (error) {
-        setEditError(error.message);
+        setEditError(USER_FACING_ERROR);
         return;
       }
     } else {
@@ -284,7 +274,7 @@ export function DayTransactionsContent({
         },
       );
       if (error) {
-        setEditError(error.message);
+        setEditError(USER_FACING_ERROR);
         return;
       }
     }

@@ -11,7 +11,7 @@ import type { Category, Transaction, GroupedTransactions } from "@/lib/types";
 import { fetchTransactions, fetchCategories } from "@/lib/api";
 import { TransactionLeadingIcon } from "@/components/transaction-leading-icon";
 import { expandRecurringForDateRange } from "@/lib/projection";
-import { mapRecurringRuleRow } from "@/lib/recurring-rules";
+import { mapRecurringRuleRow, getRecurringRuleIdAndDate } from "@/lib/recurring-rules";
 import {
   deleteTransaction,
   skipRecurringOccurrence,
@@ -217,8 +217,7 @@ export default function TransactionsPage() {
   async function handleDelete(t: Transaction) {
     setDeleteError(null);
     if (t.recurring) {
-      const ruleId = t.id.slice(0, -11);
-      const exceptionDate = t.date;
+      const { ruleId, date: exceptionDate } = getRecurringRuleIdAndDate(t.id);
       const { error } = await skipRecurringOccurrence(ruleId, exceptionDate);
       if (error) {
         setDeleteError(USER_FACING_ERROR);
@@ -240,7 +239,7 @@ export default function TransactionsPage() {
   function handleEdit(t: Transaction) {
     setOpenedRowId(null);
     if (t.recurring) {
-      const ruleId = t.id.slice(0, -11);
+      const { ruleId } = getRecurringRuleIdAndDate(t.id);
       router.push(`/add?edit=rule:${ruleId}&date=${t.date}`);
     } else {
       router.push(`/add?edit=${t.id}`);

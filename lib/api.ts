@@ -6,6 +6,7 @@ import type {
   Transaction,
 } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
+import { USER_FACING_ERROR } from "@/lib/errors";
 import { uuidSchema } from "@/lib/validation";
 
 export async function fetchCalendarData(
@@ -318,6 +319,9 @@ export async function fetchCategoryUsageCount(
       .eq("user_id", user.id)
       .eq("category_id", categoryId),
   ]);
+  if (txRes.error || rulesRes.error) {
+    throw new Error(USER_FACING_ERROR);
+  }
   return {
     transactions: txRes.count ?? 0,
     rules: rulesRes.count ?? 0,
