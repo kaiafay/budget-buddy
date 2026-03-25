@@ -41,12 +41,11 @@ import {
   skipRecurringOccurrence,
   endRecurringRuleFuture,
   updateTransaction,
-  applyRecurringEditFromDate,
-  moveRecurringOccurrence,
 } from "@/lib/transactions-mutations";
 import { USER_FACING_ERROR } from "@/lib/errors";
 import type { Transaction, RecurringRule } from "@/lib/types";
 import { useSortedCategories } from "@/hooks/use-sorted-categories";
+import { useRecurringEditScope } from "@/hooks/use-recurring-edit-scope";
 import { cn } from "@/lib/utils";
 
 const NO_CATEGORY_VALUE = "__none__";
@@ -89,21 +88,7 @@ export function DayTransactionsContent({
     "weekly" | "biweekly" | "monthly" | "yearly"
   >("monthly");
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
-  const [scopeDialogOpen, setScopeDialogOpen] = useState(false);
-  const [nextSegmentDate, setNextSegmentDate] = useState<string | null>(null);
-  const [nextSegmentLoading, setNextSegmentLoading] = useState(false);
-  const [editOccurrenceDate, setEditOccurrenceDate] = useState<string | null>(
-    null,
-  );
-  const [pendingEditPayload, setPendingEditPayload] = useState<{
-    label: string;
-    amount: number;
-    frequency: "weekly" | "biweekly" | "monthly" | "yearly";
-    category_id: string | null;
-    newStartDate: string;
-    ruleId: string;
-    occurrenceDate: string;
-  } | null>(null);
+  const scope = useRecurringEditScope(accountId);
 
   const { data: categories = [] } = useSWR("categories", fetchCategories);
   const sortedCategories = useSortedCategories(categories, editType);
@@ -117,20 +102,20 @@ export function DayTransactionsContent({
     setEditType(t.amount >= 0 ? "income" : "expense");
     setEditDate(parseISO(t.date));
     setEditCategoryId(t.category_id ?? null);
-    setNextSegmentDate(null);
+    scope.setNextSegmentDate(null);
     if (t.recurring) {
       const { ruleId, date: occDate } = getRecurringRuleIdAndDate(t.id);
-      setEditOccurrenceDate(occDate);
-      setNextSegmentLoading(true);
+      scope.setOccurrenceDate(occDate);
+      scope.setNextSegmentLoading(true);
       void fetchNextChainSegment(ruleId, occDate)
-        .then(setNextSegmentDate)
+        .then(scope.setNextSegmentDate)
         .catch(() => null)
-        .finally(() => setNextSegmentLoading(false));
+        .finally(() => scope.setNextSegmentLoading(false));
       const rule = recurringRules.find((r) => r.id === ruleId);
       setEditFrequency(rule?.frequency ?? "monthly");
     } else {
-      setEditOccurrenceDate(null);
-      setNextSegmentLoading(false);
+      scope.setOccurrenceDate(null);
+      scope.setNextSegmentLoading(false);
     }
     setDrawerOpen(true);
   }
@@ -139,11 +124,7 @@ export function DayTransactionsContent({
     setDrawerMode("actions");
     setDrawerOpen(false);
     setSelectedTransaction(null);
-    setScopeDialogOpen(false);
-    setPendingEditPayload(null);
-    setNextSegmentDate(null);
-    setNextSegmentLoading(false);
-    setEditOccurrenceDate(null);
+    scope.reset();
   }
 
   async function handleSkipOccurrence() {
@@ -216,16 +197,15 @@ export function DayTransactionsContent({
       const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
         selectedTransaction.id,
       );
-      setPendingEditPayload({
+      scope.openScope({
+        ruleId,
         label: editLabel.trim(),
         amount: finalAmount,
         frequency: editFrequency,
         category_id: editCategoryId,
-        newStartDate: dateStr,
-        ruleId,
         occurrenceDate,
+        newStartDate: dateStr,
       });
-      setScopeDialogOpen(true);
       return;
     }
 
@@ -243,44 +223,14 @@ export function DayTransactionsContent({
     closeDrawer();
   }
 
-  async function confirmRecurringScope(scope: "once" | "fromDate") {
-    if (!pendingEditPayload) return;
+  async function confirmRecurringScope(s: "once" | "fromDate") {
     setEditError(null);
-    const p = pendingEditPayload;
-    if (scope === "once") {
-      const { error } = await moveRecurringOccurrence({
-        ruleId: p.ruleId,
-        originalOccurrenceDate: p.occurrenceDate,
-        targetDate: p.newStartDate ?? p.occurrenceDate,
-        accountId: accountId ?? "",
-        label: p.label,
-        amount: p.amount,
-        category_id: p.category_id,
-      });
-      if (error) {
-        setEditError(USER_FACING_ERROR);
-        return;
-      }
-    } else {
-      const { error } = await applyRecurringEditFromDate(
-        p.ruleId,
-        p.occurrenceDate,
-        {
-          label: p.label,
-          amount: p.amount,
-          frequency: p.frequency,
-          category_id: p.category_id,
-          newStartDate: p.newStartDate,
-        },
-      );
-      if (error) {
-        setEditError(USER_FACING_ERROR);
-        return;
-      }
+    const result = await scope.confirmScope(s);
+    if (!result) {
+      setEditError(USER_FACING_ERROR);
+      return;
     }
-    setScopeDialogOpen(false);
-    setPendingEditPayload(null);
-    onMutate({ recurringTouch: true, targetDate: p.newStartDate });
+    onMutate({ recurringTouch: true, targetDate: result.targetDate });
     closeDrawer();
   }
 
@@ -355,13 +305,8 @@ export function DayTransactionsContent({
       </Button>
 
       <RecurringEditScopeDialog
-        open={scopeDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setScopeDialogOpen(false);
-            setPendingEditPayload(null);
-          }
-        }}
+        open={scope.scopeDialogOpen}
+        onOpenChange={(open) => !open && scope.cancelScope()}
         onSelectScope={confirmRecurringScope}
       />
 
@@ -531,16 +476,16 @@ export function DayTransactionsContent({
                         defaultMonth={editDate}
                         onSelect={setEditDate}
                         disabled={
-                          nextSegmentLoading
+                          scope.nextSegmentLoading
                             ? () => true
                             : selectedTransaction.recurring
                               ? (d) => {
                                   const ds = format(d, "yyyy-MM-dd");
                                   const tooEarly =
-                                    editOccurrenceDate != null &&
-                                    ds < editOccurrenceDate;
-                                  const tooLate = nextSegmentDate
-                                    ? ds >= nextSegmentDate
+                                    scope.occurrenceDate != null &&
+                                    ds < scope.occurrenceDate;
+                                  const tooLate = scope.nextSegmentDate
+                                    ? ds >= scope.nextSegmentDate
                                     : false;
                                   return tooEarly || tooLate;
                                 }
