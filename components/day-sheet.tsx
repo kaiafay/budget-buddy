@@ -43,6 +43,7 @@ import {
   applyRecurringEditFromDate,
   moveRecurringOccurrence,
 } from "@/lib/transactions-mutations";
+import { USER_FACING_ERROR } from "@/lib/errors";
 import type { Transaction, RecurringRule } from "@/lib/types";
 import { useSortedCategories } from "@/hooks/use-sorted-categories";
 import { cn } from "@/lib/utils";
@@ -156,42 +157,54 @@ export function DayTransactionsContent({
   }
 
   async function handleSkipOccurrence() {
-    if (!selectedTransaction?.recurring) return;
-    const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
-      selectedTransaction.id,
-    );
-    const { error } = await skipRecurringOccurrence(ruleId, occurrenceDate);
-    if (error) {
-      setEditError(error.message);
-      return;
+    try {
+      if (!selectedTransaction?.recurring) return;
+      const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
+        selectedTransaction.id,
+      );
+      const { error } = await skipRecurringOccurrence(ruleId, occurrenceDate);
+      if (error) {
+        setEditError(USER_FACING_ERROR);
+        return;
+      }
+      onMutate({ recurringTouch: true });
+      closeDrawer();
+    } catch {
+      setEditError(USER_FACING_ERROR);
     }
-    onMutate({ recurringTouch: true });
-    closeDrawer();
   }
 
   async function handleDeleteAllFuture() {
-    if (!selectedTransaction?.recurring) return;
-    const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
-      selectedTransaction.id,
-    );
-    const { error } = await endRecurringRuleFuture(ruleId, occurrenceDate);
-    if (error) {
-      setEditError(error.message);
-      return;
+    try {
+      if (!selectedTransaction?.recurring) return;
+      const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
+        selectedTransaction.id,
+      );
+      const { error } = await endRecurringRuleFuture(ruleId, occurrenceDate);
+      if (error) {
+        setEditError(USER_FACING_ERROR);
+        return;
+      }
+      onMutate({ recurringTouch: true });
+      closeDrawer();
+    } catch {
+      setEditError(USER_FACING_ERROR);
     }
-    onMutate({ recurringTouch: true });
-    closeDrawer();
   }
 
   async function handleDeleteOneTime() {
-    if (!selectedTransaction || selectedTransaction.recurring) return;
-    const { error } = await deleteTransaction(selectedTransaction.id);
-    if (error) {
-      setEditError(error.message);
-      return;
+    try {
+      if (!selectedTransaction || selectedTransaction.recurring) return;
+      const { error } = await deleteTransaction(selectedTransaction.id);
+      if (error) {
+        setEditError(USER_FACING_ERROR);
+        return;
+      }
+      onMutate();
+      closeDrawer();
+    } catch {
+      setEditError(USER_FACING_ERROR);
     }
-    onMutate();
-    closeDrawer();
   }
 
   async function handleSaveEdit() {
@@ -415,6 +428,7 @@ export function DayTransactionsContent({
                     Delete transaction
                   </Button>
                 )}
+                {editError && <InlineError>{editError}</InlineError>}
               </div>
             </>
           )}
