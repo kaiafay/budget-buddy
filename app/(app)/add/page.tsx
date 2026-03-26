@@ -73,6 +73,7 @@ function AddTransactionPage() {
   const editRuleId = editParam?.startsWith("rule:") ? editParam.slice(5) : null;
   const editTxId = editParam && !editRuleId ? editParam : null;
   const isEditMode = !!editTxId || !!editRuleId;
+  const fromTransactions = searchParams.get("from") === "transactions";
 
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
@@ -152,7 +153,7 @@ function AddTransactionPage() {
       const currentYear = date.getFullYear();
       mutate(calendarMonthSwrKey(currentMonth, currentYear));
       mutate("transactions");
-      router.push(`/?selected=${dateStr}`);
+      router.push(fromTransactions ? "/transactions" : `/?selected=${dateStr}`);
       return;
     }
 
@@ -236,7 +237,7 @@ function AddTransactionPage() {
       return;
     }
     invalidateNext12CalendarMonths();
-    router.push(`/?selected=${result.targetDate}`);
+    router.push(fromTransactions ? "/transactions" : `/?selected=${result.targetDate}`);
   }
 
   const submitButtonClass =

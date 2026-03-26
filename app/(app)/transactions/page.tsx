@@ -240,9 +240,9 @@ export default function TransactionsPage() {
     setOpenedRowId(null);
     if (t.recurring) {
       const { ruleId } = getRecurringRuleIdAndDate(t.id);
-      router.push(`/add?edit=rule:${ruleId}&date=${t.date}`);
+      router.push(`/add?edit=rule:${ruleId}&date=${t.date}&from=transactions`);
     } else {
-      router.push(`/add?edit=${t.id}`);
+      router.push(`/add?edit=${t.id}&from=transactions`);
     }
   }
 
