@@ -8,6 +8,7 @@ import { glassInputClass } from "@/lib/glass-classes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AlertCircle, CheckCircle } from "lucide-react";
 
 type Mode = "signin" | "signup";
 
@@ -222,18 +223,20 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p className="text-sm text-red-300" role="alert">
+            <p className="flex items-center gap-1.5 text-sm text-white" role="alert">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-300" />
               {error}
             </p>
           )}
 
           {signUpSuccess && (
-            <p
-              className="text-sm text-green-600 dark:text-green-400"
+            <div
+              className="flex items-center gap-2 rounded-xl border border-green-400/30 bg-green-500/15 px-3 py-2 text-sm text-white"
               role="status"
             >
+              <CheckCircle className="h-4 w-4 shrink-0 text-green-300" />
               Check your email to confirm your account
-            </p>
+            </div>
           )}
 
           <Button

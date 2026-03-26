@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type InlineErrorProps = {
@@ -8,7 +9,11 @@ type InlineErrorProps = {
 
 export function InlineError({ children, className }: InlineErrorProps) {
   return (
-    <p className={cn("text-sm text-destructive", className)} role="alert">
+    <p
+      className={cn("flex items-center gap-1.5 text-sm text-white", className)}
+      role="alert"
+    >
+      <AlertCircle className="h-4 w-4 shrink-0 text-red-300" />
       {children}
     </p>
   );

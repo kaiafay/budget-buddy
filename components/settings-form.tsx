@@ -459,7 +459,7 @@ export default function SettingsForm({
             Sign out
           </button>
           {signOutError && (
-            <InlineError className="text-center">{signOutError}</InlineError>
+            <InlineError className="justify-center">{signOutError}</InlineError>
           )}
         </div>
         <Dialog
