@@ -74,18 +74,24 @@ export default function LoginPage() {
       }
     }
 
-    const { error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          given_name: trimmedFirst,
-          family_name: trimmedLast,
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp(
+      {
+        email,
+        password,
+        options: {
+          data: {
+            given_name: trimmedFirst,
+            family_name: trimmedLast,
+          },
         },
       },
-    });
+    );
     if (signUpError) {
       setError(signUpError.message);
+      return;
+    }
+    if (signUpData.user?.identities?.length === 0) {
+      setError("An account with this email already exists.");
       return;
     }
     setSignUpSuccess(true);
