@@ -31,7 +31,7 @@ export function RecurringEditScopeDialog({
             How would you like to apply this change?
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <p className="text-sm text-amber-300">
+        <p className="text-sm text-amber-600">
           This will override any previous edits made to future occurrences.
         </p>
         <AlertDialogFooter className="flex flex-col gap-2 sm:flex-col">

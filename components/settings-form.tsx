@@ -529,7 +529,7 @@ export default function SettingsForm({
                 </div>
               </div>
               {categoryFormError && (
-                <InlineError>{categoryFormError}</InlineError>
+                <InlineError light>{categoryFormError}</InlineError>
               )}
               <Button type="submit" className={dialogSubmitButtonClass}>
                 {editingCategory ? "Save changes" : "Add category"}
@@ -568,7 +568,7 @@ export default function SettingsForm({
               </AlertDialogDescription>
             </AlertDialogHeader>
             {categoryDeleteError && (
-              <InlineError>{categoryDeleteError}</InlineError>
+              <InlineError light>{categoryDeleteError}</InlineError>
             )}
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-xl border border-border bg-muted text-foreground hover:bg-muted/80">
