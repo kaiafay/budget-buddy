@@ -8,12 +8,11 @@ import { glassInputClass } from "@/lib/glass-classes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, CheckCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 type Mode = "signin" | "signup";
 
-const inviteGateEnabled =
-  (process.env.NEXT_PUBLIC_INVITE_CODE ?? "") !== "";
+const inviteGateEnabled = (process.env.NEXT_PUBLIC_INVITE_CODE ?? "") !== "";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -79,6 +78,7 @@ export default function LoginPage() {
         email,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/confirm`,
           data: {
             given_name: trimmedFirst,
             family_name: trimmedLast,
@@ -123,14 +123,33 @@ export default function LoginPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-white">
             Budget Buddy
           </h1>
-          <p className="text-sm text-white/70">
-            {mode === "signin"
-              ? "Sign in to manage your budget"
-              : "Create an account to get started"}
-          </p>
+          {!signUpSuccess && (
+            <p className="text-sm text-white/70">
+              {mode === "signin"
+                ? "Sign in to manage your budget"
+                : "Create an account to get started"}
+            </p>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        {signUpSuccess && (
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="flex items-center gap-2">
+              <p className="text-base font-medium text-white">
+                You're almost in!
+              </p>
+            </div>
+            <p className="text-sm text-white/70">
+              Check your inbox at <span className="text-white">{email}</span> to
+              activate your account.
+            </p>
+          </div>
+        )}
+
+        <form
+          onSubmit={handleSubmit}
+          className={signUpSuccess ? "hidden" : "flex flex-col gap-5"}
+        >
           {mode === "signup" && (
             <>
               <div className="flex flex-col gap-2">
@@ -229,20 +248,13 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p className="flex items-center gap-1.5 text-sm text-white" role="alert">
+            <p
+              className="flex items-center gap-1.5 text-sm text-white"
+              role="alert"
+            >
               <AlertCircle className="h-4 w-4 shrink-0 text-red-300" />
               {error}
             </p>
-          )}
-
-          {signUpSuccess && (
-            <div
-              className="flex items-center gap-2 rounded-xl border border-green-400/30 bg-green-500/15 px-3 py-2 text-sm text-white"
-              role="status"
-            >
-              <CheckCircle className="h-4 w-4 shrink-0 text-green-300" />
-              Check your email to confirm your account
-            </div>
           )}
 
           <Button
@@ -253,31 +265,33 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <p className="pt-6 text-center text-xs text-white/70">
-          {mode === "signin" ? (
-            <>
-              {"Don't have an account? "}
-              <button
-                type="button"
-                onClick={switchMode}
-                className="font-medium text-white/70 hover:underline"
-              >
-                Sign up
-              </button>
-            </>
-          ) : (
-            <>
-              {"Already have an account? "}
-              <button
-                type="button"
-                onClick={switchMode}
-                className="font-medium text-white/70 hover:underline"
-              >
-                Sign in
-              </button>
-            </>
-          )}
-        </p>
+        {!signUpSuccess && (
+          <p className="pt-6 text-center text-xs text-white/70">
+            {mode === "signin" ? (
+              <>
+                {"Don't have an account? "}
+                <button
+                  type="button"
+                  onClick={switchMode}
+                  className="font-medium text-white/70 hover:underline"
+                >
+                  Sign up
+                </button>
+              </>
+            ) : (
+              <>
+                {"Already have an account? "}
+                <button
+                  type="button"
+                  onClick={switchMode}
+                  className="font-medium text-white/70 hover:underline"
+                >
+                  Sign in
+                </button>
+              </>
+            )}
+          </p>
+        )}
       </div>
     </div>
   );
