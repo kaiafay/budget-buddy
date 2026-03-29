@@ -95,20 +95,6 @@ function SwipeableTransactionRow({
         >
           <button
             type="button"
-            onClick={onDelete}
-            className={swipeActionButtonClass}
-            style={{
-              background: "rgba(220,38,38,0.85)",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
-              border: "1px solid rgba(255,255,255,0.2)",
-            }}
-            aria-label="Delete"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
             onClick={onEdit}
             className={swipeActionButtonClass}
             style={{
@@ -120,6 +106,20 @@ function SwipeableTransactionRow({
             aria-label="Edit"
           >
             <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className={swipeActionButtonClass}
+            style={{
+              background: "rgba(220,38,38,0.85)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              border: "1px solid rgba(255,255,255,0.2)",
+            }}
+            aria-label="Delete"
+          >
+            <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>
