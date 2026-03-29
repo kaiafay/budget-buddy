@@ -140,8 +140,11 @@ export default function LoginPage() {
               </p>
             </div>
             <p className="text-sm text-white/70">
-              Check your inbox at <span className="text-white">{email}</span> to
-              activate your account.
+              Check your inbox at
+              <br />
+              <span className="text-white">{email}</span>
+              <br />
+              to activate your account.
             </p>
           </div>
         )}
