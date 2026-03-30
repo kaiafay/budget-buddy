@@ -15,7 +15,6 @@ import {
   createTransaction,
   createRecurringRule,
   updateTransaction,
-  endRecurringRuleFuture,
 } from "@/lib/transactions-mutations";
 import { ErrorBanner } from "@/components/error-banner";
 import { GlassExpenseIncomeToggle } from "@/components/glass-expense-income-toggle";
@@ -221,30 +220,6 @@ function AddTransactionPage() {
         mutate("transactions");
       }
       router.push(`/?selected=${dateStr}`);
-    });
-  }
-
-  function handleDeleteAllFuture() {
-    if (!editRuleId) return;
-    setError(null);
-    const occurrenceAnchor =
-      scope.occurrenceDate ??
-      (date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"));
-    startTransition(async () => {
-      try {
-        const { error: endError } = await endRecurringRuleFuture(
-          editRuleId,
-          occurrenceAnchor,
-        );
-        if (endError) {
-          setError(USER_FACING_ERROR);
-          return;
-        }
-        invalidateNext12CalendarMonths();
-        router.back();
-      } catch {
-        setError(USER_FACING_ERROR);
-      }
     });
   }
 
@@ -473,17 +448,6 @@ function AddTransactionPage() {
                     ? "Add Income"
                     : "Add Expense"}
           </Button>
-          {editRuleId && (
-            <Button
-              type="button"
-              variant="destructive"
-              className="mt-2 h-12 active:bg-destructive/80"
-              disabled={isPending}
-              onClick={handleDeleteAllFuture}
-            >
-              Delete this and all future occurrences
-            </Button>
-          )}
         </div>
       </form>
     </div>

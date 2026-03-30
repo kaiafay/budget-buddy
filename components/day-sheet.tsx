@@ -528,17 +528,6 @@ export function DayTransactionsContent({
                   >
                     Save changes
                   </Button>
-                  {selectedTransaction.recurring && (
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      disabled={isPending}
-                      className="h-11 active:bg-destructive/80"
-                      onClick={handleDeleteAllFuture}
-                    >
-                      Delete this and all future occurrences
-                    </Button>
-                  )}
                   <Button
                     type="button"
                     variant="ghost"
