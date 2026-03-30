@@ -246,11 +246,22 @@ export default function TransactionsPage() {
 
   function handleEdit(t: Transaction) {
     setOpenedRowId(null);
+    const initParams = new URLSearchParams({
+      from: "transactions",
+      initPrefilled: "1",
+      initLabel: t.label,
+      initAmount: Math.abs(t.amount).toFixed(2),
+      initType: t.amount >= 0 ? "income" : "expense",
+      ...(t.category_id ? { initCategory: t.category_id } : {}),
+    });
     if (t.recurring) {
       const { ruleId } = getRecurringRuleIdAndDate(t.id);
-      router.push(`/add?edit=rule:${ruleId}&date=${t.date}&from=transactions`);
+      const rule = data?.recurringRules.find((r) => r.id === ruleId);
+      initParams.set("initRecurring", "true");
+      if (rule?.frequency) initParams.set("initFrequency", rule.frequency);
+      router.push(`/add?edit=rule:${ruleId}&date=${t.date}&${initParams}`);
     } else {
-      router.push(`/add?edit=${t.id}&from=transactions`);
+      router.push(`/add?edit=${t.id}&date=${t.date}&${initParams}`);
     }
   }
 

@@ -75,18 +75,29 @@ function AddTransactionPage() {
   const isEditMode = !!editTxId || !!editRuleId;
   const fromTransactions = searchParams.get("from") === "transactions";
 
-  const [label, setLabel] = useState("");
-  const [amount, setAmount] = useState("");
-  const [type, setType] = useState<"expense" | "income">("expense");
-  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [label, setLabel] = useState(() => searchParams.get("initLabel") ?? "");
+  const [amount, setAmount] = useState(() => searchParams.get("initAmount") ?? "");
+  const [type, setType] = useState<"expense" | "income">(() =>
+    searchParams.get("initType") === "income" ? "income" : "expense",
+  );
+  const [categoryId, setCategoryId] = useState<string | null>(() =>
+    searchParams.get("initCategory"),
+  );
   const [date, setDate] = useState<Date | undefined>(() =>
     getInitialDate(searchParams),
   );
-  const [recurring, setRecurring] = useState(false);
-  const [frequency, setFrequency] = useState<"weekly" | "biweekly" | "monthly" | "yearly">("monthly");
+  const [recurring, setRecurring] = useState(
+    () => searchParams.get("initRecurring") === "true",
+  );
+  const [frequency, setFrequency] = useState<"weekly" | "biweekly" | "monthly" | "yearly">(() => {
+    const f = searchParams.get("initFrequency");
+    if (f === "weekly" || f === "biweekly" || f === "monthly" || f === "yearly") return f;
+    return "monthly";
+  });
   const [accountId, setAccountId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const hasInitialData = isEditMode && searchParams.get("initPrefilled") === "1";
   const scope = useRecurringEditScope(accountId);
   const {
     loading: editLoading,
@@ -103,7 +114,7 @@ function AddTransactionPage() {
     setScopeOccurrenceDate: scope.setOccurrenceDate,
     setScopeNextSegmentDate: scope.setNextSegmentDate,
     setScopeNextSegmentLoading: scope.setNextSegmentLoading,
-  });
+  }, hasInitialData);
 
   const { data: categories = [] } = useSWR("categories", fetchCategories);
   const sortedCategories = useSortedCategories(categories, type);

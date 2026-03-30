@@ -27,14 +27,21 @@ interface EditLoaderSetters {
  * Fetches a transaction (editTxId) or recurring rule (editRuleId) and
  * populates form state via the provided stable setters.
  * Returns { loading, error, retry } — callers never touch loading/error state directly.
+ *
+ * When hasInitialData=true, form fields are already populated from URL params so we
+ * skip the full fetch (preventing a race that would overwrite user edits). For recurring
+ * rules we still run fetchNextChainSegment since it's needed for date picker constraints.
  */
 export function useEditLoader(
   editTxId: string | null,
   editRuleId: string | null,
   dateParam: string | null,
   setters: EditLoaderSetters,
+  hasInitialData = false,
 ) {
-  const [loading, setLoading] = useState(!!(editTxId || editRuleId));
+  const [loading, setLoading] = useState(
+    !hasInitialData && !!(editTxId || editRuleId),
+  );
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
 
@@ -60,6 +67,27 @@ export function useEditLoader(
       setLoading(false);
       return;
     }
+
+    if (hasInitialData) {
+      // Form fields are already populated from URL init params — skip the full fetch
+      // to avoid overwriting any edits the user makes before the request completes.
+      // For recurring rules we still need nextChainSegment for date picker constraints.
+      if (editRuleId) {
+        const occDate = dateParam ? dateParam.slice(0, 10) : new Date().toISOString().slice(0, 10);
+        setScopeOccurrenceDate(occDate);
+        setScopeNextSegmentLoading(true);
+        void fetchNextChainSegment(editRuleId, occDate)
+          .then(setScopeNextSegmentDate)
+          .catch(() => setScopeNextSegmentDate(null))
+          .finally(() => setScopeNextSegmentLoading(false));
+      } else {
+        setScopeOccurrenceDate(null);
+        setScopeNextSegmentDate(null);
+        setScopeNextSegmentLoading(false);
+      }
+      return;
+    }
+
     if (editTxId) {
       setScopeNextSegmentDate(null);
       setScopeNextSegmentLoading(false);
@@ -115,7 +143,7 @@ export function useEditLoader(
     }
     // All setters are stable useState dispatchers — safe to omit from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editTxId, editRuleId, dateParam, retryKey]);
+  }, [editTxId, editRuleId, dateParam, hasInitialData, retryKey]);
 
   function retry() {
     setError(null);
