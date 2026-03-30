@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CalendarIcon, Repeat } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -86,6 +86,7 @@ function AddTransactionPage() {
   const [frequency, setFrequency] = useState<"weekly" | "biweekly" | "monthly" | "yearly">("monthly");
   const [accountId, setAccountId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
   const scope = useRecurringEditScope(accountId);
   const {
     loading: editLoading,
@@ -128,7 +129,7 @@ function AddTransactionPage() {
     loadAccount();
   }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     if (!accountId || !date) return;
@@ -137,107 +138,120 @@ function AddTransactionPage() {
         ? -Math.abs(parseFloat(amount))
         : Math.abs(parseFloat(amount));
     const dateStr = format(date, "yyyy-MM-dd");
-
-    if (isEditMode && editTxId) {
-      const { error: updateError } = await updateTransaction(editTxId, {
-        label: label.trim(),
-        amount: finalAmount,
-        date: dateStr,
-        category_id: categoryId,
-      });
-      if (updateError) {
-        setError(USER_FACING_ERROR);
+    startTransition(async () => {
+      if (isEditMode && editTxId) {
+        const { error: updateError } = await updateTransaction(editTxId, {
+          label: label.trim(),
+          amount: finalAmount,
+          date: dateStr,
+          category_id: categoryId,
+        });
+        if (updateError) {
+          setError(USER_FACING_ERROR);
+          return;
+        }
+        const currentMonth = date.getMonth() + 1;
+        const currentYear = date.getFullYear();
+        mutate(calendarMonthSwrKey(currentMonth, currentYear));
+        mutate("transactions");
+        router.push(fromTransactions ? "/transactions" : `/?selected=${dateStr}`);
         return;
       }
-      const currentMonth = date.getMonth() + 1;
-      const currentYear = date.getFullYear();
-      mutate(calendarMonthSwrKey(currentMonth, currentYear));
-      mutate("transactions");
-      router.push(fromTransactions ? "/transactions" : `/?selected=${dateStr}`);
-      return;
-    }
 
-    if (isEditMode && editRuleId) {
-      const dateFromParams = searchParams.get("date");
-      const occurrenceDate =
-        dateFromParams && dateFromParams.length >= 10
-          ? dateFromParams.slice(0, 10)
-          : date
-            ? format(date, "yyyy-MM-dd")
-            : format(new Date(), "yyyy-MM-dd");
-      scope.openScope({
-        ruleId: editRuleId,
-        label: label.trim(),
-        amount: finalAmount,
-        frequency,
-        category_id: categoryId,
-        occurrenceDate,
-        newStartDate: dateStr,
-      });
-      return;
-    }
-
-    if (recurring) {
-      const { error: insertError } = await createRecurringRule({
-        accountId,
-        label: label.trim(),
-        amount: finalAmount,
-        frequency,
-        startDate: dateStr,
-        category_id: categoryId,
-      });
-      if (insertError) {
-        setError(USER_FACING_ERROR);
+      if (isEditMode && editRuleId) {
+        const dateFromParams = searchParams.get("date");
+        const occurrenceDate =
+          dateFromParams && dateFromParams.length >= 10
+            ? dateFromParams.slice(0, 10)
+            : date
+              ? format(date, "yyyy-MM-dd")
+              : format(new Date(), "yyyy-MM-dd");
+        scope.openScope({
+          ruleId: editRuleId,
+          label: label.trim(),
+          amount: finalAmount,
+          frequency,
+          category_id: categoryId,
+          occurrenceDate,
+          newStartDate: dateStr,
+        });
         return;
       }
-      invalidateNext12CalendarMonths();
-    } else {
-      const { error: insertError } = await createTransaction({
-        accountId,
-        label: label.trim(),
-        amount: finalAmount,
-        date: dateStr,
-        category_id: categoryId,
-      });
-      if (insertError) {
-        setError(USER_FACING_ERROR);
-        return;
+
+      if (recurring) {
+        const { error: insertError } = await createRecurringRule({
+          accountId,
+          label: label.trim(),
+          amount: finalAmount,
+          frequency,
+          startDate: dateStr,
+          category_id: categoryId,
+        });
+        if (insertError) {
+          setError(USER_FACING_ERROR);
+          return;
+        }
+        invalidateNext12CalendarMonths();
+      } else {
+        const { error: insertError } = await createTransaction({
+          accountId,
+          label: label.trim(),
+          amount: finalAmount,
+          date: dateStr,
+          category_id: categoryId,
+        });
+        if (insertError) {
+          setError(USER_FACING_ERROR);
+          return;
+        }
+        const currentMonth = date.getMonth() + 1;
+        const currentYear = date.getFullYear();
+        mutate(calendarMonthSwrKey(currentMonth, currentYear));
+        mutate("transactions");
       }
-      const currentMonth = date.getMonth() + 1;
-      const currentYear = date.getFullYear();
-      mutate(calendarMonthSwrKey(currentMonth, currentYear));
-      mutate("transactions");
-    }
-    router.push(`/?selected=${dateStr}`);
+      router.push(`/?selected=${dateStr}`);
+    });
   }
 
-  async function handleDeleteAllFuture() {
+  function handleDeleteAllFuture() {
     if (!editRuleId) return;
     setError(null);
     const occurrenceAnchor =
       scope.occurrenceDate ??
       (date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"));
-    const { error: endError } = await endRecurringRuleFuture(
-      editRuleId,
-      occurrenceAnchor,
-    );
-    if (endError) {
-      setError(USER_FACING_ERROR);
-      return;
-    }
-    invalidateNext12CalendarMonths();
-    router.back();
+    startTransition(async () => {
+      try {
+        const { error: endError } = await endRecurringRuleFuture(
+          editRuleId,
+          occurrenceAnchor,
+        );
+        if (endError) {
+          setError(USER_FACING_ERROR);
+          return;
+        }
+        invalidateNext12CalendarMonths();
+        router.back();
+      } catch {
+        setError(USER_FACING_ERROR);
+      }
+    });
   }
 
-  async function confirmRecurringEditScope(s: "once" | "fromDate") {
+  function confirmRecurringEditScope(s: "once" | "fromDate") {
     setError(null);
-    const result = await scope.confirmScope(s);
-    if (!result) {
-      setError(USER_FACING_ERROR);
-      return;
-    }
-    invalidateNext12CalendarMonths();
-    router.push(fromTransactions ? "/transactions" : `/?selected=${result.targetDate}`);
+    startTransition(async () => {
+      try {
+        const result = await scope.confirmScope(s);
+        if (!result) {
+          setError(USER_FACING_ERROR);
+          return;
+        }
+        invalidateNext12CalendarMonths();
+        router.push(fromTransactions ? "/transactions" : `/?selected=${result.targetDate}`);
+      } catch {
+        setError(USER_FACING_ERROR);
+      }
+    });
   }
 
   const submitButtonClass =
@@ -262,6 +276,7 @@ function AddTransactionPage() {
         open={scope.scopeDialogOpen}
         onOpenChange={(open) => !open && scope.cancelScope()}
         onSelectScope={confirmRecurringEditScope}
+        isPending={isPending}
       />
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 px-5 pb-8">
@@ -432,24 +447,27 @@ function AddTransactionPage() {
           {/* Submit */}
           <Button
             type="submit"
-            disabled={!accountId || editLoading}
+            disabled={!accountId || editLoading || isPending}
             className={submitButtonClass}
           >
             {editLoading
               ? "Loading…"
-              : isEditMode
-                ? type === "income"
-                  ? "Update Income"
-                  : "Update Expense"
-                : type === "income"
-                  ? "Add Income"
-                  : "Add Expense"}
+              : isPending
+                ? "Saving…"
+                : isEditMode
+                  ? type === "income"
+                    ? "Update Income"
+                    : "Update Expense"
+                  : type === "income"
+                    ? "Add Income"
+                    : "Add Expense"}
           </Button>
           {editRuleId && (
             <Button
               type="button"
               variant="destructive"
               className="mt-2 h-12 active:bg-destructive/80"
+              disabled={isPending}
               onClick={handleDeleteAllFuture}
             >
               Delete this and all future occurrences

@@ -15,12 +15,14 @@ interface RecurringEditScopeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectScope: (scope: "once" | "fromDate") => void | Promise<void>;
+  isPending?: boolean;
 }
 
 export function RecurringEditScopeDialog({
   open,
   onOpenChange,
   onSelectScope,
+  isPending = false,
 }: RecurringEditScopeDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -39,6 +41,7 @@ export function RecurringEditScopeDialog({
             <Button
               type="button"
               variant="outline"
+              disabled={isPending}
               className="flex-1 rounded-xl border border-border bg-muted text-foreground hover:bg-muted/80"
               onClick={() => void onSelectScope("once")}
             >
@@ -46,13 +49,14 @@ export function RecurringEditScopeDialog({
             </Button>
             <Button
               type="button"
+              disabled={isPending}
               className="flex-1 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
               onClick={() => void onSelectScope("fromDate")}
             >
               This and all future
             </Button>
           </div>
-          <AlertDialogCancel className="w-full rounded-xl border border-border bg-muted text-foreground hover:bg-muted/80">
+          <AlertDialogCancel disabled={isPending} className="w-full rounded-xl border border-border bg-muted text-foreground hover:bg-muted/80">
             Cancel
           </AlertDialogCancel>
         </AlertDialogFooter>

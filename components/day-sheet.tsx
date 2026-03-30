@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import useSWR from "swr";
@@ -88,6 +88,7 @@ export function DayTransactionsContent({
     "weekly" | "biweekly" | "monthly" | "yearly"
   >("monthly");
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
   const scope = useRecurringEditScope(accountId);
 
   const { data: categories = [] } = useSWR("categories", fetchCategories);
@@ -127,58 +128,64 @@ export function DayTransactionsContent({
     scope.reset();
   }
 
-  async function handleSkipOccurrence() {
-    try {
-      if (!selectedTransaction?.recurring) return;
-      const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
-        selectedTransaction.id,
-      );
-      const { error } = await skipRecurringOccurrence(ruleId, occurrenceDate);
-      if (error) {
+  function handleSkipOccurrence() {
+    if (!selectedTransaction?.recurring) return;
+    const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
+      selectedTransaction.id,
+    );
+    startTransition(async () => {
+      try {
+        const { error } = await skipRecurringOccurrence(ruleId, occurrenceDate);
+        if (error) {
+          setEditError(USER_FACING_ERROR);
+          return;
+        }
+        onMutate({ recurringTouch: true });
+        closeDrawer();
+      } catch {
         setEditError(USER_FACING_ERROR);
-        return;
       }
-      onMutate({ recurringTouch: true });
-      closeDrawer();
-    } catch {
-      setEditError(USER_FACING_ERROR);
-    }
+    });
   }
 
-  async function handleDeleteAllFuture() {
-    try {
-      if (!selectedTransaction?.recurring) return;
-      const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
-        selectedTransaction.id,
-      );
-      const { error } = await endRecurringRuleFuture(ruleId, occurrenceDate);
-      if (error) {
+  function handleDeleteAllFuture() {
+    if (!selectedTransaction?.recurring) return;
+    const { ruleId, date: occurrenceDate } = getRecurringRuleIdAndDate(
+      selectedTransaction.id,
+    );
+    startTransition(async () => {
+      try {
+        const { error } = await endRecurringRuleFuture(ruleId, occurrenceDate);
+        if (error) {
+          setEditError(USER_FACING_ERROR);
+          return;
+        }
+        onMutate({ recurringTouch: true });
+        closeDrawer();
+      } catch {
         setEditError(USER_FACING_ERROR);
-        return;
       }
-      onMutate({ recurringTouch: true });
-      closeDrawer();
-    } catch {
-      setEditError(USER_FACING_ERROR);
-    }
+    });
   }
 
-  async function handleDeleteOneTime() {
-    try {
-      if (!selectedTransaction || selectedTransaction.recurring) return;
-      const { error } = await deleteTransaction(selectedTransaction.id);
-      if (error) {
+  function handleDeleteOneTime() {
+    if (!selectedTransaction || selectedTransaction.recurring) return;
+    startTransition(async () => {
+      try {
+        const { error } = await deleteTransaction(selectedTransaction.id);
+        if (error) {
+          setEditError(USER_FACING_ERROR);
+          return;
+        }
+        onMutate();
+        closeDrawer();
+      } catch {
         setEditError(USER_FACING_ERROR);
-        return;
       }
-      onMutate();
-      closeDrawer();
-    } catch {
-      setEditError(USER_FACING_ERROR);
-    }
+    });
   }
 
-  async function handleSaveEdit() {
+  function handleSaveEdit() {
     if (!selectedTransaction) return;
     setEditError(null);
     const amountNum = parseFloat(editAmount);
@@ -209,29 +216,41 @@ export function DayTransactionsContent({
       return;
     }
 
-    const { error } = await updateTransaction(selectedTransaction.id, {
-      label: editLabel.trim(),
-      amount: finalAmount,
-      date: dateStr,
-      category_id: editCategoryId,
+    startTransition(async () => {
+      try {
+        const { error } = await updateTransaction(selectedTransaction.id, {
+          label: editLabel.trim(),
+          amount: finalAmount,
+          date: dateStr,
+          category_id: editCategoryId,
+        });
+        if (error) {
+          setEditError(USER_FACING_ERROR);
+          return;
+        }
+        onMutate({ targetDate: dateStr });
+        closeDrawer();
+      } catch {
+        setEditError(USER_FACING_ERROR);
+      }
     });
-    if (error) {
-      setEditError(USER_FACING_ERROR);
-      return;
-    }
-    onMutate({ targetDate: dateStr });
-    closeDrawer();
   }
 
-  async function confirmRecurringScope(s: "once" | "fromDate") {
+  function confirmRecurringScope(s: "once" | "fromDate") {
     setEditError(null);
-    const result = await scope.confirmScope(s);
-    if (!result) {
-      setEditError(USER_FACING_ERROR);
-      return;
-    }
-    onMutate({ recurringTouch: true, targetDate: result.targetDate });
-    closeDrawer();
+    startTransition(async () => {
+      try {
+        const result = await scope.confirmScope(s);
+        if (!result) {
+          setEditError(USER_FACING_ERROR);
+          return;
+        }
+        onMutate({ recurringTouch: true, targetDate: result.targetDate });
+        closeDrawer();
+      } catch {
+        setEditError(USER_FACING_ERROR);
+      }
+    });
   }
 
   const drawerOutlineButtonClass =
@@ -308,6 +327,7 @@ export function DayTransactionsContent({
         open={scope.scopeDialogOpen}
         onOpenChange={(open) => !open && scope.cancelScope()}
         onSelectScope={confirmRecurringScope}
+        isPending={isPending}
       />
 
       <Drawer
@@ -330,6 +350,7 @@ export function DayTransactionsContent({
                 <Button
                   variant="outline"
                   className={drawerOutlineButtonClass}
+                  disabled={isPending}
                   onClick={() => setDrawerMode("edit")}
                 >
                   <Pencil className="mr-2 h-4 w-4" />
@@ -340,6 +361,7 @@ export function DayTransactionsContent({
                     <Button
                       variant="outline"
                       className={drawerOutlineButtonClass}
+                      disabled={isPending}
                       onClick={handleSkipOccurrence}
                     >
                       Delete this occurrence
@@ -347,6 +369,7 @@ export function DayTransactionsContent({
                     <Button
                       variant="destructive"
                       className="h-11 justify-start active:bg-destructive/80"
+                      disabled={isPending}
                       onClick={handleDeleteAllFuture}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
@@ -357,6 +380,7 @@ export function DayTransactionsContent({
                   <Button
                     variant="destructive"
                     className="h-11 justify-start active:bg-destructive/80"
+                    disabled={isPending}
                     onClick={handleDeleteOneTime}
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -499,6 +523,7 @@ export function DayTransactionsContent({
                 <DrawerFooter className="flex flex-col gap-2 px-0 pb-0 pt-2">
                   <Button
                     type="submit"
+                    disabled={isPending}
                     className="h-11 border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
                   >
                     Save changes
@@ -507,6 +532,7 @@ export function DayTransactionsContent({
                     <Button
                       type="button"
                       variant="destructive"
+                      disabled={isPending}
                       className="h-11 active:bg-destructive/80"
                       onClick={handleDeleteAllFuture}
                     >

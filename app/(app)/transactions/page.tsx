@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
@@ -31,6 +31,7 @@ function SwipeableTransactionRow({
   t,
   category,
   isOpen,
+  isDeleting,
   onOpen,
   onClose,
   onDelete,
@@ -39,6 +40,7 @@ function SwipeableTransactionRow({
   t: Transaction;
   category?: Category | null;
   isOpen: boolean;
+  isDeleting: boolean;
   onOpen: () => void;
   onClose: () => void;
   onDelete: () => void;
@@ -110,6 +112,7 @@ function SwipeableTransactionRow({
           <button
             type="button"
             onClick={onDelete}
+            disabled={isDeleting}
             className={swipeActionButtonClass}
             style={{
               background: "rgba(220,38,38,0.85)",
@@ -176,6 +179,7 @@ export default function TransactionsPage() {
   const { data: categories = [] } = useSWR("categories", fetchCategories);
   const [openedRowId, setOpenedRowId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, startDeleteTransition] = useTransition();
 
   const transactionsList: Transaction[] = useMemo(() => {
     if (!data) return [];
@@ -214,26 +218,30 @@ export default function TransactionsPage() {
     [transactionsList],
   );
 
-  async function handleDelete(t: Transaction) {
+  function handleDelete(t: Transaction) {
     setDeleteError(null);
-    if (t.recurring) {
-      const { ruleId, date: exceptionDate } = getRecurringRuleIdAndDate(t.id);
-      const { error } = await skipRecurringOccurrence(ruleId, exceptionDate);
-      if (error) {
+    startDeleteTransition(async () => {
+      try {
+        if (t.recurring) {
+          const { ruleId, date: exceptionDate } = getRecurringRuleIdAndDate(t.id);
+          const { error } = await skipRecurringOccurrence(ruleId, exceptionDate);
+          if (error) {
+            setDeleteError(USER_FACING_ERROR);
+            return;
+          }
+        } else {
+          const { error } = await deleteTransaction(t.id);
+          if (error) {
+            setDeleteError(USER_FACING_ERROR);
+            return;
+          }
+        }
+        setOpenedRowId(null);
+        invalidateAfterLocalDelete(t.date, mutate);
+      } catch {
         setDeleteError(USER_FACING_ERROR);
-        return;
       }
-      setOpenedRowId(null);
-      invalidateAfterLocalDelete(t.date, mutate);
-    } else {
-      const { error } = await deleteTransaction(t.id);
-      if (error) {
-        setDeleteError(USER_FACING_ERROR);
-        return;
-      }
-      setOpenedRowId(null);
-      invalidateAfterLocalDelete(t.date, mutate);
-    }
+    });
   }
 
   function handleEdit(t: Transaction) {
@@ -313,6 +321,7 @@ export default function TransactionsPage() {
                       : null
                   }
                   isOpen={openedRowId === t.id}
+                  isDeleting={isDeleting}
                   onOpen={() => setOpenedRowId(t.id)}
                   onClose={() => setOpenedRowId(null)}
                   onDelete={() => handleDelete(t)}

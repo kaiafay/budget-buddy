@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   User,
   DollarSign,
@@ -92,6 +92,8 @@ export default function SettingsForm({
     null,
   );
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [isCategoryPending, startCategoryTransition] = useTransition();
+  const [isSigningOut, startSignOutTransition] = useTransition();
 
   const saveSeqRef = useRef(0);
   const skipNextDebounceRef = useRef(true);
@@ -192,7 +194,7 @@ export default function SettingsForm({
     setCategoryFormError(null);
   }
 
-  async function handleCategorySubmit(e: React.FormEvent) {
+  function handleCategorySubmit(e: React.FormEvent) {
     e.preventDefault();
     setCategoryFormError(null);
     const name = categoryForm.name.trim();
@@ -200,81 +202,87 @@ export default function SettingsForm({
       setCategoryFormError("Enter a name");
       return;
     }
-    if (editingCategory) {
-      const { error: err } = await updateCategory(editingCategory.id, {
-        name,
-        icon: categoryForm.icon,
-        type: categoryForm.type,
-      });
-      if (err) {
-        if (
-          err.message.includes("categories_user_id_name_key") ||
-          err.message.includes("duplicate key")
-        ) {
-          setCategoryFormError("A category with this name already exists.");
-        } else {
-          setCategoryFormError(USER_FACING_ERROR);
+    startCategoryTransition(async () => {
+      if (editingCategory) {
+        const { error: err } = await updateCategory(editingCategory.id, {
+          name,
+          icon: categoryForm.icon,
+          type: categoryForm.type,
+        });
+        if (err) {
+          if (
+            err.message.includes("categories_user_id_name_key") ||
+            err.message.includes("duplicate key")
+          ) {
+            setCategoryFormError("A category with this name already exists.");
+          } else {
+            setCategoryFormError(USER_FACING_ERROR);
+          }
+          return;
         }
-        return;
-      }
-    } else {
-      const { error: err } = await createCategory({
-        name,
-        icon: categoryForm.icon,
-        type: categoryForm.type,
-      });
-      if (err) {
-        if (
-          err.message.includes("categories_user_id_name_key") ||
-          err.message.includes("duplicate key")
-        ) {
-          setCategoryFormError("A category with this name already exists.");
-        } else {
-          setCategoryFormError(USER_FACING_ERROR);
+      } else {
+        const { error: err } = await createCategory({
+          name,
+          icon: categoryForm.icon,
+          type: categoryForm.type,
+        });
+        if (err) {
+          if (
+            err.message.includes("categories_user_id_name_key") ||
+            err.message.includes("duplicate key")
+          ) {
+            setCategoryFormError("A category with this name already exists.");
+          } else {
+            setCategoryFormError(USER_FACING_ERROR);
+          }
+          return;
         }
-        return;
       }
-    }
-    mutate("categories");
-    closeCategoryDialog();
+      mutate("categories");
+      closeCategoryDialog();
+    });
   }
 
-  async function requestDeleteCategory(cat: Category) {
+  function requestDeleteCategory(cat: Category) {
     setCategoryDeleteError(null);
-    try {
-      const count = await fetchCategoryUsageCount(cat.id);
-      if (count.transactions === 0 && count.rules === 0) {
-        const { error: err } = await deleteCategory(cat.id);
+    startCategoryTransition(async () => {
+      try {
+        const count = await fetchCategoryUsageCount(cat.id);
+        if (count.transactions === 0 && count.rules === 0) {
+          const { error: err } = await deleteCategory(cat.id);
+          if (err) {
+            setCategoryDeleteError(USER_FACING_ERROR);
+            return;
+          }
+          mutate("categories");
+          return;
+        }
+        setDeleteUsageCount(count);
+        setCategoryToDelete(cat);
+      } catch {
+        setCategoryDeleteError(USER_FACING_ERROR);
+      }
+    });
+  }
+
+  function confirmDeleteCategory() {
+    const id = categoryToDelete?.id;
+    if (!id) return;
+    setCategoryDeleteError(null);
+    startCategoryTransition(async () => {
+      try {
+        const { error: err } = await deleteCategory(id);
         if (err) {
           setCategoryDeleteError(USER_FACING_ERROR);
           return;
         }
         mutate("categories");
-        return;
-      }
-      setDeleteUsageCount(count);
-      setCategoryToDelete(cat);
-    } catch {
-      setCategoryDeleteError(USER_FACING_ERROR);
-    }
-  }
-
-  async function confirmDeleteCategory() {
-    try {
-      const id = categoryToDelete?.id;
-      if (!id) return;
-      setCategoryDeleteError(null);
-      const { error: err } = await deleteCategory(id);
-      if (err) {
+        setCategoryToDelete(null);
+        setDeleteUsageCount(null);
+      } catch {
         setCategoryDeleteError(USER_FACING_ERROR);
-        return;
       }
-      mutate("categories");
-      setCategoryToDelete(null);
-      setDeleteUsageCount(null);
-    } catch {
-      setCategoryDeleteError(USER_FACING_ERROR);
-    }
+    });
   }
 
   const signOutButtonClass =
@@ -400,6 +408,7 @@ export default function SettingsForm({
                   <button
                     type="button"
                     onClick={() => openCategoryDialog(cat)}
+                    disabled={isCategoryPending}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-white/10 hover:text-white active:bg-white/15"
                     aria-label="Edit category"
                   >
@@ -408,6 +417,7 @@ export default function SettingsForm({
                   <button
                     type="button"
                     onClick={() => requestDeleteCategory(cat)}
+                    disabled={isCategoryPending}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-white/70 transition-colors hover:bg-destructive/20 hover:text-destructive active:bg-white/15"
                     aria-label="Delete category"
                   >
@@ -424,6 +434,7 @@ export default function SettingsForm({
         <Button
           type="button"
           variant="outline"
+          disabled={isCategoryPending}
           className="h-11 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
           onClick={() => openCategoryDialog()}
         >
@@ -437,22 +448,25 @@ export default function SettingsForm({
           <button
             type="button"
             className={signOutButtonClass}
-            onClick={async () => {
+            disabled={isSigningOut}
+            onClick={() => {
               setSignOutError(null);
-              const supabase = createClient();
-              const { error: signOutErr } = await supabase.auth.signOut();
-              if (signOutErr) {
-                setSignOutError(signOutErr.message);
-                return;
-              }
-              mutate("transactions");
-              mutate(
-                calendarMonthSwrKey(
-                  new Date().getMonth() + 1,
-                  new Date().getFullYear(),
-                ),
-              );
-              router.push("/login");
+              startSignOutTransition(async () => {
+                const supabase = createClient();
+                const { error: signOutErr } = await supabase.auth.signOut();
+                if (signOutErr) {
+                  setSignOutError(signOutErr.message);
+                  return;
+                }
+                mutate("transactions");
+                mutate(
+                  calendarMonthSwrKey(
+                    new Date().getMonth() + 1,
+                    new Date().getFullYear(),
+                  ),
+                );
+                router.push("/login");
+              });
             }}
           >
             <LogOut className="h-4 w-4" />
@@ -531,7 +545,7 @@ export default function SettingsForm({
               {categoryFormError && (
                 <InlineError light>{categoryFormError}</InlineError>
               )}
-              <Button type="submit" className={dialogSubmitButtonClass}>
+              <Button type="submit" disabled={isCategoryPending} className={dialogSubmitButtonClass}>
                 {editingCategory ? "Save changes" : "Add category"}
               </Button>
             </form>
@@ -577,8 +591,9 @@ export default function SettingsForm({
               <AlertDialogAction
                 onClick={(e) => {
                   e.preventDefault();
-                  void confirmDeleteCategory();
+                  confirmDeleteCategory();
                 }}
+                disabled={isCategoryPending}
                 className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80"
               >
                 Delete
