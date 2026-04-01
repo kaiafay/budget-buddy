@@ -325,18 +325,17 @@ export default function LoginPage() {
               className={glassInputClass}
               required
             />
-          </div>
-        )}
-
-        {mode === "signin" && (
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => goToMode("forgot")}
-              className="text-xs text-white/70 hover:underline"
-            >
-              Forgot password?
-            </button>
+            {mode === "signin" && (
+              <div className="flex justify-end pr-1">
+                <button
+                  type="button"
+                  onClick={() => goToMode("forgot")}
+                  className="text-xs leading-none text-white/70 hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
           </div>
         )}
 
