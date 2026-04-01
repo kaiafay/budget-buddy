@@ -94,6 +94,11 @@ export default function SettingsForm({
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [isCategoryPending, startCategoryTransition] = useTransition();
   const [isSigningOut, startSignOutTransition] = useTransition();
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(
+    null,
+  );
+  const [isDeletingAccount, startDeleteAccountTransition] = useTransition();
 
   const saveSeqRef = useRef(0);
   const skipNextDebounceRef = useRef(true);
@@ -476,6 +481,16 @@ export default function SettingsForm({
             <InlineError className="justify-center">{signOutError}</InlineError>
           )}
         </div>
+        <div>
+          <button
+            type="button"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 py-3 text-sm font-medium text-red-300 transition-colors hover:bg-destructive/20 active:bg-destructive/15"
+            onClick={() => setDeleteAccountOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete account
+          </button>
+        </div>
         <Dialog
           open={categoryDialogOpen}
           onOpenChange={(open) => !open && closeCategoryDialog()}
@@ -597,6 +612,66 @@ export default function SettingsForm({
                 className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80"
               >
                 Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={deleteAccountOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDeleteAccountOpen(false);
+              setDeleteAccountError(null);
+            }
+          }}
+        >
+          <AlertDialogContent className="border-white/20 bg-card text-card-foreground">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete account?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete your account and all your data.
+                This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {deleteAccountError && (
+              <InlineError light>{deleteAccountError}</InlineError>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl border border-border bg-muted text-foreground hover:bg-muted/80">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  startDeleteAccountTransition(async () => {
+                    try {
+                      const res = await fetch("/api/delete-account", {
+                        method: "POST",
+                      });
+                      if (!res.ok) {
+                        setDeleteAccountError(USER_FACING_ERROR);
+                        return;
+                      }
+                      const supabase = createClient();
+                      await supabase.auth.signOut();
+                      mutate("transactions");
+                      mutate(
+                        calendarMonthSwrKey(
+                          new Date().getMonth() + 1,
+                          new Date().getFullYear(),
+                        ),
+                      );
+                      router.push("/login");
+                    } catch {
+                      setDeleteAccountError(USER_FACING_ERROR);
+                    }
+                  });
+                }}
+                disabled={isDeletingAccount}
+                className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80"
+              >
+                Delete my account
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
