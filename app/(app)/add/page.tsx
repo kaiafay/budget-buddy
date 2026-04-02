@@ -22,6 +22,7 @@ import { GlassIconButton } from "@/components/glass-icon-button";
 import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/currency-input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -143,10 +144,15 @@ function AddTransactionPage() {
     e.preventDefault();
     setError(null);
     if (!accountId || !date) return;
+    const parsedAmount = parseFloat(amount);
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      setError("Enter a valid amount");
+      return;
+    }
     const finalAmount =
       type === "expense"
-        ? -Math.abs(parseFloat(amount))
-        : Math.abs(parseFloat(amount));
+        ? -Math.abs(parsedAmount)
+        : Math.abs(parsedAmount);
     const dateStr = format(date, "yyyy-MM-dd");
     startTransition(async () => {
       if (isEditMode && editTxId) {
@@ -280,11 +286,8 @@ function AddTransactionPage() {
             </Label>
             <div className="relative">
               <span className={glassCurrencyPrefixClass}>$</span>
-              <Input
+              <CurrencyInput
                 id="amount"
-                type="number"
-                step="0.01"
-                min="0"
                 placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}

@@ -11,6 +11,7 @@ import { GlassIconButton } from "@/components/glass-icon-button";
 import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CurrencyInput } from "@/components/currency-input";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -416,10 +417,7 @@ export function DayTransactionsContent({
                   </Label>
                   <div className="relative">
                     <span className={glassCurrencyPrefixClass}>$</span>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                    <CurrencyInput
                       value={editAmount}
                       onChange={(e) => setEditAmount(e.target.value)}
                       className={glassAmountInputClass}

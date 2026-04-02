@@ -355,10 +355,15 @@ export default function SettingsForm({
             </span>
             <Input
               id="balance"
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={startingBalance}
-              onChange={(e) => setStartingBalance(e.target.value)}
+              onChange={(e) => {
+                // Allow optional leading minus, digits, and up to 2 decimal places
+                if (/^-?\d*\.?\d{0,2}$/.test(e.target.value)) {
+                  setStartingBalance(e.target.value);
+                }
+              }}
               className="h-11 rounded-xl border-white/20 bg-white/10 pl-8 tabular-nums text-white placeholder:text-white/40"
             />
           </div>
