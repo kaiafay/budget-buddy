@@ -26,14 +26,21 @@ export function CurrencyInput({
         e.preventDefault();
         const pasted = e.clipboardData.getData("text");
         const cleaned = pasted.replace(/[$,\s]/g, "");
-        if (CURRENCY_PATTERN.test(cleaned)) {
-          const input = e.currentTarget;
-          input.setRangeText(
-            cleaned,
-            input.selectionStart ?? 0,
-            input.selectionEnd ?? input.value.length,
-            "end",
-          );
+        const input = e.currentTarget;
+        const start = input.selectionStart ?? 0;
+        const end = input.selectionEnd ?? input.value.length;
+        // Validate the combined result, not just the pasted fragment,
+        // so a paste into a partially-filled field can't produce >2 decimal places.
+        const combined = input.value.slice(0, start) + cleaned + input.value.slice(end);
+        if (CURRENCY_PATTERN.test(combined)) {
+          // Use the native value setter (same technique as @testing-library) so
+          // React's fiber tracking recognizes the change and fires synthetic onChange.
+          // Plain `input.value = combined` bypasses React's tracking and is unreliable.
+          const nativeSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype,
+            "value",
+          )?.set;
+          nativeSetter?.call(input, combined);
           input.dispatchEvent(new Event("input", { bubbles: true }));
         }
         onPaste?.(e);
