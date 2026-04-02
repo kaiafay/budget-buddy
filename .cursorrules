@@ -127,12 +127,16 @@ components/ui/ contains shadcn primitives that you own and can modify.
 ## File Structure
 
 - app/(app)/ — protected app pages (calendar, transactions, add, settings)
-- app/login/ — public auth page (signup only: optional `NEXT_PUBLIC_INVITE_CODE` in `.env.local`; when set and non-empty, the invite field must match before `signUp`; unset or empty disables the gate)
+- app/login/ — public auth page (signup + signin + forgot-password modes; optional `NEXT_PUBLIC_INVITE_CODE` in `.env.local`; when set and non-empty, the invite field must match before `signUp`; unset or empty disables the gate)
+- app/auth/callback/ — PKCE code-exchange route handler (`GET`); exchanges `code` param for session, redirects to `next` param (default `/`); used by password-reset flow
+- app/reset-password/ — public page for setting a new password after a reset email link; requires active recovery session (set by auth/callback); uses browser Supabase client
+- app/api/delete-account/ — authenticated `POST` route; deletes all user data in FK-safe order then removes the auth user via admin client (`SUPABASE_SERVICE_ROLE_KEY`)
 - components/ — shared components
 - hooks/use-sorted-categories.ts — `useSortedCategories()` for category dropdown ordering (expense vs income first)
 - components/ui/ — shadcn primitives (edit directly for global changes, see Component Rules)
 - components/recurring-edit-scope-dialog.tsx — scope picker dialog for recurring transaction edits (just this / this and future)
 - components/category-icons.tsx — category icon map, getCategoryColor, ALLOWED_CATEGORY_ICON_NAMES
+- components/auth-card.tsx — `AuthCard` shared shell for all auth pages (animated-gradient wrapper, glass-card, Budget Buddy logo + heading, optional `subtitle` prop); used by login, auth/confirm, and reset-password pages
 - components/error-banner.tsx — `ErrorBanner` (fetch/network + retry), `glassRetryButtonClassName` for glass outline retry on gradient backgrounds
 - components/glass-category-select-trigger.tsx — `GlassCategorySelectTrigger` for glass-styled category `<Select>` (add page + day-sheet edit)
 - components/glass-expense-income-toggle.tsx — `GlassExpenseIncomeToggle` (`variant` `glass` default: add page + day-sheet; `settings`: category dialog in settings-form)
