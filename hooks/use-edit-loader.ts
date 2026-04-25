@@ -20,6 +20,8 @@ interface EditLoaderSetters {
   setScopeOccurrenceDate: (v: string | null) => void;
   setScopeNextSegmentDate: (v: string | null) => void;
   setScopeNextSegmentLoading: (v: boolean) => void;
+  setEndCondition?: (v: "none" | "date" | "count") => void;
+  setEndDate?: (v: Date | undefined) => void;
 }
 
 /**
@@ -56,6 +58,8 @@ export function useEditLoader(
     setScopeOccurrenceDate,
     setScopeNextSegmentDate,
     setScopeNextSegmentLoading,
+    setEndCondition,
+    setEndDate,
   } = setters;
 
   useEffect(() => {
@@ -137,6 +141,10 @@ export function useEditLoader(
           setDate(dateParam ? parseISO(dateParam) : parseISO(rule.start_date));
           setRecurring(true);
           setFrequency(rule.frequency);
+          if (rule.end_date) {
+            setEndCondition?.("date");
+            setEndDate?.(parseISO(rule.end_date));
+          }
         })
         .catch(() => setError(USER_FACING_ERROR))
         .finally(() => setLoading(false));

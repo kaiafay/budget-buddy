@@ -427,6 +427,8 @@ export type RecurringSegmentPayload = {
   frequency: "weekly" | "biweekly" | "monthly" | "yearly";
   category_id?: string | null;
   newStartDate?: string | null;
+  endDate?: string | null;
+  recurrenceCount?: number | null;
 };
 
 export async function updateRecurringSegmentInPlace(
@@ -471,6 +473,7 @@ export async function updateRecurringSegmentInPlace(
     frequency: string;
     category_id?: string | null;
     start_date?: string;
+    end_date?: string | null;
   } = {
     label: parsedPayload.label,
     amount: parsedPayload.amount,
@@ -483,6 +486,18 @@ export async function updateRecurringSegmentInPlace(
     : null;
   if (normalizedNewStart && normalizedNewStart !== rule.start_date) {
     updateRow.start_date = normalizedNewStart;
+  }
+
+  if (parsedPayload.endDate !== undefined || parsedPayload.recurrenceCount !== undefined) {
+    if (parsedPayload.recurrenceCount) {
+      updateRow.end_date = computeEndDateFromCount(
+        normalizedNewStart ?? rule.start_date,
+        parsedPayload.frequency,
+        parsedPayload.recurrenceCount,
+      );
+    } else {
+      updateRow.end_date = parsedPayload.endDate ?? null;
+    }
   }
 
   const { error: updateError } = await supabase
@@ -600,6 +615,19 @@ export async function splitRecurringRuleAtDate(
     parsedPayload.newStartDate ?? occurrence,
   );
 
+  let payloadEndDate: string | null = null;
+  if (parsedPayload.recurrenceCount) {
+    payloadEndDate = computeEndDateFromCount(
+      segmentStartDate,
+      parsedPayload.frequency,
+      parsedPayload.recurrenceCount,
+    );
+  } else if (parsedPayload.endDate) {
+    payloadEndDate = parsedPayload.endDate;
+  }
+
+  const resolvedNewRuleEndDate = nextStart ? newRuleEndDate : payloadEndDate;
+
   const { error: insertError } = await supabase.from("recurring_rules").insert({
     user_id: user.id,
     account_id: rule.account_id,
@@ -607,7 +635,7 @@ export async function splitRecurringRuleAtDate(
     amount: parsedPayload.amount,
     frequency: parsedPayload.frequency,
     start_date: segmentStartDate,
-    end_date: newRuleEndDate,
+    end_date: resolvedNewRuleEndDate,
     root_rule_id: newRootRuleId,
     category_id: newRuleCategoryId ?? null,
   });

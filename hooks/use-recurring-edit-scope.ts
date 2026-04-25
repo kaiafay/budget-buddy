@@ -55,6 +55,8 @@ export function useRecurringEditScope(accountId: string | null) {
           frequency: p.frequency,
           category_id: p.category_id,
           newStartDate: p.newStartDate,
+          endDate: p.endDate,
+          recurrenceCount: p.recurrenceCount,
         },
       );
       if (error) return null;
