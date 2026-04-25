@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import useSWR from "swr";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { CalendarIcon, Plus, Pencil, Repeat, Trash2, X } from "lucide-react";
 import { AmountText } from "@/components/amount-text";
 import { GlassExpenseIncomeToggle } from "@/components/glass-expense-income-toggle";
 import { GlassIconButton } from "@/components/glass-icon-button";
@@ -43,6 +43,7 @@ import {
   endRecurringRuleFuture,
   updateTransaction,
 } from "@/lib/transactions-mutations";
+import { MakeRecurringDialog } from "@/components/make-recurring-dialog";
 import { USER_FACING_ERROR } from "@/lib/errors";
 import type { Transaction, RecurringRule } from "@/lib/types";
 import { useSortedCategories } from "@/hooks/use-sorted-categories";
@@ -88,7 +89,15 @@ export function DayTransactionsContent({
   const [editFrequency, setEditFrequency] = useState<
     "weekly" | "biweekly" | "monthly" | "yearly"
   >("monthly");
+  const [editEndCondition, setEditEndCondition] = useState<
+    "none" | "date" | "count"
+  >("none");
+  const [editEndDate, setEditEndDate] = useState<Date | undefined>(undefined);
+  const [editEndDatePickerOpen, setEditEndDatePickerOpen] = useState(false);
+  const [editCount, setEditCount] = useState("12");
   const [editCategoryId, setEditCategoryId] = useState<string | null>(null);
+  const [makeRecurringTxForDialog, setMakeRecurringTxForDialog] =
+    useState<Transaction | null>(null);
   const [isPending, startTransition] = useTransition();
   const scope = useRecurringEditScope(accountId);
 
@@ -115,6 +124,13 @@ export function DayTransactionsContent({
         .finally(() => scope.setNextSegmentLoading(false));
       const rule = recurringRules.find((r) => r.id === ruleId);
       setEditFrequency(rule?.frequency ?? "monthly");
+      if (rule?.end_date) {
+        setEditEndCondition("date");
+        setEditEndDate(parseISO(rule.end_date));
+      } else {
+        setEditEndCondition("none");
+        setEditEndDate(undefined);
+      }
     } else {
       scope.setOccurrenceDate(null);
       scope.setNextSegmentLoading(false);
@@ -126,6 +142,24 @@ export function DayTransactionsContent({
     setDrawerMode("actions");
     setDrawerOpen(false);
     setSelectedTransaction(null);
+    setEditEndCondition("none");
+    setEditEndDate(undefined);
+    setEditEndDatePickerOpen(false);
+    setEditCount("12");
+    scope.reset();
+  }
+
+  function handleOpenMakeRecurring() {
+    if (!selectedTransaction) return;
+    const tx = selectedTransaction;
+    setMakeRecurringTxForDialog(tx);
+    setDrawerMode("actions");
+    setDrawerOpen(false);
+    setSelectedTransaction(null);
+    setEditEndCondition("none");
+    setEditEndDate(undefined);
+    setEditEndDatePickerOpen(false);
+    setEditCount("12");
     scope.reset();
   }
 
@@ -213,6 +247,14 @@ export function DayTransactionsContent({
         category_id: editCategoryId,
         occurrenceDate,
         newStartDate: dateStr,
+        endDate:
+          editEndCondition === "date" && editEndDate
+            ? format(editEndDate, "yyyy-MM-dd")
+            : null,
+        recurrenceCount:
+          editEndCondition === "count" && editCount
+            ? parseInt(editCount, 10)
+            : null,
       });
       return;
     }
@@ -324,6 +366,18 @@ export function DayTransactionsContent({
         </Link>
       </Button>
 
+      {makeRecurringTxForDialog && (
+        <MakeRecurringDialog
+          transaction={makeRecurringTxForDialog}
+          accountId={accountId}
+          onClose={() => setMakeRecurringTxForDialog(null)}
+          onSuccess={() => {
+            setMakeRecurringTxForDialog(null);
+            onMutate({ recurringTouch: true });
+          }}
+        />
+      )}
+
       <RecurringEditScopeDialog
         open={scope.scopeDialogOpen}
         onOpenChange={(open) => !open && scope.cancelScope()}
@@ -378,15 +432,26 @@ export function DayTransactionsContent({
                     </Button>
                   </>
                 ) : (
-                  <Button
-                    variant="destructive"
-                    className="h-11 justify-start active:bg-destructive/80"
-                    disabled={isPending}
-                    onClick={handleDeleteOneTime}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete transaction
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      className={drawerOutlineButtonClass}
+                      disabled={isPending}
+                      onClick={handleOpenMakeRecurring}
+                    >
+                      <Repeat className="mr-2 h-4 w-4" />
+                      Make recurring
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="h-11 justify-start active:bg-destructive/80"
+                      disabled={isPending}
+                      onClick={handleDeleteOneTime}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete transaction
+                    </Button>
+                  </>
                 )}
                 {editError && <InlineError>{editError}</InlineError>}
               </div>
@@ -450,30 +515,107 @@ export function DayTransactionsContent({
                   />
                 </div>
                 {selectedTransaction.recurring && (
-                  <div className="flex flex-col gap-2">
-                    <Label className="text-sm font-medium text-white/70">
-                      Frequency
-                    </Label>
-                    <div className="flex flex-wrap gap-2">
-                      {(
-                        ["weekly", "biweekly", "monthly", "yearly"] as const
-                      ).map((f) => (
-                        <button
-                          key={f}
-                          type="button"
-                          onClick={() => setEditFrequency(f)}
-                          className={cn(
-                            "rounded-xl border px-3 py-2 text-xs font-medium capitalize transition-all",
-                            editFrequency === f
-                              ? "border-white/40 bg-white/25 text-white"
-                              : "border-white/20 bg-white/10 text-white/50 active:bg-white/15",
-                          )}
-                        >
-                          {f}
-                        </button>
-                      ))}
+                  <>
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-sm font-medium text-white/70">
+                        Frequency
+                      </Label>
+                      <div className="flex flex-wrap gap-2">
+                        {(
+                          ["weekly", "biweekly", "monthly", "yearly"] as const
+                        ).map((f) => (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setEditFrequency(f)}
+                            className={cn(
+                              "rounded-xl border px-3 py-2 text-xs font-medium capitalize transition-all",
+                              editFrequency === f
+                                ? "border-white/40 bg-white/25 text-white"
+                                : "border-white/20 bg-white/10 text-white/50 active:bg-white/15",
+                            )}
+                          >
+                            {f}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-sm font-medium text-white/70">
+                        End
+                      </Label>
+                      <div className="flex gap-2">
+                        {(["none", "date", "count"] as const).map((cond) => (
+                          <button
+                            key={cond}
+                            type="button"
+                            onClick={() => setEditEndCondition(cond)}
+                            className={cn(
+                              "flex-1 rounded-xl border px-3 py-2 text-xs font-medium transition-colors",
+                              editEndCondition === cond
+                                ? "border-white/40 bg-white/25 text-white"
+                                : "border-white/20 bg-white/10 text-white/50 active:bg-white/15",
+                            )}
+                          >
+                            {cond === "none"
+                              ? "No end"
+                              : cond === "date"
+                                ? "End date"
+                                : "# of times"}
+                          </button>
+                        ))}
+                      </div>
+                      {editEndCondition === "date" && (
+                        <Popover
+                          open={editEndDatePickerOpen}
+                          onOpenChange={setEditEndDatePickerOpen}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-11 w-full justify-start border-white/20 bg-white/10 text-left font-normal text-white active:bg-white/15"
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4 text-white/70" />
+                              {editEndDate
+                                ? format(editEndDate, "MMM d, yyyy")
+                                : "Pick end date"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              selected={editEndDate}
+                              defaultMonth={editEndDate ?? editDate}
+                              onSelect={(d) => {
+                                setEditEndDate(d);
+                                setEditEndDatePickerOpen(false);
+                              }}
+                              disabled={
+                                editDate
+                                  ? (d) =>
+                                      format(d, "yyyy-MM-dd") <=
+                                      format(editDate, "yyyy-MM-dd")
+                                  : undefined
+                              }
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                      {editEndCondition === "count" && (
+                        <Input
+                          type="number"
+                          min="1"
+                          max="9999"
+                          placeholder="e.g. 12"
+                          value={editCount}
+                          onChange={(e) => setEditCount(e.target.value)}
+                          className={glassInputClass}
+                        />
+                      )}
+                    </div>
+                  </>
                 )}
                 <div className="flex flex-col gap-2">
                   <Label className="text-sm font-medium text-white/70">

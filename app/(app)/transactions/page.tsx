@@ -23,7 +23,6 @@ import { expandRecurringForDateRange } from "@/lib/projection";
 import { mapRecurringRuleRow, getRecurringRuleIdAndDate } from "@/lib/recurring-rules";
 import {
   deleteTransaction,
-  makeTransactionRecurring,
   skipRecurringOccurrence,
 } from "@/lib/transactions-mutations";
 import { USER_FACING_ERROR } from "@/lib/errors";
@@ -33,15 +32,8 @@ import { AmountText } from "@/components/amount-text";
 import { ErrorBanner } from "@/components/error-banner";
 import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
@@ -57,6 +49,7 @@ import {
 import { cn } from "@/lib/utils";
 import { glassInputClass } from "@/lib/glass-classes";
 import { createClient } from "@/lib/supabase/client";
+import { MakeRecurringDialog } from "@/components/make-recurring-dialog";
 
 const ROW_ACTIONS_WIDTH_2 = 136;
 const ROW_ACTIONS_WIDTH_3 = 188;
@@ -66,193 +59,6 @@ const ALL_CATEGORIES_VALUE = "__all__";
 const swipeActionButtonClass =
   "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white active:brightness-90";
 
-function MakeRecurringDialog({
-  transaction,
-  accountId,
-  onClose,
-  onSuccess,
-}: {
-  transaction: Transaction;
-  accountId: string | null;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [frequency, setFrequency] = useState<
-    "weekly" | "biweekly" | "monthly" | "yearly"
-  >("monthly");
-  const [endCondition, setEndCondition] = useState<"none" | "date" | "count">(
-    "none",
-  );
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
-  const [count, setCount] = useState("12");
-  const [dialogError, setDialogError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!accountId) return;
-    setDialogError(null);
-    startTransition(async () => {
-      try {
-        const { error } = await makeTransactionRecurring(transaction.id, {
-          accountId,
-          label: transaction.label,
-          amount: transaction.amount,
-          startDate: transaction.date,
-          category_id: transaction.category_id,
-          frequency,
-          endDate:
-            endCondition === "date" && endDate
-              ? format(endDate, "yyyy-MM-dd")
-              : null,
-          recurrenceCount:
-            endCondition === "count" && count
-              ? parseInt(count, 10)
-              : null,
-        });
-        if (error) {
-          setDialogError(USER_FACING_ERROR);
-          return;
-        }
-        onSuccess();
-      } catch {
-        setDialogError(USER_FACING_ERROR);
-      }
-    });
-  }
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-sm rounded-2xl border-white/20 bg-[rgba(20,20,40,0.92)] text-white backdrop-blur-xl">
-        <DialogHeader>
-          <DialogTitle className="text-white">Make Recurring</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 pt-2">
-          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-            <p className="text-sm font-medium text-white">{transaction.label}</p>
-            <AmountText amount={transaction.amount} variant="list" className="mt-0.5" />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium text-white/70">
-              Frequency
-            </Label>
-            <Select
-              value={frequency}
-              onValueChange={(v) =>
-                setFrequency(v as "weekly" | "biweekly" | "monthly" | "yearly")
-              }
-            >
-              <SelectTrigger className="h-11 rounded-xl border-white/20 bg-white/10 text-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="biweekly">Biweekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="yearly">Yearly</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label className="text-sm font-medium text-white/70">End</Label>
-            <div className="flex gap-2">
-              {(["none", "date", "count"] as const).map((cond) => (
-                <button
-                  key={cond}
-                  type="button"
-                  onClick={() => setEndCondition(cond)}
-                  className={cn(
-                    "flex-1 rounded-xl border px-3 py-2 text-xs font-medium transition-colors",
-                    endCondition === cond
-                      ? "border-primary bg-primary/20 text-white"
-                      : "border-white/20 bg-white/10 text-white/60 hover:text-white",
-                  )}
-                >
-                  {cond === "none"
-                    ? "No end"
-                    : cond === "date"
-                      ? "End date"
-                      : "# of times"}
-                </button>
-              ))}
-            </div>
-
-            {endCondition === "date" && (
-              <Popover open={endDatePickerOpen} onOpenChange={setEndDatePickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="glass"
-                    className="h-11 w-full justify-start font-normal text-white"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-white/70" />
-                    {endDate ? format(endDate, "MMM d, yyyy") : "Pick end date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    defaultMonth={endDate ?? parseISO(transaction.date)}
-                    onSelect={(d) => {
-                      if (d) {
-                        setEndDate(d);
-                        setEndDatePickerOpen(false);
-                      }
-                    }}
-                    disabled={(d) =>
-                      format(d, "yyyy-MM-dd") <= transaction.date
-                    }
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            )}
-
-            {endCondition === "count" && (
-              <Input
-                type="number"
-                min="1"
-                max="9999"
-                placeholder="e.g. 12"
-                value={count}
-                onChange={(e) => setCount(e.target.value)}
-                className={glassInputClass}
-              />
-            )}
-          </div>
-
-          {dialogError && <InlineError>{dialogError}</InlineError>}
-
-          <div className="flex gap-3 pt-1">
-            <Button
-              type="button"
-              variant="glass"
-              className="h-11 flex-1"
-              onClick={onClose}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              className="h-11 flex-1 border border-white/20 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              disabled={
-                !accountId ||
-                isPending ||
-                (endCondition === "date" && !endDate)
-              }
-            >
-              {isPending ? "Saving…" : "Make Recurring"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function SwipeableTransactionRow({
   t,
@@ -566,6 +372,7 @@ export default function TransactionsPage() {
       const rule = data?.recurringRules.find((r) => r.id === ruleId);
       initParams.set("initRecurring", "true");
       if (rule?.frequency) initParams.set("initFrequency", rule.frequency);
+      if (rule?.end_date) initParams.set("initEndDate", rule.end_date);
       router.push(`/add?edit=rule:${ruleId}&date=${t.date}&${initParams}`);
     } else {
       router.push(`/add?edit=${t.id}&date=${t.date}&${initParams}`);
