@@ -94,6 +94,10 @@ function AddTransactionPage() {
     if (f === "weekly" || f === "biweekly" || f === "monthly" || f === "yearly") return f;
     return "monthly";
   });
+  const [endCondition, setEndCondition] = useState<"none" | "date" | "count">("none");
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
+  const [recurrenceCount, setRecurrenceCount] = useState("12");
   const [accountId, setAccountId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -202,6 +206,14 @@ function AddTransactionPage() {
           frequency,
           startDate: dateStr,
           category_id: categoryId,
+          endDate:
+            endCondition === "date" && endDate
+              ? format(endDate, "yyyy-MM-dd")
+              : null,
+          recurrenceCount:
+            endCondition === "count" && recurrenceCount
+              ? parseInt(recurrenceCount, 10)
+              : null,
         });
         if (insertError) {
           setError(USER_FACING_ERROR);
@@ -403,21 +415,112 @@ function AddTransactionPage() {
             </div>
 
             {recurring && (
-              <div className="flex flex-col gap-2">
-                <Label className="text-xs font-medium text-white/70">
-                  Frequency
-                </Label>
-                <Select value={frequency} onValueChange={(v) => setFrequency(v as "weekly" | "biweekly" | "monthly" | "yearly")}>
-                  <SelectTrigger className="h-11 rounded-xl border-white/20 bg-white/10 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="biweekly">Biweekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="yearly">Yearly</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-2">
+                  <Label className="text-xs font-medium text-white/70">
+                    Frequency
+                  </Label>
+                  <Select value={frequency} onValueChange={(v) => setFrequency(v as "weekly" | "biweekly" | "monthly" | "yearly")}>
+                    <SelectTrigger className="h-11 rounded-xl border-white/20 bg-white/10 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="biweekly">Biweekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="yearly">Yearly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* End condition — only shown when creating (not editing), since
+                    modifying end_date through the scope dialog is not yet supported */}
+                {!editRuleId && (
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-xs font-medium text-white/70">
+                      End
+                    </Label>
+                    <div className="flex gap-2">
+                      {(["none", "date", "count"] as const).map((cond) => (
+                        <button
+                          key={cond}
+                          type="button"
+                          onClick={() => setEndCondition(cond)}
+                          className={cn(
+                            "flex-1 rounded-xl border px-3 py-2 text-xs font-medium transition-colors",
+                            endCondition === cond
+                              ? "border-primary bg-primary/20 text-white"
+                              : "border-white/20 bg-white/10 text-white/60 hover:text-white",
+                          )}
+                        >
+                          {cond === "none"
+                            ? "No end"
+                            : cond === "date"
+                              ? "End date"
+                              : "# of times"}
+                        </button>
+                      ))}
+                    </div>
+
+                    {endCondition === "date" && (
+                      <Popover
+                        open={endDatePickerOpen}
+                        onOpenChange={setEndDatePickerOpen}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="glass"
+                            className={cn(
+                              "h-11 w-full justify-start text-left font-normal text-white placeholder:text-white/40",
+                              !endDate && "text-white/60",
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4 text-white/70" />
+                            {endDate
+                              ? format(endDate, "MMM d, yyyy")
+                              : "Pick end date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={endDate}
+                            defaultMonth={endDate ?? date}
+                            onSelect={(d) => {
+                              setEndDate(d);
+                              setEndDatePickerOpen(false);
+                            }}
+                            disabled={
+                              date
+                                ? (d) =>
+                                    format(d, "yyyy-MM-dd") <=
+                                    format(date, "yyyy-MM-dd")
+                                : undefined
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    )}
+
+                    {endCondition === "count" && (
+                      <div className="flex flex-col gap-1">
+                        <Input
+                          type="number"
+                          min="1"
+                          max="9999"
+                          placeholder="e.g. 12"
+                          value={recurrenceCount}
+                          onChange={(e) => setRecurrenceCount(e.target.value)}
+                          className={glassInputClass}
+                        />
+                        <p className="text-xs text-white/50">
+                          Number of times this repeats
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

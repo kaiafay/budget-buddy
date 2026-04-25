@@ -1,4 +1,13 @@
-import { addDays, format, min, parseISO, subDays } from "date-fns";
+import {
+  addDays,
+  addMonths,
+  addWeeks,
+  addYears,
+  format,
+  min,
+  parseISO,
+  subDays,
+} from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import {
   applyRecurringEditFromDateArgsSchema,
@@ -221,6 +230,21 @@ export async function moveRecurringOccurrence(payload: {
   return { error: null };
 }
 
+function computeEndDateFromCount(
+  startDate: string,
+  frequency: "weekly" | "biweekly" | "monthly" | "yearly",
+  count: number,
+): string {
+  let d = parseISO(startDate);
+  for (let i = 1; i < count; i++) {
+    if (frequency === "weekly") d = addWeeks(d, 1);
+    else if (frequency === "biweekly") d = addWeeks(d, 2);
+    else if (frequency === "monthly") d = addMonths(d, 1);
+    else d = addYears(d, 1);
+  }
+  return format(d, "yyyy-MM-dd");
+}
+
 export async function createRecurringRule(payload: {
   accountId: string;
   label: string;
@@ -228,6 +252,8 @@ export async function createRecurringRule(payload: {
   frequency: "weekly" | "biweekly" | "monthly" | "yearly";
   startDate: string;
   category_id?: string | null;
+  endDate?: string | null;
+  recurrenceCount?: number | null;
 }): Promise<{ error: Error | null }> {
   const parsed = safeParseMutation(createRecurringRulePayloadSchema, payload);
   if (!parsed.ok) return { error: parsed.error };
@@ -236,6 +262,18 @@ export async function createRecurringRule(payload: {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: new Error("Not authenticated") };
+
+  let resolvedEndDate: string | null = null;
+  if (parsed.data.endDate) {
+    resolvedEndDate = parsed.data.endDate;
+  } else if (parsed.data.recurrenceCount) {
+    resolvedEndDate = computeEndDateFromCount(
+      parsed.data.startDate,
+      parsed.data.frequency,
+      parsed.data.recurrenceCount,
+    );
+  }
+
   const row: {
     user_id: string;
     account_id: string;
@@ -243,6 +281,8 @@ export async function createRecurringRule(payload: {
     amount: number;
     frequency: string;
     start_date: string;
+    end_date: string | null;
+    root_rule_id: string | null;
     category_id?: string | null;
   } = {
     user_id: user.id,
@@ -251,12 +291,13 @@ export async function createRecurringRule(payload: {
     amount: parsed.data.amount,
     frequency: parsed.data.frequency,
     start_date: parsed.data.startDate,
+    end_date: resolvedEndDate,
+    root_rule_id: null,
   };
   if (parsed.data.category_id !== undefined) {
     row.category_id = parsed.data.category_id;
   }
-  const insertRow = { ...row, root_rule_id: null as string | null };
-  const { error } = await supabase.from("recurring_rules").insert(insertRow);
+  const { error } = await supabase.from("recurring_rules").insert(row);
   return { error: error ?? null };
 }
 
@@ -618,6 +659,92 @@ export async function applyRecurringEditFromDate(
     return splitRecurringRuleAtDate(parsedRuleId, occurrence, parsedPayload);
   }
   return { error: new Error("Occurrence is before this segment start date") };
+}
+
+export async function makeTransactionRecurring(
+  transactionId: string,
+  payload: {
+    accountId: string;
+    label: string;
+    amount: number;
+    startDate: string;
+    category_id?: string | null;
+    frequency: "weekly" | "biweekly" | "monthly" | "yearly";
+    endDate?: string | null;
+    recurrenceCount?: number | null;
+  },
+): Promise<{ error: Error | null }> {
+  const idParsed = safeParseMutation(uuidSchema, transactionId);
+  if (!idParsed.ok) return { error: idParsed.error };
+  const parsedPayload = safeParseMutation(createRecurringRulePayloadSchema, payload);
+  if (!parsedPayload.ok) return { error: parsedPayload.error };
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+
+  let resolvedEndDate: string | null = null;
+  if (parsedPayload.data.endDate) {
+    resolvedEndDate = parsedPayload.data.endDate;
+  } else if (parsedPayload.data.recurrenceCount) {
+    resolvedEndDate = computeEndDateFromCount(
+      parsedPayload.data.startDate,
+      parsedPayload.data.frequency,
+      parsedPayload.data.recurrenceCount,
+    );
+  }
+
+  const recurringRow: {
+    user_id: string;
+    account_id: string;
+    label: string;
+    amount: number;
+    frequency: string;
+    start_date: string;
+    end_date: string | null;
+    root_rule_id: string | null;
+    category_id?: string | null;
+  } = {
+    user_id: user.id,
+    account_id: parsedPayload.data.accountId,
+    label: parsedPayload.data.label,
+    amount: parsedPayload.data.amount,
+    frequency: parsedPayload.data.frequency,
+    start_date: parsedPayload.data.startDate,
+    end_date: resolvedEndDate,
+    root_rule_id: null,
+  };
+  if (parsedPayload.data.category_id !== undefined) {
+    recurringRow.category_id = parsedPayload.data.category_id;
+  }
+
+  const { data: insertedRule, error: insertRuleError } = await supabase
+    .from("recurring_rules")
+    .insert(recurringRow)
+    .select("id")
+    .single();
+  if (insertRuleError || !insertedRule?.id) {
+    return { error: insertRuleError ?? new Error("Failed to create recurring rule") };
+  }
+
+  const { error: deleteError } = await deleteTransaction(idParsed.data);
+  if (!deleteError) return { error: null };
+
+  const { error: rollbackError } = await supabase
+    .from("recurring_rules")
+    .delete()
+    .eq("id", insertedRule.id)
+    .eq("user_id", user.id);
+  if (rollbackError) {
+    return {
+      error: new Error(
+        `Failed to delete original transaction and rollback recurring rule: ${deleteError.message}`,
+      ),
+    };
+  }
+  return { error: deleteError };
 }
 
 export async function createCategory(payload: {

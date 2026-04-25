@@ -43,6 +43,8 @@ export const createRecurringRulePayloadSchema = z.object({
   frequency: frequencySchema,
   startDate: isoDateSchema,
   category_id: categoryIdOptionalSchema,
+  endDate: z.union([isoDateSchema, z.null()]).optional(),
+  recurrenceCount: z.number().int().min(1).max(9999).optional().nullable(),
 });
 
 export const moveRecurringOccurrencePayloadSchema = z.object({
