@@ -619,7 +619,7 @@ export default function TransactionsPage() {
                 <p className="text-sm text-white/70">
                   {hasActiveFilters
                     ? "Try adjusting your search or filters."
-                    : "When you add income or expenses, they&apos;ll show up here."}
+                    : "When you add income or expenses, they'll show up here."}
                 </p>
               </div>
               <Link

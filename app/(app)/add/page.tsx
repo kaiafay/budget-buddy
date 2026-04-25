@@ -196,6 +196,7 @@ function AddTransactionPage() {
             return;
           }
           invalidateNext12CalendarMonths();
+          mutate("transactions");
           router.push(fromTransactions ? "/transactions" : `/?selected=${dateStr}`);
           return;
         }
