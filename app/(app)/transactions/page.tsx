@@ -7,6 +7,7 @@ import { endOfMonth, format, parseISO, startOfMonth } from "date-fns";
 import { useSwipeable } from "react-swipeable";
 import {
   CalendarIcon,
+  Filter,
   Pencil,
   Plus,
   Receipt,
@@ -240,6 +241,7 @@ export default function TransactionsPage() {
   );
   const [filterCategoryId, setFilterCategoryId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filtersPopoverOpen, setFiltersPopoverOpen] = useState(false);
   const [startPickerOpen, setStartPickerOpen] = useState(false);
   const [endPickerOpen, setEndPickerOpen] = useState(false);
 
@@ -271,6 +273,11 @@ export default function TransactionsPage() {
   const defaultFilterEndStr = format(endOfMonth(new Date()), "yyyy-MM-dd");
   const hasActiveFilters =
     searchQuery.trim().length > 0 ||
+    filterCategoryId !== null ||
+    filterStartStr !== defaultFilterStartStr ||
+    filterEndStr !== defaultFilterEndStr;
+
+  const hasStructuredFiltersActive =
     filterCategoryId !== null ||
     filterStartStr !== defaultFilterStartStr ||
     filterEndStr !== defaultFilterEndStr;
@@ -407,9 +414,9 @@ export default function TransactionsPage() {
         </p>
       </header>
 
-      {/* Search bar */}
-      <div className="page-enter-2 px-5 pb-3">
-        <div className="relative">
+      {/* Search bar + filter popover */}
+      <div className="page-enter-2 flex items-center gap-2 px-5 pb-4">
+        <div className="relative min-w-0 flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/50" />
           <Input
             placeholder="Search transactions…"
@@ -428,89 +435,163 @@ export default function TransactionsPage() {
             </button>
           )}
         </div>
+
+        <Popover open={filtersPopoverOpen} onOpenChange={setFiltersPopoverOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="glass"
+              size="icon"
+              className="relative h-9 w-9 shrink-0 rounded-xl border-white/20"
+              aria-label={
+                hasStructuredFiltersActive
+                  ? "Filters (active)"
+                  : "Open filters"
+              }
+            >
+              <Filter className="h-4 w-4 text-white/80" />
+              {hasStructuredFiltersActive ? (
+                <span
+                  className="absolute right-1.5 top-1.5 size-2 rounded-full border border-primary bg-white shadow-sm"
+                  aria-hidden
+                />
+              ) : null}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            sideOffset={8}
+            className="w-[min(calc(100vw-2.5rem),20rem)] border-0 bg-transparent p-0 text-white shadow-none outline-none"
+          >
+            <div className="flex flex-col rounded-2xl bg-primary text-primary-foreground shadow-lg">
+              <div className="flex items-center justify-between gap-2 border-b border-white/15 px-4 py-3">
+                <span className="text-sm font-medium text-white">Filters</span>
+                <button
+                  type="button"
+                  onClick={() => setFiltersPopoverOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                  aria-label="Close filters"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex flex-col gap-3 p-4">
+                <div className="flex items-center gap-2">
+                  <Popover
+                    open={startPickerOpen}
+                    onOpenChange={setStartPickerOpen}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="glass"
+                        className={cn(
+                          filterBarClass,
+                          "min-w-0 flex-1 justify-start font-normal",
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-3.5 w-3.5 shrink-0 text-white/70" />
+                        <span className="truncate">
+                          {format(filterStart, "MMM d, yyyy")}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={filterStart}
+                        defaultMonth={filterStart}
+                        onSelect={(d) => {
+                          if (d) {
+                            setFilterStart(d);
+                            if (d > filterEnd) setFilterEnd(d);
+                            setStartPickerOpen(false);
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+
+                  <span className="shrink-0 text-xs text-white/50">to</span>
+
+                  <Popover
+                    open={endPickerOpen}
+                    onOpenChange={setEndPickerOpen}
+                  >
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="glass"
+                        className={cn(
+                          filterBarClass,
+                          "min-w-0 flex-1 justify-start font-normal",
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-3.5 w-3.5 shrink-0 text-white/70" />
+                        <span className="truncate">
+                          {format(filterEnd, "MMM d, yyyy")}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={filterEnd}
+                        defaultMonth={filterEnd}
+                        onSelect={(d) => {
+                          if (d) {
+                            setFilterEnd(d);
+                            if (d < filterStart) setFilterStart(d);
+                            setEndPickerOpen(false);
+                          }
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <Select
+                  value={filterCategoryId ?? ALL_CATEGORIES_VALUE}
+                  onValueChange={(v) =>
+                    setFilterCategoryId(v === ALL_CATEGORIES_VALUE ? null : v)
+                  }
+                >
+                  <SelectTrigger className={cn(filterBarClass, "w-full")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_CATEGORIES_VALUE}>
+                      All categories
+                    </SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {hasStructuredFiltersActive ? (
+                  <button
+                    type="button"
+                    className="text-center text-sm font-medium text-white/85 underline decoration-white/40 underline-offset-2 hover:text-white hover:decoration-white/70"
+                    onClick={() => {
+                      const now = new Date();
+                      setFilterStart(startOfMonth(now));
+                      setFilterEnd(endOfMonth(now));
+                      setFilterCategoryId(null);
+                    }}
+                  >
+                    Clear all
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
-      {/* Filter bar */}
-      <div className="page-enter-3 flex flex-col gap-2 px-5 pb-4">
-        <div className="flex items-center gap-2">
-          <Popover open={startPickerOpen} onOpenChange={setStartPickerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="glass"
-                className={cn(filterBarClass, "flex-1 justify-start font-normal")}
-              >
-                <CalendarIcon className="mr-2 h-3.5 w-3.5 text-white/70" />
-                {format(filterStart, "MMM d, yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={filterStart}
-                defaultMonth={filterStart}
-                onSelect={(d) => {
-                  if (d) {
-                    setFilterStart(d);
-                    if (d > filterEnd) setFilterEnd(d);
-                    setStartPickerOpen(false);
-                  }
-                }}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-
-          <span className="text-xs text-white/50">to</span>
-
-          <Popover open={endPickerOpen} onOpenChange={setEndPickerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="glass"
-                className={cn(filterBarClass, "flex-1 justify-start font-normal")}
-              >
-                <CalendarIcon className="mr-2 h-3.5 w-3.5 text-white/70" />
-                {format(filterEnd, "MMM d, yyyy")}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={filterEnd}
-                defaultMonth={filterEnd}
-                onSelect={(d) => {
-                  if (d) {
-                    setFilterEnd(d);
-                    if (d < filterStart) setFilterStart(d);
-                    setEndPickerOpen(false);
-                  }
-                }}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <Select
-          value={filterCategoryId ?? ALL_CATEGORIES_VALUE}
-          onValueChange={(v) =>
-            setFilterCategoryId(v === ALL_CATEGORIES_VALUE ? null : v)
-          }
-        >
-          <SelectTrigger className={cn(filterBarClass, "w-full")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_CATEGORIES_VALUE}>All categories</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat.id} value={cat.id}>
-                {cat.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex flex-col gap-6 px-5 pb-6">
+      <div className="page-enter-3 flex flex-col gap-6 px-5 pb-6">
         {transactionsFetchError && (
           <ErrorBanner
             variant="panel"
