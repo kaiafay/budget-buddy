@@ -22,6 +22,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import type { TooltipProps } from "recharts";
 import { fetchTransactions, fetchCategories } from "@/lib/api";
 import { expandRecurringForDateRange } from "@/lib/projection";
 import { mapRecurringRuleRow } from "@/lib/recurring-rules";
@@ -43,13 +44,47 @@ const CHART_COLORS = [
   "#fbbf24",
 ];
 
-const TOOLTIP_STYLE: React.CSSProperties = {
-  background: "rgba(0,0,0,0.75)",
-  border: "1px solid rgba(255,255,255,0.15)",
-  borderRadius: 8,
-  color: "white",
+const BAR_TOOLTIP_STYLE: React.CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid #e2e8f0",
+  borderRadius: 12,
+  color: "#0f172a",
   fontSize: 12,
 };
+
+function CustomPieTooltip({ active, payload }: TooltipProps<number, string>) {
+  if (!active || !payload?.length) return null;
+  const entry = payload[0];
+  return (
+    <div
+      style={{
+        background: "#ffffff",
+        border: "1px solid #e2e8f0",
+        borderRadius: 12,
+        padding: "8px 12px",
+        color: "#0f172a",
+        fontSize: 13,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <div
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          background: entry.payload?.color ?? entry.color,
+          flexShrink: 0,
+        }}
+      />
+      <span style={{ color: "#64748b" }}>{entry.name}</span>
+      <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+        {formatCurrency(entry.value ?? 0)}
+      </span>
+    </div>
+  );
+}
 
 function formatCurrency(amount: number): string {
   return `$${Math.abs(amount).toLocaleString("en-US", {
@@ -194,22 +229,34 @@ export default function AnalyticsPage() {
 
       <div className="flex flex-col gap-6 px-5 pb-6">
         {/* Time range toggle */}
-        <div className="glass-card flex rounded-xl p-1">
-          {(["current", "last3"] as TimeRange[]).map((range) => (
-            <button
-              key={range}
-              type="button"
-              onClick={() => setTimeRange(range)}
-              className={cn(
-                "flex-1 rounded-lg py-2 text-sm font-medium transition-colors",
-                timeRange === range
-                  ? "bg-white/20 text-white"
-                  : "text-white/60 hover:text-white/80",
-              )}
-            >
-              {range === "current" ? "This Month" : "Last 3 Months"}
-            </button>
-          ))}
+        <div className="page-enter-2 glass-card relative flex gap-2 rounded-xl p-1">
+          <div
+            aria-hidden
+            className={cn(
+              "pointer-events-none absolute bottom-1 left-1 top-1 z-0 w-[calc((100%-1rem)/2)] rounded-lg bg-white/25 transition-transform duration-200",
+              timeRange === "last3" && "translate-x-[calc(100%+0.5rem)]",
+            )}
+          />
+          <button
+            type="button"
+            onClick={() => setTimeRange("current")}
+            className={cn(
+              "relative z-10 flex-1 rounded-lg py-2 text-sm font-medium transition-colors duration-200",
+              timeRange === "current" ? "text-white" : "text-white/60 hover:text-white/80",
+            )}
+          >
+            This Month
+          </button>
+          <button
+            type="button"
+            onClick={() => setTimeRange("last3")}
+            className={cn(
+              "relative z-10 flex-1 rounded-lg py-2 text-sm font-medium transition-colors duration-200",
+              timeRange === "last3" ? "text-white" : "text-white/60 hover:text-white/80",
+            )}
+          >
+            Last 3 Months
+          </button>
         </div>
 
         {txError && (
@@ -225,7 +272,7 @@ export default function AnalyticsPage() {
         {!isLoading && !txError && (
           <>
             {/* Summary stats */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="page-enter-3 grid grid-cols-3 gap-3">
               <div className="glass-card rounded-2xl px-3 py-4 text-center">
                 <p className="text-xs font-medium text-white/60">Spent</p>
                 <p className="mt-1 text-base font-bold tabular-nums text-[#e11d48]">
@@ -252,7 +299,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Spending by category */}
-            <div className="glass-card flex flex-col gap-4 rounded-2xl p-4">
+            <div className="page-enter-4 glass-card flex flex-col gap-4 rounded-2xl p-4">
               <h2 className="text-sm font-semibold text-white">
                 Spending by Category
               </h2>
@@ -275,19 +322,15 @@ export default function AnalyticsPage() {
                           cy="50%"
                           innerRadius={55}
                           outerRadius={85}
-                          paddingAngle={2}
+                          paddingAngle={3}
+                          cornerRadius={4}
+                          stroke="none"
                         >
                           {categoryBreakdown.map((entry, i) => (
                             <Cell key={`cell-${i}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip
-                          contentStyle={TOOLTIP_STYLE}
-                          formatter={(value) => [
-                            formatCurrency(Number(value)),
-                            "",
-                          ]}
-                        />
+                        <Tooltip content={<CustomPieTooltip />} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -315,7 +358,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Income vs Expenses */}
-            <div className="glass-card flex flex-col gap-4 rounded-2xl p-4">
+            <div className="page-enter-4 glass-card flex flex-col gap-4 rounded-2xl p-4">
               <h2 className="text-sm font-semibold text-white">
                 Income vs Expenses
               </h2>
@@ -353,7 +396,8 @@ export default function AnalyticsPage() {
                         width={44}
                       />
                       <Tooltip
-                        contentStyle={TOOLTIP_STYLE}
+                        contentStyle={BAR_TOOLTIP_STYLE}
+                        cursor={{ fill: "rgba(255,255,255,0.06)" }}
                         formatter={(value, name) => [
                           formatCurrency(Number(value)),
                           String(name).charAt(0).toUpperCase() +
