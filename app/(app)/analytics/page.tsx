@@ -9,6 +9,8 @@ import {
   subMonths,
   eachWeekOfInterval,
   addDays,
+  max as dateMax,
+  min as dateMin,
 } from "date-fns";
 import {
   PieChart,
@@ -186,9 +188,10 @@ export default function AnalyticsPage() {
         { weekStartsOn: 0 },
       );
       return weeks.map((weekStart, i) => {
-        const weekEnd = addDays(weekStart, 6);
-        const wStart = format(weekStart, "yyyy-MM-dd");
-        const wEnd = format(weekEnd, "yyyy-MM-dd");
+        const effectiveStart = dateMax([weekStart, monthStart]);
+        const effectiveEnd = dateMin([addDays(weekStart, 6), monthEnd]);
+        const wStart = format(effectiveStart, "yyyy-MM-dd");
+        const wEnd = format(effectiveEnd, "yyyy-MM-dd");
         let income = 0;
         let expenses = 0;
         for (const t of allTransactions) {
@@ -293,7 +296,7 @@ export default function AnalyticsPage() {
                     summary.net >= 0 ? "text-[#4ade80]" : "text-[#e11d48]",
                   )}
                 >
-                  {formatCurrency(summary.net)}
+                  {summary.net >= 0 ? "+" : "−"}{formatCurrency(summary.net)}
                 </p>
               </div>
             </div>
@@ -358,7 +361,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Income vs Expenses */}
-            <div className="page-enter-4 glass-card flex flex-col gap-4 rounded-2xl p-4">
+            <div className="page-enter-5 glass-card flex flex-col gap-4 rounded-2xl p-4">
               <h2 className="text-sm font-semibold text-white">
                 Income vs Expenses
               </h2>
