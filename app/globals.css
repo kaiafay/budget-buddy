@@ -202,6 +202,12 @@
   animation: greetingEnter 0.6s ease 0.2s forwards;
 }
 
+.page-enter-5 {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: greetingEnter 0.6s ease 0.25s forwards;
+}
+
 /* Transactions list staggered enter (delay via --enter-delay) */
 .transaction-group-enter {
   opacity: 0;
