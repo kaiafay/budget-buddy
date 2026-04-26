@@ -55,4 +55,6 @@ export type PendingRecurringEdit = {
   category_id: string | null;
   occurrenceDate: string;
   newStartDate: string;
+  endDate?: string | null;
+  recurrenceCount?: number | null;
 };

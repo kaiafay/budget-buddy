@@ -43,7 +43,12 @@ export const createRecurringRulePayloadSchema = z.object({
   frequency: frequencySchema,
   startDate: isoDateSchema,
   category_id: categoryIdOptionalSchema,
-});
+  endDate: z.union([isoDateSchema, z.null()]).optional(),
+  recurrenceCount: z.number().int().min(1).max(9999).optional().nullable(),
+}).refine(
+  (data) => !(data.endDate && data.recurrenceCount),
+  { message: "Cannot set both end date and recurrence count" },
+);
 
 export const moveRecurringOccurrencePayloadSchema = z.object({
   ruleId: uuidSchema,
@@ -67,7 +72,12 @@ export const recurringSegmentPayloadSchema = z.object({
   frequency: frequencySchema,
   category_id: categoryIdOptionalSchema,
   newStartDate: z.union([isoDateSchema, z.null()]).optional(),
-});
+  endDate: z.union([isoDateSchema, z.null()]).optional(),
+  recurrenceCount: z.number().int().min(1).max(9999).optional().nullable(),
+}).refine(
+  (data) => !(data.endDate && data.recurrenceCount),
+  { message: "Cannot set both end date and recurrence count" },
+);
 
 export const createCategoryPayloadSchema = z.object({
   name: categoryNameSchema,

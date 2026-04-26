@@ -5,6 +5,7 @@ import {
   createTransaction,
   deleteCategory,
   deleteTransaction,
+  makeTransactionRecurring,
   updateRecurringSegmentInPlace,
   splitRecurringRuleAtDate,
   skipRecurringOccurrence,
@@ -14,6 +15,10 @@ import {
   createCategory,
   updateCategory,
 } from "@/lib/transactions-mutations";
+import {
+  createRecurringRulePayloadSchema,
+  recurringSegmentPayloadSchema,
+} from "@/lib/validation";
 
 const R1 = "11111111-1111-4111-8111-111111111111";
 const R2 = "22222222-2222-4222-8222-222222222222";
@@ -497,6 +502,39 @@ describe("updateRecurringSegmentInPlace", () => {
     );
   });
 
+  it("does not include end_date in update row when neither endDate nor recurrenceCount provided", async () => {
+    await updateRecurringSegmentInPlace(R1, {
+      label: "X",
+      amount: -1,
+      frequency: "monthly",
+    });
+    const updateCall = mockUpdate.mock.calls[0][0] as Record<string, unknown>;
+    expect("end_date" in updateCall).toBe(false);
+  });
+
+  it("persists explicit endDate in update row", async () => {
+    await updateRecurringSegmentInPlace(R1, {
+      label: "X",
+      amount: -1,
+      frequency: "monthly",
+      endDate: "2027-12-31",
+    });
+    const updateCall = mockUpdate.mock.calls[0][0] as Record<string, unknown>;
+    expect(updateCall.end_date).toBe("2027-12-31");
+  });
+
+  it("computes end_date from recurrenceCount when no endDate provided", async () => {
+    await updateRecurringSegmentInPlace(R1, {
+      label: "X",
+      amount: -1,
+      frequency: "monthly",
+      recurrenceCount: 3,
+    });
+    const updateCall = mockUpdate.mock.calls[0][0] as Record<string, unknown>;
+    // start_date is "2025-03-01", monthly x3: 03-01, 04-01, 05-01
+    expect(updateCall.end_date).toBe("2025-05-01");
+  });
+
   it("uses earlier newStartDate in exception cleanup pivot when moving start backward", async () => {
     const laterStart: RuleRow = {
       ...rule,
@@ -618,6 +656,127 @@ describe("splitRecurringRuleAtDate", () => {
       "exception_date",
       "2025-02-15",
     );
+  });
+
+  it("uses payloadEndDate in inserted segment when no next segment exists", async () => {
+    const splitRule: RuleRow = {
+      id: R1,
+      start_date: "2025-01-01",
+      end_date: null,
+      root_rule_id: null,
+      account_id: ACC123,
+      category_id: CAT1,
+    };
+    const rr = recurringRulesFromHandlers({
+      fullSelectRules: [splitRule],
+      existingAtPivot: null,
+      chainIds: [R1],
+      nextSegment: null,
+      idSelectModes: ["existing", "chain"],
+    });
+    fromTableHandler = (table: string) => {
+      if (table === "recurring_exceptions") {
+        return { delete: mockExceptionDelete };
+      }
+      if (table === "recurring_rules") {
+        return rr;
+      }
+      return {};
+    };
+
+    const result = await splitRecurringRuleAtDate(R1, "2025-02-15", {
+      label: "Rent",
+      amount: -25,
+      frequency: "monthly",
+      endDate: "2026-12-31",
+    });
+
+    expect(result.error).toBeNull();
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ end_date: "2026-12-31" }),
+    );
+  });
+});
+
+describe("makeTransactionRecurring", () => {
+  const RULE_FOR_MR = "00000000-0000-4000-8000-000000000001";
+  const TX_ONE = "99999999-9999-4999-8999-999999999999";
+
+  const mockMrRuleSingle = vi.fn();
+  const mockMrRuleSelect = vi.fn(() => ({ single: mockMrRuleSingle }));
+  const mockMrRuleInsert = vi.fn(() => ({ select: mockMrRuleSelect }));
+  const mockMrRuleDeleteEq2 = vi.fn();
+  const mockMrRuleDeleteEq1 = vi.fn(() => ({ eq: mockMrRuleDeleteEq2 }));
+  const mockMrRuleDelete = vi.fn(() => ({ eq: mockMrRuleDeleteEq1 }));
+  const mockMrTxDeleteEq2 = vi.fn();
+  const mockMrTxDeleteEq1 = vi.fn(() => ({ eq: mockMrTxDeleteEq2 }));
+  const mockMrTxDelete = vi.fn(() => ({ eq: mockMrTxDeleteEq1 }));
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockMrRuleSingle.mockResolvedValue({ data: { id: RULE_FOR_MR }, error: null });
+    mockMrRuleDeleteEq2.mockResolvedValue({ error: null });
+    mockMrTxDeleteEq2.mockResolvedValue({ error: null });
+    fromTableHandler = (table: string) => {
+      if (table === "recurring_rules") {
+        return { insert: mockMrRuleInsert, delete: mockMrRuleDelete };
+      }
+      if (table === "transactions") {
+        return { delete: mockMrTxDelete };
+      }
+      return {};
+    };
+  });
+
+  it("inserts recurring rule, deletes original transaction, and returns no error", async () => {
+    const result = await makeTransactionRecurring(TX_ONE, {
+      accountId: ACC1,
+      label: "Rent",
+      amount: -500,
+      startDate: "2026-01-01",
+      frequency: "monthly",
+    });
+    expect(result.error).toBeNull();
+    expect(mockMrRuleInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: "Rent",
+        amount: -500,
+        frequency: "monthly",
+        start_date: "2026-01-01",
+        root_rule_id: null,
+      }),
+    );
+    expect(mockMrTxDelete).toHaveBeenCalled();
+  });
+
+  it("rolls back recurring rule when transaction delete fails", async () => {
+    mockMrTxDeleteEq2.mockResolvedValueOnce({
+      error: { message: "tx delete fail" },
+    });
+    const result = await makeTransactionRecurring(TX_ONE, {
+      accountId: ACC1,
+      label: "Rent",
+      amount: -500,
+      startDate: "2026-01-01",
+      frequency: "monthly",
+    });
+    expect(result.error).not.toBeNull();
+    expect(mockMrRuleDelete).toHaveBeenCalled();
+    expect(mockMrRuleDeleteEq1).toHaveBeenCalledWith("id", RULE_FOR_MR);
+    expect(mockMrRuleDeleteEq2).toHaveBeenCalledWith("user_id", "user-1");
+  });
+
+  it("returns validation error for invalid transaction UUID without touching DB", async () => {
+    const result = await makeTransactionRecurring("not-a-uuid", {
+      accountId: ACC1,
+      label: "Rent",
+      amount: -500,
+      startDate: "2026-01-01",
+      frequency: "monthly",
+    });
+    expect(result.error).not.toBeNull();
+    expect(mockMrRuleInsert).not.toHaveBeenCalled();
+    expect(mockMrTxDelete).not.toHaveBeenCalled();
   });
 });
 
@@ -1011,5 +1170,75 @@ describe("mutation payload validation (Zod)", () => {
     });
     expect(result.error).not.toBeNull();
     expect(result.error?.message).toMatch(/name/i);
+  });
+});
+
+describe("validation - mutual exclusivity", () => {
+  it("createRecurringRulePayloadSchema rejects when both endDate and recurrenceCount are set", () => {
+    const result = createRecurringRulePayloadSchema.safeParse({
+      accountId: ACC1,
+      label: "Rent",
+      amount: -500,
+      frequency: "monthly",
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      recurrenceCount: 12,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("createRecurringRulePayloadSchema accepts when only endDate is set", () => {
+    const result = createRecurringRulePayloadSchema.safeParse({
+      accountId: ACC1,
+      label: "Rent",
+      amount: -500,
+      frequency: "monthly",
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("createRecurringRulePayloadSchema accepts when only recurrenceCount is set", () => {
+    const result = createRecurringRulePayloadSchema.safeParse({
+      accountId: ACC1,
+      label: "Rent",
+      amount: -500,
+      frequency: "monthly",
+      startDate: "2026-01-01",
+      recurrenceCount: 12,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("recurringSegmentPayloadSchema rejects when both endDate and recurrenceCount are set", () => {
+    const result = recurringSegmentPayloadSchema.safeParse({
+      label: "Rent",
+      amount: -500,
+      frequency: "monthly",
+      endDate: "2026-12-31",
+      recurrenceCount: 12,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("recurringSegmentPayloadSchema accepts when only endDate is set", () => {
+    const result = recurringSegmentPayloadSchema.safeParse({
+      label: "Rent",
+      amount: -500,
+      frequency: "monthly",
+      endDate: "2026-12-31",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("recurringSegmentPayloadSchema accepts when only recurrenceCount is set", () => {
+    const result = recurringSegmentPayloadSchema.safeParse({
+      label: "Rent",
+      amount: -500,
+      frequency: "monthly",
+      recurrenceCount: 12,
+    });
+    expect(result.success).toBe(true);
   });
 });
