@@ -116,7 +116,7 @@ function SwipeableTransactionRow({
             <span className="text-sm font-medium text-white">
               {t.label}
               {t.recurring && (
-                <span className="ml-1 text-xs text-white/70">↻</span>
+                <Repeat className="ml-1 inline h-3 w-3 text-white/70" />
               )}
             </span>
           </div>
