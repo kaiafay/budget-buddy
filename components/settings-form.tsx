@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   User,
   DollarSign,
@@ -9,7 +9,10 @@ import {
   Pencil,
   Trash2,
   Plus,
+  RefreshCw,
+  CheckCircle2,
 } from "lucide-react";
+import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
 import useSWR, { useSWRConfig } from "swr";
 import { GlassExpenseIncomeToggle } from "@/components/glass-expense-income-toggle";
@@ -41,12 +44,14 @@ import {
   ALLOWED_CATEGORY_ICON_NAMES,
   getCategoryColor,
 } from "@/components/category-icons";
-import { fetchCategories, fetchCategoryUsageCount } from "@/lib/api";
+import { fetchCategories, fetchCategoryUsageCount, fetchCalendarData } from "@/lib/api";
 import {
   createCategory,
   updateCategory,
   deleteCategory,
+  recalibrateBalance,
 } from "@/lib/transactions-mutations";
+import { getProjectedBalances, sumRecurringBeforeDate } from "@/lib/projection";
 import { USER_FACING_ERROR } from "@/lib/errors";
 import type { Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -57,19 +62,77 @@ interface Props {
   accountId: string | null;
 }
 
+function formatCurrency(value: number): string {
+  const abs = Math.abs(value).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return value < 0 ? `-$${abs}` : `$${abs}`;
+}
+
 export default function SettingsForm({
   initialName,
   initialBalance,
   accountId: initialAccountId,
 }: Props) {
+  const todayDate = new Date();
+  const currentMonth = todayDate.getMonth() + 1; // 1-based for fetchCalendarData
+  const currentYear = todayDate.getFullYear();
+  const todayStr = format(todayDate, "yyyy-MM-dd");
+
   const [accountName, setAccountName] = useState(initialName);
   const [startingBalance, setStartingBalance] = useState(initialBalance);
+  const [hasSetBalance, setHasSetBalance] = useState(initialBalance !== "");
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountId, setAccountId] = useState(initialAccountId);
+
+  const [recalibrateOpen, setRecalibrateOpen] = useState(false);
+  const [actualBalanceInput, setActualBalanceInput] = useState("");
+  const [recalibrateError, setRecalibrateError] = useState<string | null>(null);
+  const [savedDelta, setSavedDelta] = useState<number | null>(null);
+  const [isRecalibrating, startRecalibrateTransition] = useTransition();
+  const [isSavingBalance, startSaveBalanceTransition] = useTransition();
+
   const router = useRouter();
   const { mutate } = useSWRConfig();
   const { data: categories = [] } = useSWR("categories", fetchCategories);
+
+  // Only fetch calendar data while the recalibrate modal is open — reuses cached data
+  // if the user already visited the calendar this session.
+  const { data: calData, isLoading: calLoading } = useSWR(
+    recalibrateOpen ? calendarMonthSwrKey(currentMonth, currentYear) : null,
+    () => fetchCalendarData(currentMonth, currentYear),
+  );
+
+  const projectedTodayBalance = useMemo(() => {
+    if (!calData) return null;
+    const accountStarting = Number(calData.account?.starting_balance ?? 0);
+    const sumTxBefore = (calData.txBefore ?? []).reduce(
+      (s, r) => s + Number(r.amount),
+      0,
+    );
+    const mappedRules = (calData.recurringRules ?? []).map((r) => ({
+      ...r,
+      amount: Number(r.amount),
+    }));
+    const sumRecBefore = sumRecurringBeforeDate(
+      mappedRules,
+      calData.firstDayOfMonth,
+      calData.exceptions ?? [],
+    );
+    const carryForward = accountStarting + sumTxBefore + sumRecBefore;
+    const balances = getProjectedBalances(
+      carryForward,
+      (calData.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) })),
+      mappedRules,
+      todayDate.getMonth(), // 0-indexed
+      currentYear,
+      calData.exceptions ?? [],
+    );
+    return balances[todayStr] ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calData]);
 
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -103,8 +166,10 @@ export default function SettingsForm({
   const saveSeqRef = useRef(0);
   const skipNextDebounceRef = useRef(true);
 
-  const saveAccountSettings = useCallback(async () => {
-    setBalanceError(null);
+  // Autosaves account name only — balance is never written via autosave.
+  // Short-circuits when no account exists yet (account is created on initial balance save).
+  const saveAccountName = useCallback(async () => {
+    if (!accountId) return;
     setAccountError(null);
 
     const seq = ++saveSeqRef.current;
@@ -119,51 +184,20 @@ export default function SettingsForm({
       return;
     }
 
-    const balance = parseFloat(startingBalance);
-    if (Number.isNaN(balance)) {
+    const { error: updateError } = await supabase
+      .from("accounts")
+      .update({ name: accountName })
+      .eq("id", accountId)
+      .eq("user_id", user.id);
+
+    if (updateError) {
       if (seq !== saveSeqRef.current) return;
-      setBalanceError("Please enter a valid starting balance.");
-      return;
+      setAccountError(updateError.message);
     }
+  }, [accountName, accountId]);
 
-    if (accountId) {
-      const { error: updateError } = await supabase
-        .from("accounts")
-        .update({ name: accountName, starting_balance: balance })
-        .eq("id", accountId)
-        .eq("user_id", user.id);
-      if (updateError) {
-        if (seq !== saveSeqRef.current) return;
-        setAccountError(updateError.message);
-        return;
-      }
-    } else {
-      const { data: inserted, error: insertError } = await supabase
-        .from("accounts")
-        .insert({
-          user_id: user.id,
-          name: accountName,
-          starting_balance: balance,
-        })
-        .select("id")
-        .single();
-      if (insertError) {
-        if (seq !== saveSeqRef.current) return;
-        setAccountError(insertError.message);
-        return;
-      }
-      if (inserted?.id) setAccountId(inserted.id);
-    }
-
-    if (seq !== saveSeqRef.current) return;
-
-    const now = new Date();
-    mutate(calendarMonthSwrKey(now.getMonth() + 1, now.getFullYear()));
-    mutate("transactions");
-  }, [accountName, startingBalance, accountId, mutate]);
-
-  const saveAccountSettingsRef = useRef(saveAccountSettings);
-  saveAccountSettingsRef.current = saveAccountSettings;
+  const saveAccountNameRef = useRef(saveAccountName);
+  saveAccountNameRef.current = saveAccountName;
 
   useEffect(() => {
     if (skipNextDebounceRef.current) {
@@ -171,10 +205,100 @@ export default function SettingsForm({
       return;
     }
     const timer = setTimeout(() => {
-      void saveAccountSettingsRef.current();
+      void saveAccountNameRef.current();
     }, 1000);
     return () => clearTimeout(timer);
-  }, [accountName, startingBalance]);
+  }, [accountName]);
+
+  // Called once when a new user explicitly sets their starting balance for the first time.
+  // Creates the account record if it doesn't exist yet, then flips to read-only mode.
+  function handleSaveInitialBalance() {
+    setBalanceError(null);
+    const balance = parseFloat(startingBalance);
+    if (Number.isNaN(balance)) {
+      setBalanceError("Please enter a valid starting balance.");
+      return;
+    }
+    startSaveBalanceTransition(async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setBalanceError("You must be signed in.");
+        return;
+      }
+      if (accountId) {
+        const { error } = await supabase
+          .from("accounts")
+          .update({ starting_balance: balance })
+          .eq("id", accountId)
+          .eq("user_id", user.id);
+        if (error) {
+          setBalanceError(error.message);
+          return;
+        }
+      } else {
+        const { data: inserted, error } = await supabase
+          .from("accounts")
+          .insert({ user_id: user.id, name: accountName, starting_balance: balance })
+          .select("id")
+          .single();
+        if (error) {
+          setBalanceError(error.message);
+          return;
+        }
+        if (inserted?.id) setAccountId(inserted.id);
+      }
+      setHasSetBalance(true);
+      mutate(calendarMonthSwrKey(new Date().getMonth() + 1, new Date().getFullYear()));
+      mutate("transactions");
+    });
+  }
+
+  function openRecalibrateModal() {
+    setActualBalanceInput("");
+    setRecalibrateError(null);
+    setRecalibrateOpen(true);
+  }
+
+  function closeRecalibrateModal() {
+    setRecalibrateOpen(false);
+    setActualBalanceInput("");
+    setRecalibrateError(null);
+    setSavedDelta(null);
+  }
+
+  function handleRecalibrate() {
+    if (projectedTodayBalance === null || !accountId) return;
+    const actual = parseFloat(actualBalanceInput);
+    if (Number.isNaN(actual)) {
+      setRecalibrateError("Please enter a valid amount.");
+      return;
+    }
+    const delta = Math.round((actual - projectedTodayBalance) * 100) / 100;
+    if (Math.abs(delta) > 1_000_000) {
+      setRecalibrateError(
+        "The difference exceeds the maximum adjustment of $1,000,000. Please check the value you entered.",
+      );
+      return;
+    }
+    setRecalibrateError(null);
+    startRecalibrateTransition(async () => {
+      const { error } = await recalibrateBalance({
+        accountId,
+        delta,
+        date: todayStr,
+      });
+      if (error) {
+        setRecalibrateError(error.message);
+        return;
+      }
+      mutate("transactions");
+      mutate(calendarMonthSwrKey(currentMonth, currentYear));
+      setSavedDelta(delta);
+    });
+  }
 
   function openCategoryDialog(category?: Category) {
     if (category) {
@@ -337,38 +461,70 @@ export default function SettingsForm({
             Starting Balance
           </span>
         </div>
-        <div className="flex flex-col gap-2">
-          {/* TODO: replace in v.1.1 */}
-          <p className="text-xs text-white/50">
-            Balance before tracking in Budget Buddy. Set this to your account
-            balance when you started.
-          </p>
-          <Label
-            htmlFor="balance"
-            className="text-xs font-medium text-white/70"
-          >
-            Amount
-          </Label>
-          <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-white/70">
-              $
-            </span>
-            <Input
-              id="balance"
-              type="text"
-              inputMode="decimal"
-              value={startingBalance}
-              onChange={(e) => {
-                // Allow optional leading minus, digits, and up to 2 decimal places
-                if (/^-?\d*\.?\d{0,2}$/.test(e.target.value)) {
-                  setStartingBalance(e.target.value);
-                }
-              }}
-              className="h-11 rounded-xl border-white/20 bg-white/10 pl-8 tabular-nums text-white placeholder:text-white/40"
-            />
+
+        {hasSetBalance ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-xs text-white/50">
+              Your opening balance when you started tracking. Use Recalibrate to sync Budget Buddy with your actual bank balance.
+            </p>
+            <div className="flex items-center justify-between rounded-xl border border-white/20 bg-white/10 px-4 py-3">
+              <span className="text-xs font-medium text-white/60">
+                Opening balance
+              </span>
+              <span className="tabular-nums text-sm font-medium text-white">
+                {formatCurrency(Number(startingBalance))}
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
+              onClick={openRecalibrateModal}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Recalibrate balance
+            </Button>
           </div>
-          {balanceError && <InlineError>{balanceError}</InlineError>}
-        </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-white/50">
+              Enter your account balance at the time you started tracking in Budget Buddy.
+            </p>
+            <Label
+              htmlFor="balance"
+              className="text-xs font-medium text-white/70"
+            >
+              Amount
+            </Label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-white/70">
+                $
+              </span>
+              <Input
+                id="balance"
+                type="text"
+                inputMode="decimal"
+                value={startingBalance}
+                onChange={(e) => {
+                  if (/^-?\d*\.?\d{0,2}$/.test(e.target.value)) {
+                    setStartingBalance(e.target.value);
+                  }
+                }}
+                className="h-11 rounded-xl border-white/20 bg-white/10 pl-8 tabular-nums text-white placeholder:text-white/40"
+                placeholder="0.00"
+              />
+            </div>
+            {balanceError && <InlineError>{balanceError}</InlineError>}
+            <Button
+              type="button"
+              disabled={isSavingBalance || !startingBalance}
+              onClick={handleSaveInitialBalance}
+              className={dialogSubmitButtonClass}
+            >
+              Save starting balance
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="page-enter-3 glass-card flex flex-col gap-4 rounded-2xl p-4">
@@ -496,6 +652,111 @@ export default function SettingsForm({
             Delete account
           </button>
         </div>
+
+        {/* Recalibrate balance modal */}
+        <Dialog
+          open={recalibrateOpen}
+          onOpenChange={(open) => !open && closeRecalibrateModal()}
+        >
+          <DialogContent className="border-white/20 bg-card text-card-foreground">
+            <DialogHeader>
+              <DialogTitle>Recalibrate balance</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-4">
+              {savedDelta !== null ? (
+                <div className="flex flex-col items-center gap-3 py-2 text-center">
+                  <CheckCircle2 className="h-10 w-10 text-[#4ade80]" />
+                  {savedDelta === 0 ? (
+                    <>
+                      <p className="text-sm font-medium text-foreground">
+                        Already up to date
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Your balance matches Budget Buddy&apos;s projection — no adjustment was needed.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-foreground">
+                        Adjustment saved
+                      </p>
+                      <p className="tabular-nums text-xs text-muted-foreground">
+                        {savedDelta > 0 ? "+" : ""}
+                        {formatCurrency(savedDelta)} applied to today
+                      </p>
+                    </>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-1 h-10 w-full rounded-xl border-border bg-muted text-foreground hover:bg-muted/80"
+                    onClick={closeRecalibrateModal}
+                  >
+                    Done
+                  </Button>
+                </div>
+              ) : calLoading ? (
+                <p className="text-sm text-muted-foreground">
+                  Loading your current balance…
+                </p>
+              ) : projectedTodayBalance === null ? (
+                <p className="text-sm text-destructive">
+                  Unable to load your current balance. Please close and try again.
+                </p>
+              ) : (
+                <>
+                  <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
+                    <p className="text-xs text-muted-foreground">
+                      Budget Buddy projects your balance today as
+                    </p>
+                    <p className="mt-1 tabular-nums text-lg font-semibold text-foreground">
+                      {formatCurrency(projectedTodayBalance)}
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label
+                      htmlFor="actualBalance"
+                      className="text-sm font-medium text-muted-foreground"
+                    >
+                      Your actual balance
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                        $
+                      </span>
+                      <Input
+                        id="actualBalance"
+                        type="text"
+                        inputMode="decimal"
+                        value={actualBalanceInput}
+                        onChange={(e) => {
+                          if (/^-?\d*\.?\d{0,2}$/.test(e.target.value)) {
+                            setActualBalanceInput(e.target.value);
+                          }
+                        }}
+                        className="h-11 rounded-xl border-border bg-background pl-8 tabular-nums text-foreground placeholder:text-muted-foreground"
+                        placeholder="0.00"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  {recalibrateError && (
+                    <InlineError light>{recalibrateError}</InlineError>
+                  )}
+                  <Button
+                    type="button"
+                    disabled={isRecalibrating || !actualBalanceInput}
+                    onClick={handleRecalibrate}
+                    className={dialogSubmitButtonClass}
+                  >
+                    Save adjustment
+                  </Button>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Dialog
           open={categoryDialogOpen}
           onOpenChange={(open) => !open && closeCategoryDialog()}

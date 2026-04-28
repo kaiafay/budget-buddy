@@ -16,6 +16,7 @@ import {
   createTransactionPayloadSchema,
   endRecurringRuleFutureArgsSchema,
   moveRecurringOccurrencePayloadSchema,
+  recalibrateBalancePayloadSchema,
   safeParseMutation,
   skipRecurringOccurrenceArgsSchema,
   splitRecurringRuleAtDateArgsSchema,
@@ -773,6 +774,23 @@ export async function makeTransactionRecurring(
     };
   }
   return { error: deleteError };
+}
+
+export async function recalibrateBalance(payload: {
+  accountId: string;
+  delta: number;
+  date: string;
+}): Promise<{ error: Error | null }> {
+  const parsed = safeParseMutation(recalibrateBalancePayloadSchema, payload);
+  if (!parsed.ok) return { error: parsed.error };
+  if (parsed.data.delta === 0) return { error: null };
+  const { error } = await createTransaction({
+    accountId: parsed.data.accountId,
+    label: "Balance adjustment",
+    amount: parsed.data.delta,
+    date: parsed.data.date,
+  });
+  return { error };
 }
 
 export async function createCategory(payload: {

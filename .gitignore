@@ -29,3 +29,8 @@ next-env.d.ts
 .cursor/
 supabase/
 .claudeignore
+
+# docs and notes
+*.md
+!README.md
+*.txt

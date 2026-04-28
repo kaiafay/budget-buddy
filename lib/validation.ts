@@ -21,6 +21,12 @@ export const accountSchema = z.object({
   starting_balance: amountSchema,
 });
 
+export const recalibrateBalancePayloadSchema = z.object({
+  accountId: uuidSchema,
+  delta: amountSchema,
+  date: isoDateSchema,
+});
+
 export const createTransactionPayloadSchema = z.object({
   accountId: uuidSchema,
   label: labelSchema,
