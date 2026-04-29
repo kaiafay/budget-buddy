@@ -13,6 +13,7 @@ import {
   applyRecurringEditFromDateArgsSchema,
   createAccountPayloadSchema,
   createCategoryPayloadSchema,
+  createInvitationPayloadSchema,
   createRecurringRulePayloadSchema,
   createTransactionPayloadSchema,
   endRecurringRuleFutureArgsSchema,
@@ -796,6 +797,7 @@ export async function recalibrateBalance(payload: {
 }
 
 export async function createCategory(payload: {
+  accountId: string;
   name: string;
   icon: string;
   type: "expense" | "income";
@@ -809,6 +811,7 @@ export async function createCategory(payload: {
   if (!user) return { error: new Error("Not authenticated") };
   const { error } = await supabase.from("categories").insert({
     user_id: user.id,
+    account_id: parsed.data.accountId,
     name: parsed.data.name,
     icon: parsed.data.icon,
     type: parsed.data.type,
@@ -872,6 +875,13 @@ export async function createAccount(payload: {
       error: new Error("Insert succeeded but no id returned"),
     };
   }
+  const { error: memberError } = await supabase.from("account_members").insert({
+    account_id: data.id,
+    user_id: user.id,
+    role: "owner",
+    invited_by: user.id,
+  });
+  if (memberError) return { data: null, error: memberError };
   return { data: { id: data.id as string }, error: null };
 }
 
@@ -935,6 +945,115 @@ export async function deleteCategory(id: string): Promise<{ error: Error | null 
     .from("categories")
     .delete()
     .eq("id", idParsed.data)
+    .eq("user_id", user.id);
+  return { error: error ?? null };
+}
+
+export async function createInvitation(
+  accountId: string,
+  email: string,
+): Promise<{ data: { token: string } | null; error: Error | null }> {
+  const parsed = safeParseMutation(createInvitationPayloadSchema, { accountId, email });
+  if (!parsed.ok) return { data: null, error: parsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: new Error("Not authenticated") };
+
+  const normalizedEmail = parsed.data.email.toLowerCase();
+
+  if (normalizedEmail === user.email?.toLowerCase()) {
+    return { data: null, error: new Error("You can't invite yourself.") };
+  }
+
+  // Verify caller is the account owner
+  const { data: account } = await supabase
+    .from("accounts")
+    .select("user_id")
+    .eq("id", parsed.data.accountId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!account) {
+    return { data: null, error: new Error("Only the budget owner can invite members.") };
+  }
+
+  // Check no unexpired pending invite already exists for this email
+  const { data: existing } = await supabase
+    .from("budget_invitations")
+    .select("id")
+    .eq("account_id", parsed.data.accountId)
+    .eq("invited_email", normalizedEmail)
+    .is("accepted_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (existing) {
+    return { data: null, error: new Error("An invite for this email is already pending.") };
+  }
+
+  const { data, error } = await supabase
+    .from("budget_invitations")
+    .insert({
+      account_id: parsed.data.accountId,
+      invited_by: user.id,
+      invited_email: normalizedEmail,
+    })
+    .select("token")
+    .single();
+  if (error) return { data: null, error };
+  return { data: { token: data.token as string }, error: null };
+}
+
+export async function removeMember(
+  accountId: string,
+  userId: string,
+): Promise<{ error: Error | null }> {
+  const accountIdParsed = safeParseMutation(uuidSchema, accountId);
+  if (!accountIdParsed.ok) return { error: accountIdParsed.error };
+  const userIdParsed = safeParseMutation(uuidSchema, userId);
+  if (!userIdParsed.ok) return { error: userIdParsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+  if (userIdParsed.data === user.id) {
+    return { error: new Error("Use leaveAccount to leave a budget.") };
+  }
+  // RLS enforces that only the account owner can delete another member's row.
+  // The .neq("role", "owner") guard prevents accidentally removing the owner row.
+  const { error } = await supabase
+    .from("account_members")
+    .delete()
+    .eq("account_id", accountIdParsed.data)
+    .eq("user_id", userIdParsed.data)
+    .neq("role", "owner");
+  return { error: error ?? null };
+}
+
+export async function leaveAccount(
+  accountId: string,
+): Promise<{ error: Error | null }> {
+  const accountIdParsed = safeParseMutation(uuidSchema, accountId);
+  if (!accountIdParsed.ok) return { error: accountIdParsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+  // Owners cannot leave — they must delete the budget
+  const { data: account } = await supabase
+    .from("accounts")
+    .select("user_id")
+    .eq("id", accountIdParsed.data)
+    .maybeSingle();
+  if (account?.user_id === user.id) {
+    return { error: new Error("Budget owners cannot leave. Delete the budget instead.") };
+  }
+  const { error } = await supabase
+    .from("account_members")
+    .delete()
+    .eq("account_id", accountIdParsed.data)
     .eq("user_id", user.id);
   return { error: error ?? null };
 }

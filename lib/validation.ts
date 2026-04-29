@@ -93,9 +93,15 @@ export const recurringSegmentPayloadSchema = z.object({
 );
 
 export const createCategoryPayloadSchema = z.object({
+  accountId: uuidSchema,
   name: categoryNameSchema,
   icon: categoryIconSchema,
   type: z.enum(["expense", "income"]),
+});
+
+export const createInvitationPayloadSchema = z.object({
+  accountId: uuidSchema,
+  email: z.string().email().max(254),
 });
 
 export const updateCategoryPayloadSchema = z.object({

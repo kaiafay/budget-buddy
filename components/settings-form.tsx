@@ -390,6 +390,7 @@ export default function SettingsForm() {
         }
       } else {
         const { error: err } = await createCategory({
+          accountId: activeAccountId!,
           name,
           icon: categoryForm.icon,
           type: categoryForm.type,
