@@ -907,6 +907,22 @@ export async function updateAccount(
   return { error: error ?? null };
 }
 
+export async function deleteBudget(id: string): Promise<{ error: Error | null }> {
+  const idParsed = safeParseMutation(uuidSchema, id);
+  if (!idParsed.ok) return { error: idParsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+  const { error } = await supabase
+    .from("accounts")
+    .delete()
+    .eq("id", idParsed.data)
+    .eq("user_id", user.id);
+  return { error: error ?? null };
+}
+
 export async function deleteCategory(id: string): Promise<{ error: Error | null }> {
   const idParsed = safeParseMutation(uuidSchema, id);
   if (!idParsed.ok) return { error: idParsed.error };

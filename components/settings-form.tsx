@@ -53,6 +53,7 @@ import {
   updateAccount,
   updateCategory,
   deleteCategory,
+  deleteBudget,
   recalibrateBalance,
 } from "@/lib/transactions-mutations";
 import { getProjectedBalances, sumRecurringBeforeDate } from "@/lib/projection";
@@ -180,6 +181,9 @@ export default function SettingsForm() {
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   const [isDeletingAccount, startDeleteAccountTransition] = useTransition();
+  const [budgetToDelete, setBudgetToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleteBudgetError, setDeleteBudgetError] = useState<string | null>(null);
+  const [isDeletingBudget, startDeleteBudgetTransition] = useTransition();
 
   const saveSeqRef = useRef(0);
   const skipNextNameDebounceRef = useRef(true);
@@ -519,25 +523,38 @@ export default function SettingsForm() {
               const isActive = acc.id === activeAccountId;
               return (
                 <li key={acc.id}>
-                  <button
-                    type="button"
-                    onClick={() => setActiveAccount(acc.id)}
-                    className={cn(
-                      "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
-                      isActive
-                        ? "border-white/30 bg-white/15 text-white"
-                        : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
-                    )}
-                  >
-                    <Check
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveAccount(acc.id)}
                       className={cn(
-                        "h-4 w-4 shrink-0",
-                        isActive ? "opacity-100" : "opacity-0",
+                        "flex min-w-0 flex-1 items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+                        isActive
+                          ? "border-white/30 bg-white/15 text-white"
+                          : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
                       )}
-                      aria-hidden
-                    />
-                    <span className="min-w-0 flex-1 truncate">{acc.name}</span>
-                  </button>
+                    >
+                      <Check
+                        className={cn(
+                          "h-4 w-4 shrink-0",
+                          isActive ? "opacity-100" : "opacity-0",
+                        )}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 truncate">{acc.name}</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete ${acc.name}`}
+                      onClick={() => {
+                        setDeleteBudgetError(null);
+                        setBudgetToDelete({ id: acc.id, name: acc.name });
+                      }}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/50 transition-colors hover:border-destructive/40 hover:bg-destructive/15 hover:text-red-300 active:bg-destructive/20"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </li>
               );
             })}
@@ -1026,6 +1043,59 @@ export default function SettingsForm() {
                 className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80"
               >
                 Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={!!budgetToDelete}
+          onOpenChange={(open) => {
+            if (!open) {
+              setBudgetToDelete(null);
+              setDeleteBudgetError(null);
+            }
+          }}
+        >
+          <AlertDialogContent className="border-white/20 bg-card text-card-foreground">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete &ldquo;{budgetToDelete?.name}&rdquo;?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete this budget and all its transactions
+                and recurring rules. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {deleteBudgetError && (
+              <InlineError light>{deleteBudgetError}</InlineError>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl border border-border bg-muted text-foreground hover:bg-muted/80">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (!budgetToDelete) return;
+                  const { id } = budgetToDelete;
+                  setDeleteBudgetError(null);
+                  startDeleteBudgetTransition(async () => {
+                    const { error } = await deleteBudget(id);
+                    if (error) {
+                      setDeleteBudgetError(USER_FACING_ERROR);
+                      return;
+                    }
+                    if (activeAccountId === id) {
+                      const next = accounts.find((a) => a.id !== id);
+                      if (next) setActiveAccount(next.id);
+                    }
+                    setBudgetToDelete(null);
+                    void mutate(accountsSwrKey);
+                  });
+                }}
+                disabled={isDeletingBudget}
+                className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80"
+              >
+                Delete budget
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
