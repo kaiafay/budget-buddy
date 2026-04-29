@@ -56,6 +56,8 @@ import {
   deleteBudget,
   recalibrateBalance,
 } from "@/lib/transactions-mutations";
+import { checkOwnedAccountsWithMembers } from "@/lib/member-actions";
+import { BudgetMembersSection } from "@/components/budget-members-section";
 import { getProjectedBalances, sumRecurringBeforeDate } from "@/lib/projection";
 import { USER_FACING_ERROR } from "@/lib/errors";
 import type { Category } from "@/lib/types";
@@ -183,6 +185,8 @@ export default function SettingsForm() {
   const [isSigningOut, startSignOutTransition] = useTransition();
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+  const [deleteAccountBlockError, setDeleteAccountBlockError] = useState<string | null>(null);
+  const [isCheckingDeleteAccount, setIsCheckingDeleteAccount] = useState(false);
   const [isDeletingAccount, startDeleteAccountTransition] = useTransition();
   const [budgetToDelete, setBudgetToDelete] = useState<{ id: string; name: string } | null>(null);
   const [deleteBudgetError, setDeleteBudgetError] = useState<string | null>(null);
@@ -547,17 +551,19 @@ export default function SettingsForm() {
                       />
                       <span className="min-w-0 flex-1 truncate">{acc.name}</span>
                     </button>
-                    <button
-                      type="button"
-                      aria-label={`Delete ${acc.name}`}
-                      onClick={() => {
-                        setDeleteBudgetError(null);
-                        setBudgetToDelete({ id: acc.id, name: acc.name });
-                      }}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/50 transition-colors hover:border-destructive/40 hover:bg-destructive/15 hover:text-red-300 active:bg-destructive/20"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {acc.role === "owner" && (
+                      <button
+                        type="button"
+                        aria-label={`Delete ${acc.name}`}
+                        onClick={() => {
+                          setDeleteBudgetError(null);
+                          setBudgetToDelete({ id: acc.id, name: acc.name });
+                        }}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/50 transition-colors hover:border-destructive/40 hover:bg-destructive/15 hover:text-red-300 active:bg-destructive/20"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </li>
               );
@@ -603,6 +609,13 @@ export default function SettingsForm() {
           {accountError && <InlineError>{accountError}</InlineError>}
         </div>
       </div>
+
+      {activeAccountId && activeAccount && (
+        <BudgetMembersSection
+          accountId={activeAccountId}
+          role={activeAccount.role}
+        />
+      )}
 
       <div className="page-enter-3 glass-card flex flex-col gap-4 rounded-2xl p-4">
         <div className="flex items-center gap-3 pb-1">
@@ -802,12 +815,30 @@ export default function SettingsForm() {
         <div>
           <button
             type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 py-3 text-sm font-medium text-red-300 transition-colors hover:bg-destructive/20 active:bg-destructive/15"
-            onClick={() => setDeleteAccountOpen(true)}
+            disabled={isCheckingDeleteAccount}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 py-3 text-sm font-medium text-red-300 transition-colors hover:bg-destructive/20 active:bg-destructive/15 disabled:opacity-50"
+            onClick={async () => {
+              setDeleteAccountBlockError(null);
+              setIsCheckingDeleteAccount(true);
+              const { blockedBy } = await checkOwnedAccountsWithMembers();
+              setIsCheckingDeleteAccount(false);
+              if (blockedBy.length > 0) {
+                setDeleteAccountBlockError(
+                  `Remove all members from ${blockedBy.join(", ")} before deleting your account.`,
+                );
+                return;
+              }
+              setDeleteAccountOpen(true);
+            }}
           >
             <Trash2 className="h-4 w-4" />
             Delete account
           </button>
+          {deleteAccountBlockError && (
+            <InlineError className="justify-center">
+              {deleteAccountBlockError}
+            </InlineError>
+          )}
         </div>
 
         <Dialog

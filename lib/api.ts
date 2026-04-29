@@ -1,5 +1,6 @@
 import type {
   Account,
+  BudgetInvitation,
   Category,
   RecurringException,
   RecurringRule,
@@ -369,4 +370,23 @@ export async function fetchCategoryUsageCount(
     transactions: txRes.count ?? 0,
     rules: rulesRes.count ?? 0,
   };
+}
+
+export async function fetchPendingInvitations(
+  accountId: string,
+): Promise<BudgetInvitation[]> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data, error } = await supabase
+    .from("budget_invitations")
+    .select("id, account_id, invited_by, invited_email, token, expires_at, accepted_at, created_at")
+    .eq("account_id", accountId)
+    .is("accepted_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as BudgetInvitation[];
 }

@@ -1031,6 +1031,24 @@ export async function removeMember(
   return { error: error ?? null };
 }
 
+export async function revokeInvitation(
+  id: string,
+): Promise<{ error: Error | null }> {
+  const idParsed = safeParseMutation(uuidSchema, id);
+  if (!idParsed.ok) return { error: idParsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+  const { error } = await supabase
+    .from("budget_invitations")
+    .delete()
+    .eq("id", idParsed.data)
+    .eq("invited_by", user.id);
+  return { error: error ?? null };
+}
+
 export async function leaveAccount(
   accountId: string,
 ): Promise<{ error: Error | null }> {
