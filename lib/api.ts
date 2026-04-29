@@ -17,14 +17,15 @@ export async function fetchAccounts(): Promise<Account[]> {
   if (!user) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("accounts")
-    .select("id, name, starting_balance")
-    .eq("user_id", user.id)
+    .select("id, name, starting_balance, user_id")
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []).map((row) => ({
     id: row.id,
     name: row.name,
     starting_balance: Number(row.starting_balance),
+    user_id: row.user_id,
+    role: row.user_id === user.id ? 'owner' : 'member' as 'owner' | 'member',
   }));
 }
 
@@ -57,20 +58,17 @@ export async function fetchCalendarData(
     await Promise.all([
       supabase
         .from("accounts")
-        .select("id, name, starting_balance")
+        .select("id, name, starting_balance, user_id")
         .eq("id", parsedAccountId)
-        .eq("user_id", user.id)
         .maybeSingle(),
       supabase
         .from("transactions")
         .select("amount")
-        .eq("user_id", user.id)
         .eq("account_id", parsedAccountId)
         .lt("date", firstDayOfMonth),
       supabase
         .from("transactions")
         .select("id, label, amount, date, category_id, account_id")
-        .eq("user_id", user.id)
         .eq("account_id", parsedAccountId)
         .gte("date", firstDayOfMonth)
         .lte("date", lastDayOfMonth)
@@ -80,14 +78,12 @@ export async function fetchCalendarData(
         .select(
           "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id, account_id",
         )
-        .eq("user_id", user.id)
         .eq("account_id", parsedAccountId),
       supabase
         .from("recurring_exceptions")
         .select(
           "id, rule_id, exception_date, type, modified_amount, modified_label, category_id",
-        )
-        .eq("user_id", user.id),
+        ),
     ]);
 
   if (accountRes.error) throw new Error(accountRes.error.message);
@@ -101,6 +97,8 @@ export async function fetchCalendarData(
         id: accountRes.data.id,
         name: accountRes.data.name,
         starting_balance: Number(accountRes.data.starting_balance),
+        user_id: accountRes.data.user_id,
+        role: accountRes.data.user_id === user.id ? 'owner' : 'member' as 'owner' | 'member',
       }
     : null;
 
@@ -140,7 +138,6 @@ export async function fetchTransactions(accountId: string): Promise<{
     supabase
       .from("transactions")
       .select("id, label, amount, date, category_id, account_id")
-      .eq("user_id", user.id)
       .eq("account_id", parsedAccountId)
       .order("date", { ascending: false }),
     supabase
@@ -148,14 +145,12 @@ export async function fetchTransactions(accountId: string): Promise<{
       .select(
         "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id, account_id",
       )
-      .eq("user_id", user.id)
       .eq("account_id", parsedAccountId),
     supabase
       .from("recurring_exceptions")
       .select(
         "id, rule_id, exception_date, type, modified_amount, modified_label, category_id",
-      )
-      .eq("user_id", user.id),
+      ),
   ]);
 
   if (txRes.error) throw new Error(txRes.error.message);
@@ -189,7 +184,7 @@ const DEFAULT_CATEGORIES: {
   { name: "Gifts", icon: "Gift", type: "expense" },
 ];
 
-export async function fetchCategories(): Promise<Category[]> {
+export async function fetchCategories(accountId: string): Promise<Category[]> {
   const supabase = createClient();
   const {
     data: { user },
@@ -197,14 +192,15 @@ export async function fetchCategories(): Promise<Category[]> {
   if (!user) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("categories")
-    .select("id, name, icon, type")
-    .eq("user_id", user.id)
+    .select("id, name, icon, type, account_id")
+    .eq("account_id", accountId)
     .order("name", { ascending: true });
   if (error) throw new Error(error.message);
   const categories = (data ?? []) as Category[];
   if (categories.length === 0) {
     const rows = DEFAULT_CATEGORIES.map((c) => ({
       user_id: user.id,
+      account_id: accountId,
       name: c.name,
       icon: c.icon,
       type: c.type,
@@ -214,8 +210,8 @@ export async function fetchCategories(): Promise<Category[]> {
       .upsert(rows, { onConflict: "user_id,name", ignoreDuplicates: true });
     const { data: reselect, error: reselectError } = await supabase
       .from("categories")
-      .select("id, name, icon, type")
-      .eq("user_id", user.id)
+      .select("id, name, icon, type, account_id")
+      .eq("account_id", accountId)
       .order("name", { ascending: true });
     if (reselectError) throw new Error(reselectError.message);
     return (reselect ?? []) as Category[];
@@ -248,7 +244,6 @@ export async function fetchTransaction(
     .from("transactions")
     .select("id, label, amount, date, category_id, account_id")
     .eq("id", parsedId)
-    .eq("user_id", user.id)
     .single();
   if (error) {
     if (error.code === "PGRST116") return null;
@@ -284,7 +279,6 @@ export async function fetchRecurringRule(
       "id, label, amount, frequency, start_date, end_date, category_id, root_rule_id, account_id",
     )
     .eq("id", parsedId)
-    .eq("user_id", user.id)
     .single();
   if (error) {
     if (error.code === "PGRST116") return null;
@@ -329,7 +323,6 @@ export async function fetchNextChainSegment(
     .from("recurring_rules")
     .select("root_rule_id")
     .eq("id", parsedRuleId)
-    .eq("user_id", user.id)
     .single();
   if (ruleError || !rule) return null;
 
@@ -339,7 +332,6 @@ export async function fetchNextChainSegment(
   const { data: next, error: nextError } = await supabase
     .from("recurring_rules")
     .select("start_date")
-    .eq("user_id", user.id)
     .or(`id.eq.${safeId},root_rule_id.eq.${safeId}`)
     .gt("start_date", occ)
     .order("start_date", { ascending: true })
@@ -364,12 +356,10 @@ export async function fetchCategoryUsageCount(
     supabase
       .from("transactions")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
       .eq("category_id", categoryId),
     supabase
       .from("recurring_rules")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
       .eq("category_id", categoryId),
   ]);
   if (txRes.error || rulesRes.error) {

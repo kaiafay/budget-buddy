@@ -27,7 +27,7 @@ import {
   skipRecurringOccurrence,
 } from "@/lib/transactions-mutations";
 import { USER_FACING_ERROR } from "@/lib/errors";
-import { calendarMonthSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
+import { calendarMonthSwrKey, categoriesSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
 import { useActiveAccount } from "@/components/active-account-provider";
 import { AmountText } from "@/components/amount-text";
@@ -233,7 +233,10 @@ export default function TransactionsPage() {
     activeAccountId ? transactionsSwrKey(activeAccountId) : null,
     () => fetchTransactions(activeAccountId as string),
   );
-  const { data: categories = [] } = useSWR("categories", fetchCategories);
+  const { data: categories = [] } = useSWR(
+    activeAccountId ? categoriesSwrKey(activeAccountId) : null,
+    () => fetchCategories(activeAccountId!),
+  );
   const [openedRowId, setOpenedRowId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, startDeleteTransition] = useTransition();

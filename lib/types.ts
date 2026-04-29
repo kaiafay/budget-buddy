@@ -3,6 +3,7 @@ export type Category = {
   name: string;
   icon: string;
   type: "expense" | "income";
+  account_id: string;
 };
 
 export type Transaction = {
@@ -41,6 +42,29 @@ export type Account = {
   id: string;
   name: string;
   starting_balance: number;
+  user_id: string;
+  role: 'owner' | 'member';
+};
+
+export type AccountMember = {
+  id: string;
+  account_id: string;
+  user_id: string;
+  role: 'owner' | 'member';
+  invited_by: string;
+  created_at: string;
+  email: string;
+};
+
+export type BudgetInvitation = {
+  id: string;
+  account_id: string;
+  invited_by: string;
+  invited_email: string;
+  token: string;
+  expires_at: string;
+  accepted_at: string | null;
+  created_at: string;
 };
 
 export type GroupedTransactions = {

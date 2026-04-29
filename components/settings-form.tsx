@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { glassInputClass, glassSectionIconClass } from "@/lib/glass-classes";
-import { accountsSwrKey, calendarMonthSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
+import { accountsSwrKey, calendarMonthSwrKey, categoriesSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
 import {
   Dialog,
   DialogContent,
@@ -109,7 +109,10 @@ export default function SettingsForm() {
 
   const router = useRouter();
   const { mutate } = useSWRConfig();
-  const { data: categories = [] } = useSWR("categories", fetchCategories);
+  const { data: categories = [] } = useSWR(
+    activeAccountId ? categoriesSwrKey(activeAccountId) : null,
+    () => fetchCategories(activeAccountId!),
+  );
 
   // Sync editable fields when the active account changes (e.g. picker switches)
   // or when accounts finish loading.
@@ -403,7 +406,7 @@ export default function SettingsForm() {
           return;
         }
       }
-      mutate("categories");
+      mutate(categoriesSwrKey(activeAccountId!));
       closeCategoryDialog();
     });
   }
@@ -419,7 +422,7 @@ export default function SettingsForm() {
             setCategoryDeleteError(USER_FACING_ERROR);
             return;
           }
-          mutate("categories");
+          mutate(categoriesSwrKey(activeAccountId!));
           return;
         }
         setDeleteUsageCount(count);
@@ -441,7 +444,7 @@ export default function SettingsForm() {
           setCategoryDeleteError(USER_FACING_ERROR);
           return;
         }
-        mutate("categories");
+        mutate(categoriesSwrKey(activeAccountId!));
         setCategoryToDelete(null);
         setDeleteUsageCount(null);
       } catch {
