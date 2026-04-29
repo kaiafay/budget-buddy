@@ -99,7 +99,9 @@ export default function LoginPage() {
         dispatch({ type: "SET_ERROR", error: "Invalid email or password" });
         return;
       }
-      router.push("/");
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get("next");
+      router.push(next && next.startsWith("/") ? next : "/");
       return;
     }
 
