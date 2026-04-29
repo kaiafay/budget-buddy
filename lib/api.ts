@@ -9,9 +9,29 @@ import { createClient } from "@/lib/supabase/client";
 import { USER_FACING_ERROR } from "@/lib/errors";
 import { uuidSchema } from "@/lib/validation";
 
+export async function fetchAccounts(): Promise<Account[]> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("id, name, starting_balance")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    starting_balance: Number(row.starting_balance),
+  }));
+}
+
 export async function fetchCalendarData(
   month: number,
   year: number,
+  accountId: string,
 ): Promise<{
   account: Account | null;
   txBefore: { amount: number }[];
@@ -21,6 +41,7 @@ export async function fetchCalendarData(
   firstDayOfMonth: string;
   lastDayOfMonth: string;
 }> {
+  const parsedAccountId = uuidSchema.parse(accountId);
   const supabase = createClient();
   const {
     data: { user },
@@ -37,26 +58,30 @@ export async function fetchCalendarData(
       supabase
         .from("accounts")
         .select("id, name, starting_balance")
+        .eq("id", parsedAccountId)
         .eq("user_id", user.id)
         .maybeSingle(),
       supabase
         .from("transactions")
         .select("amount")
         .eq("user_id", user.id)
+        .eq("account_id", parsedAccountId)
         .lt("date", firstDayOfMonth),
       supabase
         .from("transactions")
-        .select("id, label, amount, date, category_id")
+        .select("id, label, amount, date, category_id, account_id")
         .eq("user_id", user.id)
+        .eq("account_id", parsedAccountId)
         .gte("date", firstDayOfMonth)
         .lte("date", lastDayOfMonth)
         .order("date", { ascending: true }),
       supabase
         .from("recurring_rules")
         .select(
-          "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id",
+          "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id, account_id",
         )
-        .eq("user_id", user.id),
+        .eq("user_id", user.id)
+        .eq("account_id", parsedAccountId),
       supabase
         .from("recurring_exceptions")
         .select(
@@ -71,22 +96,40 @@ export async function fetchCalendarData(
   if (rulesRes.error) throw new Error(rulesRes.error.message);
   if (exceptionsRes.error) throw new Error(exceptionsRes.error.message);
 
+  const accountRow = accountRes.data
+    ? {
+        id: accountRes.data.id,
+        name: accountRes.data.name,
+        starting_balance: Number(accountRes.data.starting_balance),
+      }
+    : null;
+
+  // recurring_exceptions are joined to recurring_rules via rule_id and the rules
+  // are already account-scoped above; exceptions are filtered to the user.
+  // Filter exceptions to only those whose rule was returned in this account scope
+  // so unrelated accounts' rule exceptions never reach the projection inputs.
+  const ruleIdSet = new Set((rulesRes.data ?? []).map((r) => r.id));
+  const filteredExceptions = (exceptionsRes.data ?? []).filter((e) =>
+    ruleIdSet.has(e.rule_id),
+  );
+
   return {
-    account: accountRes.data as Account | null,
+    account: accountRow,
     txBefore: (txBeforeRes.data ?? []) as { amount: number }[],
     transactions: (txRes.data ?? []) as Transaction[],
     recurringRules: (rulesRes.data ?? []) as RecurringRule[],
-    exceptions: (exceptionsRes.data ?? []) as RecurringException[],
+    exceptions: filteredExceptions as RecurringException[],
     firstDayOfMonth,
     lastDayOfMonth,
   };
 }
 
-export async function fetchTransactions(): Promise<{
+export async function fetchTransactions(accountId: string): Promise<{
   transactions: Transaction[];
   recurringRules: RecurringRule[];
   exceptions: RecurringException[];
 }> {
+  const parsedAccountId = uuidSchema.parse(accountId);
   const supabase = createClient();
   const {
     data: { user },
@@ -96,15 +139,17 @@ export async function fetchTransactions(): Promise<{
   const [txRes, rulesRes, exceptionsRes] = await Promise.all([
     supabase
       .from("transactions")
-      .select("id, label, amount, date, category_id")
+      .select("id, label, amount, date, category_id, account_id")
       .eq("user_id", user.id)
+      .eq("account_id", parsedAccountId)
       .order("date", { ascending: false }),
     supabase
       .from("recurring_rules")
       .select(
-        "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id",
+        "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id, account_id",
       )
-      .eq("user_id", user.id),
+      .eq("user_id", user.id)
+      .eq("account_id", parsedAccountId),
     supabase
       .from("recurring_exceptions")
       .select(
@@ -117,10 +162,15 @@ export async function fetchTransactions(): Promise<{
   if (rulesRes.error) throw new Error(rulesRes.error.message);
   if (exceptionsRes.error) throw new Error(exceptionsRes.error.message);
 
+  const ruleIdSet = new Set((rulesRes.data ?? []).map((r) => r.id));
+  const filteredExceptions = (exceptionsRes.data ?? []).filter((e) =>
+    ruleIdSet.has(e.rule_id),
+  );
+
   return {
     transactions: (txRes.data ?? []) as Transaction[],
     recurringRules: (rulesRes.data ?? []) as RecurringRule[],
-    exceptions: (exceptionsRes.data ?? []) as RecurringException[],
+    exceptions: filteredExceptions as RecurringException[],
   };
 }
 
@@ -181,6 +231,7 @@ export async function fetchTransaction(
   amount: number;
   date: string;
   category_id: string | null;
+  account_id: string;
 } | null> {
   let parsedId: string;
   try {
@@ -195,7 +246,7 @@ export async function fetchTransaction(
   if (!user) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("transactions")
-    .select("id, label, amount, date, category_id")
+    .select("id, label, amount, date, category_id, account_id")
     .eq("id", parsedId)
     .eq("user_id", user.id)
     .single();
@@ -209,6 +260,7 @@ export async function fetchTransaction(
     amount: number;
     date: string;
     category_id: string | null;
+    account_id: string;
   };
 }
 
@@ -229,7 +281,7 @@ export async function fetchRecurringRule(
   const { data, error } = await supabase
     .from("recurring_rules")
     .select(
-      "id, label, amount, frequency, start_date, end_date, category_id, root_rule_id",
+      "id, label, amount, frequency, start_date, end_date, category_id, root_rule_id, account_id",
     )
     .eq("id", parsedId)
     .eq("user_id", user.id)
@@ -247,6 +299,7 @@ export async function fetchRecurringRule(
     end_date: data.end_date ?? null,
     category_id: data.category_id ?? null,
     root_rule_id: data.root_rule_id ?? null,
+    account_id: data.account_id ?? null,
   } as RecurringRule;
 }
 

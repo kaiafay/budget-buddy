@@ -1,10 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SWRConfig } from "swr";
 import { Plus } from "lucide-react";
 import { BottomNav } from "@/components/bottom-nav";
+import { ActiveAccountProvider } from "@/components/active-account-provider";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -21,21 +23,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         revalidateOnReconnect: false,
       }}
     >
-      <div className="animated-gradient mx-auto min-h-screen max-w-lg flex flex-col">
-        <div className={contentScrollClass}>
-          {children}
-        </div>
-        {pathname === "/" && (
-          <Link
-            href="/add"
-            className={fabClass}
-            aria-label="Add transaction"
-          >
-            <Plus className="h-5 w-5 text-white" />
-          </Link>
-        )}
-        <BottomNav />
-      </div>
+      <Suspense fallback={null}>
+        <ActiveAccountProvider>
+          <div className="animated-gradient mx-auto min-h-screen max-w-lg flex flex-col">
+            <div className={contentScrollClass}>{children}</div>
+            {pathname === "/" && (
+              <Link href="/add" className={fabClass} aria-label="Add transaction">
+                <Plus className="h-5 w-5 text-white" />
+              </Link>
+            )}
+            <BottomNav />
+          </div>
+        </ActiveAccountProvider>
+      </Suspense>
     </SWRConfig>
   );
 }

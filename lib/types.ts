@@ -12,6 +12,7 @@ export type Transaction = {
   date: string;
   recurring?: boolean;
   category_id?: string | null;
+  account_id?: string | null;
 };
 
 export type RecurringRule = {
@@ -23,6 +24,7 @@ export type RecurringRule = {
   end_date?: string | null;
   category_id?: string | null;
   root_rule_id?: string | null;
+  account_id?: string | null;
 };
 
 export type RecurringException = {

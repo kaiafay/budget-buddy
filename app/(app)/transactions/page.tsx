@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { endOfMonth, format, parseISO, startOfMonth } from "date-fns";
@@ -27,8 +27,9 @@ import {
   skipRecurringOccurrence,
 } from "@/lib/transactions-mutations";
 import { USER_FACING_ERROR } from "@/lib/errors";
-import { calendarMonthSwrKey } from "@/lib/swr-keys";
+import { calendarMonthSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
+import { useActiveAccount } from "@/components/active-account-provider";
 import { AmountText } from "@/components/amount-text";
 import { ErrorBanner } from "@/components/error-banner";
 import { InlineError } from "@/components/inline-error";
@@ -49,7 +50,6 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { glassInputClass } from "@/lib/glass-classes";
-import { createClient } from "@/lib/supabase/client";
 import { MakeRecurringDialog } from "@/components/make-recurring-dialog";
 
 const ROW_ACTIONS_WIDTH_2 = 136;
@@ -209,25 +209,30 @@ function groupTransactionsByDate(
 
 function invalidateAfterLocalDelete(
   dateStr: string,
+  accountId: string,
   mutate: (key: string) => void,
 ) {
   const deletedMonth = new Date(dateStr).getMonth() + 1;
   const deletedYear = new Date(dateStr).getFullYear();
   const now = new Date();
-  mutate(calendarMonthSwrKey(deletedMonth, deletedYear));
-  mutate(calendarMonthSwrKey(now.getMonth() + 1, now.getFullYear()));
-  mutate("transactions");
+  mutate(calendarMonthSwrKey(deletedMonth, deletedYear, accountId));
+  mutate(calendarMonthSwrKey(now.getMonth() + 1, now.getFullYear(), accountId));
+  mutate(transactionsSwrKey(accountId));
 }
 
 export default function TransactionsPage() {
   const router = useRouter();
   const { mutate } = useSWRConfig();
+  const { activeAccountId } = useActiveAccount();
   const {
     data,
     error: transactionsFetchError,
     isLoading: transactionsLoading,
     mutate: revalidateTransactions,
-  } = useSWR("transactions", fetchTransactions);
+  } = useSWR(
+    activeAccountId ? transactionsSwrKey(activeAccountId) : null,
+    () => fetchTransactions(activeAccountId as string),
+  );
   const { data: categories = [] } = useSWR("categories", fetchCategories);
   const [openedRowId, setOpenedRowId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -248,24 +253,7 @@ export default function TransactionsPage() {
   const [makeRecurringTx, setMakeRecurringTx] = useState<Transaction | null>(
     null,
   );
-  const [accountId, setAccountId] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadAccount() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: acct } = await supabase
-        .from("accounts")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (acct?.id) setAccountId(acct.id);
-    }
-    void loadAccount();
-  }, []);
+  const accountId = activeAccountId;
 
   const filterStartStr = format(filterStart, "yyyy-MM-dd");
   const filterEndStr = format(filterEnd, "yyyy-MM-dd");
@@ -338,6 +326,7 @@ export default function TransactionsPage() {
 
   function handleDelete(t: Transaction) {
     setDeleteError(null);
+    if (!accountId) return;
     startDeleteTransition(async () => {
       try {
         if (t.recurring) {
@@ -357,7 +346,7 @@ export default function TransactionsPage() {
           }
         }
         setOpenedRowId(null);
-        invalidateAfterLocalDelete(t.date, mutate);
+        invalidateAfterLocalDelete(t.date, accountId, mutate);
       } catch {
         setDeleteError(USER_FACING_ERROR);
       }
@@ -389,15 +378,16 @@ export default function TransactionsPage() {
   function handleMakeRecurringSuccess() {
     setMakeRecurringTx(null);
     setOpenedRowId(null);
-    invalidateNext12CalendarMonths();
-    mutate("transactions");
+    if (!accountId) return;
+    invalidateNext12CalendarMonths(accountId);
+    mutate(transactionsSwrKey(accountId));
   }
 
   const filterBarClass =
     "h-9 rounded-xl border-white/20 bg-white/10 text-sm text-white";
 
   return (
-    <div className="flex flex-col overflow-x-hidden">
+    <div className="flex flex-col overflow-x-clip">
       {makeRecurringTx && (
         <MakeRecurringDialog
           transaction={makeRecurringTx}
@@ -604,6 +594,7 @@ export default function TransactionsPage() {
           <p className="text-sm text-white/70">Loading…</p>
         )}
         {!transactionsLoading &&
+          !!activeAccountId &&
           !transactionsFetchError &&
           grouped.length === 0 && (
             <div className="glass-card flex flex-col items-center gap-4 rounded-2xl px-6 py-10 text-center">

@@ -1,15 +1,15 @@
 "use client";
 
-import { Suspense, useState, useEffect, useTransition } from "react";
+import { Suspense, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CalendarIcon, Repeat } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import useSWR from "swr";
 import { mutate } from "swr";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
-import { calendarMonthSwrKey } from "@/lib/swr-keys";
-import { createClient } from "@/lib/supabase/client";
+import { calendarMonthSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
 import { fetchCategories } from "@/lib/api";
+import { useActiveAccount } from "@/components/active-account-provider";
 import { GlassCategorySelectTrigger } from "@/components/glass-category-select-trigger";
 import {
   createTransaction,
@@ -110,7 +110,8 @@ function AddTransactionPage() {
   });
   const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
   const [recurrenceCount, setRecurrenceCount] = useState("12");
-  const [accountId, setAccountId] = useState<string | null>(null);
+  const { activeAccountId } = useActiveAccount();
+  const accountId = activeAccountId;
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const hasInitialData = isEditMode && searchParams.get("initPrefilled") === "1";
@@ -136,27 +137,6 @@ function AddTransactionPage() {
 
   const { data: categories = [] } = useSWR("categories", fetchCategories);
   const sortedCategories = useSortedCategories(categories, type);
-
-  useEffect(() => {
-    async function loadAccount() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data, error: fetchError } = await supabase
-        .from("accounts")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (fetchError) {
-        setError(USER_FACING_ERROR);
-        return;
-      }
-      if (data?.id) setAccountId(data.id);
-    }
-    loadAccount();
-  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -195,8 +175,8 @@ function AddTransactionPage() {
             setError(USER_FACING_ERROR);
             return;
           }
-          invalidateNext12CalendarMonths();
-          mutate("transactions");
+          invalidateNext12CalendarMonths(accountId);
+          mutate(transactionsSwrKey(accountId));
           router.push(fromTransactions ? "/transactions" : `/?selected=${dateStr}`);
           return;
         }
@@ -212,8 +192,8 @@ function AddTransactionPage() {
         }
         const currentMonth = date.getMonth() + 1;
         const currentYear = date.getFullYear();
-        mutate(calendarMonthSwrKey(currentMonth, currentYear));
-        mutate("transactions");
+        mutate(calendarMonthSwrKey(currentMonth, currentYear, accountId));
+        mutate(transactionsSwrKey(accountId));
         router.push(fromTransactions ? "/transactions" : `/?selected=${dateStr}`);
         return;
       }
@@ -267,7 +247,7 @@ function AddTransactionPage() {
           setError(USER_FACING_ERROR);
           return;
         }
-        invalidateNext12CalendarMonths();
+        invalidateNext12CalendarMonths(accountId);
       } else {
         const { error: insertError } = await createTransaction({
           accountId,
@@ -282,8 +262,8 @@ function AddTransactionPage() {
         }
         const currentMonth = date.getMonth() + 1;
         const currentYear = date.getFullYear();
-        mutate(calendarMonthSwrKey(currentMonth, currentYear));
-        mutate("transactions");
+        mutate(calendarMonthSwrKey(currentMonth, currentYear, accountId));
+        mutate(transactionsSwrKey(accountId));
       }
       router.push(`/?selected=${dateStr}`);
     });
@@ -291,6 +271,7 @@ function AddTransactionPage() {
 
   function confirmRecurringEditScope(s: "once" | "fromDate") {
     setError(null);
+    if (!accountId) return;
     startTransition(async () => {
       try {
         const result = await scope.confirmScope(s);
@@ -298,7 +279,7 @@ function AddTransactionPage() {
           setError(USER_FACING_ERROR);
           return;
         }
-        invalidateNext12CalendarMonths();
+        invalidateNext12CalendarMonths(accountId);
         router.push(fromTransactions ? "/transactions" : `/?selected=${result.targetDate}`);
       } catch {
         setError(USER_FACING_ERROR);

@@ -11,6 +11,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import {
   applyRecurringEditFromDateArgsSchema,
+  createAccountPayloadSchema,
   createCategoryPayloadSchema,
   createRecurringRulePayloadSchema,
   createTransactionPayloadSchema,
@@ -20,6 +21,7 @@ import {
   safeParseMutation,
   skipRecurringOccurrenceArgsSchema,
   splitRecurringRuleAtDateArgsSchema,
+  updateAccountPayloadSchema,
   updateCategoryPayloadSchema,
   updateRecurringSegmentInPlaceArgsSchema,
   updateTransactionPayloadSchema,
@@ -837,6 +839,68 @@ export async function updateCategory(
   if (payloadParsed.data.type !== undefined) update.type = payloadParsed.data.type;
   const { error } = await supabase
     .from("categories")
+    .update(update)
+    .eq("id", idParsed.data)
+    .eq("user_id", user.id);
+  return { error: error ?? null };
+}
+
+export async function createAccount(payload: {
+  name: string;
+  starting_balance: number;
+}): Promise<{ data: { id: string } | null; error: Error | null }> {
+  const parsed = safeParseMutation(createAccountPayloadSchema, payload);
+  if (!parsed.ok) return { data: null, error: parsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: new Error("Not authenticated") };
+  const { data, error } = await supabase
+    .from("accounts")
+    .insert({
+      user_id: user.id,
+      name: parsed.data.name,
+      starting_balance: parsed.data.starting_balance,
+    })
+    .select("id")
+    .single();
+  if (error) return { data: null, error };
+  if (!data?.id) {
+    return {
+      data: null,
+      error: new Error("Insert succeeded but no id returned"),
+    };
+  }
+  return { data: { id: data.id as string }, error: null };
+}
+
+export async function updateAccount(
+  id: string,
+  payload: { name?: string; starting_balance?: number },
+): Promise<{ error: Error | null }> {
+  const idParsed = safeParseMutation(uuidSchema, id);
+  if (!idParsed.ok) return { error: idParsed.error };
+  const payloadParsed = safeParseMutation(updateAccountPayloadSchema, payload);
+  if (!payloadParsed.ok) return { error: payloadParsed.error };
+  if (
+    payloadParsed.data.name === undefined &&
+    payloadParsed.data.starting_balance === undefined
+  ) {
+    return { error: null };
+  }
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+  const update: { name?: string; starting_balance?: number } = {};
+  if (payloadParsed.data.name !== undefined) update.name = payloadParsed.data.name;
+  if (payloadParsed.data.starting_balance !== undefined) {
+    update.starting_balance = payloadParsed.data.starting_balance;
+  }
+  const { error } = await supabase
+    .from("accounts")
     .update(update)
     .eq("id", idParsed.data)
     .eq("user_id", user.id);
