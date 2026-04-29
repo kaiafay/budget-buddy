@@ -1116,7 +1116,8 @@ export default function SettingsForm() {
                   startDeleteBudgetTransition(async () => {
                     const { error } = await deleteBudget(id);
                     if (error) {
-                      setDeleteBudgetError(USER_FACING_ERROR);
+                      // P0-2: pass through deleteBudget's message (e.g. member guard)
+                      setDeleteBudgetError(error.message);
                       return;
                     }
                     if (activeAccountId === id) {

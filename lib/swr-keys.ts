@@ -19,3 +19,7 @@ export function categoriesSwrKey(accountId: string): string {
 export function pendingInvitationsSwrKey(accountId: string): string {
   return `pending-invitations-${accountId}`;
 }
+
+export function membersSwrKey(accountId: string): string {
+  return `members-${accountId}`;
+}

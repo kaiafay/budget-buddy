@@ -30,6 +30,10 @@ import {
   uuidSchema,
 } from "@/lib/validation";
 
+// P0-1: user_id WHERE filters removed from all mutations below.
+// RLS (Migration D) now enforces access control for shared accounts;
+// keeping client-side user_id filters would silently block cross-member edits.
+
 export async function deleteTransaction(
   id: string,
 ): Promise<{ error: Error | null }> {
@@ -44,8 +48,7 @@ export async function deleteTransaction(
   const { error } = await supabase
     .from("transactions")
     .delete()
-    .eq("id", parsedId)
-    .eq("user_id", user.id);
+    .eq("id", parsedId);
   return { error: error ?? null };
 }
 
@@ -140,8 +143,7 @@ export async function endRecurringRuleFuture(
   const { error } = await supabase
     .from("recurring_rules")
     .update({ end_date: lastDay })
-    .eq("id", parsedRuleId)
-    .eq("user_id", user.id);
+    .eq("id", parsedRuleId);
   return { error: error ?? null };
 }
 
@@ -339,8 +341,7 @@ export async function updateTransaction(
   const { error } = await supabase
     .from("transactions")
     .update(update)
-    .eq("id", idParsed.data)
-    .eq("user_id", user.id);
+    .eq("id", idParsed.data);
   return { error: error ?? null };
 }
 
@@ -366,14 +367,12 @@ function normalizeRuleDate(value: string): string {
 
 async function fetchRuleForEdit(
   supabase: ReturnType<typeof createClient>,
-  userId: string,
   ruleId: string,
 ): Promise<{ data: RuleForEdit | null; error: Error | null }> {
   const { data, error } = await supabase
     .from("recurring_rules")
     .select(RULE_EDIT_SELECT)
     .eq("id", ruleId)
-    .eq("user_id", userId)
     .single();
   if (error) return { data: null, error: error ?? null };
   if (!data) return { data: null, error: null };
@@ -395,13 +394,11 @@ function resolveRootId(rule: RuleForEdit): string {
 
 async function getChainRuleIds(
   supabase: ReturnType<typeof createClient>,
-  userId: string,
   rootId: string,
 ): Promise<{ ids: string[]; error: Error | null }> {
   const { data, error } = await supabase
     .from("recurring_rules")
     .select("id")
-    .eq("user_id", userId)
     .or(chainOrFilter(rootId));
   if (error) return { ids: [], error: error ?? null };
   const ids = (data ?? []).map((r: { id: string }) => r.id);
@@ -410,7 +407,6 @@ async function getChainRuleIds(
 
 async function deleteModifiedExceptionsFromChain(
   supabase: ReturnType<typeof createClient>,
-  userId: string,
   chainRuleIds: string[],
   fromDate: string,
 ): Promise<{ error: Error | null }> {
@@ -418,7 +414,6 @@ async function deleteModifiedExceptionsFromChain(
   const { error } = await supabase
     .from("recurring_exceptions")
     .delete()
-    .eq("user_id", userId)
     .eq("type", "modified")
     .gte("exception_date", fromDate)
     .in("rule_id", chainRuleIds);
@@ -452,7 +447,6 @@ export async function updateRecurringSegmentInPlace(
   if (!user) return { error: new Error("Not authenticated") };
   const { data: rule, error: fetchError } = await fetchRuleForEdit(
     supabase,
-    user.id,
     parsedRuleId,
   );
   if (fetchError) return { error: fetchError };
@@ -461,7 +455,6 @@ export async function updateRecurringSegmentInPlace(
   const rootId = resolveRootId(rule);
   const { ids: chainRuleIds, error: chainError } = await getChainRuleIds(
     supabase,
-    user.id,
     rootId,
   );
   if (chainError) return { error: chainError };
@@ -507,8 +500,7 @@ export async function updateRecurringSegmentInPlace(
   const { error: updateError } = await supabase
     .from("recurring_rules")
     .update(updateRow)
-    .eq("id", parsedRuleId)
-    .eq("user_id", user.id);
+    .eq("id", parsedRuleId);
   if (updateError) return { error: updateError };
 
   const exceptionPivot =
@@ -521,7 +513,6 @@ export async function updateRecurringSegmentInPlace(
 
   return deleteModifiedExceptionsFromChain(
     supabase,
-    user.id,
     chainRuleIds,
     exceptionPivot,
   );
@@ -552,7 +543,6 @@ export async function splitRecurringRuleAtDate(
 
   const { data: rule, error: fetchError } = await fetchRuleForEdit(
     supabase,
-    user.id,
     parsedRuleId,
   );
   if (fetchError) return { error: fetchError };
@@ -567,7 +557,6 @@ export async function splitRecurringRuleAtDate(
   const { data: existingAtDate, error: existingError } = await supabase
     .from("recurring_rules")
     .select("id")
-    .eq("user_id", user.id)
     .or(chainOrFilter(rootId))
     .eq("start_date", occurrence)
     .maybeSingle();
@@ -578,7 +567,6 @@ export async function splitRecurringRuleAtDate(
 
   const { ids: chainRuleIds, error: chainError } = await getChainRuleIds(
     supabase,
-    user.id,
     rootId,
   );
   if (chainError) return { error: chainError };
@@ -587,14 +575,12 @@ export async function splitRecurringRuleAtDate(
   const { error: endError } = await supabase
     .from("recurring_rules")
     .update({ end_date: lastDayOldRule })
-    .eq("id", parsedRuleId)
-    .eq("user_id", user.id);
+    .eq("id", parsedRuleId);
   if (endError) return { error: endError };
 
   const { data: nextSegment, error: nextError } = await supabase
     .from("recurring_rules")
     .select("start_date")
-    .eq("user_id", user.id)
     .or(chainOrFilter(rootId))
     .gt("start_date", occurrence)
     .order("start_date", { ascending: true })
@@ -647,7 +633,6 @@ export async function splitRecurringRuleAtDate(
 
   return deleteModifiedExceptionsFromChain(
     supabase,
-    user.id,
     chainRuleIds,
     occurrence,
   );
@@ -678,7 +663,6 @@ export async function applyRecurringEditFromDate(
   const occurrence = normalizeRuleDate(parsedOccurrenceDate);
   const { data: rule, error: fetchError } = await fetchRuleForEdit(
     supabase,
-    user.id,
     parsedRuleId,
   );
   if (fetchError) return { error: fetchError };
@@ -843,8 +827,7 @@ export async function updateCategory(
   const { error } = await supabase
     .from("categories")
     .update(update)
-    .eq("id", idParsed.data)
-    .eq("user_id", user.id);
+    .eq("id", idParsed.data);
   return { error: error ?? null };
 }
 
@@ -859,30 +842,22 @@ export async function createAccount(payload: {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { data: null, error: new Error("Not authenticated") };
-  const { data, error } = await supabase
-    .from("accounts")
-    .insert({
-      user_id: user.id,
-      name: parsed.data.name,
-      starting_balance: parsed.data.starting_balance,
-    })
-    .select("id")
-    .single();
+  // P1-1: use an RPC so both inserts are atomic — avoids the chicken-and-egg
+  // where the account_members INSERT fails after accounts INSERT succeeds,
+  // leaving the account permanently inaccessible under RLS.
+  const { data, error } = await supabase.rpc("create_account_with_member", {
+    p_user_id: user.id,
+    p_name: parsed.data.name,
+    p_starting_balance: parsed.data.starting_balance,
+  });
   if (error) return { data: null, error };
-  if (!data?.id) {
+  if (!data) {
     return {
       data: null,
       error: new Error("Insert succeeded but no id returned"),
     };
   }
-  const { error: memberError } = await supabase.from("account_members").insert({
-    account_id: data.id,
-    user_id: user.id,
-    role: "owner",
-    invited_by: user.id,
-  });
-  if (memberError) return { data: null, error: memberError };
-  return { data: { id: data.id as string }, error: null };
+  return { data: { id: data as string }, error: null };
 }
 
 export async function updateAccount(
@@ -925,6 +900,18 @@ export async function deleteBudget(id: string): Promise<{ error: Error | null }>
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: new Error("Not authenticated") };
+  // P0-2: block deletion if non-owner members still exist.
+  // ON DELETE CASCADE would silently remove them — the plan requires an explicit guard.
+  const { data: memberRow } = await supabase
+    .from("account_members")
+    .select("id")
+    .eq("account_id", idParsed.data)
+    .neq("role", "owner")
+    .limit(1)
+    .maybeSingle();
+  if (memberRow) {
+    return { error: new Error("Remove all members before deleting this budget.") };
+  }
   const { error } = await supabase
     .from("accounts")
     .delete()
@@ -944,8 +931,7 @@ export async function deleteCategory(id: string): Promise<{ error: Error | null 
   const { error } = await supabase
     .from("categories")
     .delete()
-    .eq("id", idParsed.data)
-    .eq("user_id", user.id);
+    .eq("id", idParsed.data);
   return { error: error ?? null };
 }
 
@@ -1000,7 +986,13 @@ export async function createInvitation(
     })
     .select("token")
     .single();
-  if (error) return { data: null, error };
+  if (error) {
+    // P1-2: unique constraint on (account_id, invited_email) — treat as duplicate pending invite
+    if (error.code === "23505") {
+      return { data: null, error: new Error("An invite for this email is already pending.") };
+    }
+    return { data: null, error };
+  }
   return { data: { token: data.token as string }, error: null };
 }
 

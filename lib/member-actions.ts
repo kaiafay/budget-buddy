@@ -49,7 +49,7 @@ export async function getAccountMembers(accountId: string): Promise<{
         account_id: row.account_id as string,
         user_id: row.user_id as string,
         role: row.role as "owner" | "member",
-        invited_by: row.invited_by as string,
+        invited_by: row.invited_by as string | null,
         created_at: row.created_at as string,
         email: authUser?.email ?? "Unknown",
       } satisfies AccountMember;

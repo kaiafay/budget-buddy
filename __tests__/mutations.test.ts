@@ -46,12 +46,9 @@ const mockExceptionDeleteGte = vi
 const mockExceptionDeleteEqType = vi
   .fn()
   .mockReturnValue({ gte: mockExceptionDeleteGte });
-const mockExceptionDeleteEqUser = vi
-  .fn()
-  .mockReturnValue({ eq: mockExceptionDeleteEqType });
 const mockExceptionDelete = vi
   .fn()
-  .mockReturnValue({ eq: mockExceptionDeleteEqUser });
+  .mockReturnValue({ eq: mockExceptionDeleteEqType });
 
 type RuleRow = {
   id: string;
@@ -67,9 +64,7 @@ const RULE_EDIT_COLS = "id, start_date, root_rule_id, account_id, category_id";
 function ruleSelectChain(singleData: RuleRow) {
   return {
     eq: vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue({ data: singleData, error: null }),
-      }),
+      single: vi.fn().mockResolvedValue({ data: singleData, error: null }),
     }),
   };
 }
@@ -79,31 +74,27 @@ function idSelectForExistingThenChain(
   chainRows: { id: string }[],
 ) {
   return {
-    eq: vi.fn().mockReturnValue({
-      or: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          maybeSingle: vi
-            .fn()
-            .mockResolvedValue({ data: existingRow, error: null }),
-        }),
-        then: (onFulfilled: (v: unknown) => unknown) =>
-          Promise.resolve({ data: chainRows, error: null }).then(onFulfilled),
+    or: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi
+          .fn()
+          .mockResolvedValue({ data: existingRow, error: null }),
       }),
+      then: (onFulfilled: (v: unknown) => unknown) =>
+        Promise.resolve({ data: chainRows, error: null }).then(onFulfilled),
     }),
   };
 }
 
 function startDateNextChain(next: { start_date: string } | null) {
   return {
-    eq: vi.fn().mockReturnValue({
-      or: vi.fn().mockReturnValue({
-        gt: vi.fn().mockReturnValue({
-          order: vi.fn().mockReturnValue({
-            limit: vi.fn().mockReturnValue({
-              maybeSingle: vi
-                .fn()
-                .mockResolvedValue({ data: next, error: null }),
-            }),
+    or: vi.fn().mockReturnValue({
+      gt: vi.fn().mockReturnValue({
+        order: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            maybeSingle: vi
+              .fn()
+              .mockResolvedValue({ data: next, error: null }),
           }),
         }),
       }),
@@ -147,9 +138,7 @@ function recurringRulesFromHandlers(opts: {
           );
         }
         return {
-          eq: vi.fn().mockReturnValue({
-            or: vi.fn().mockResolvedValue({ data: chainRows, error: null }),
-          }),
+          or: vi.fn().mockResolvedValue({ data: chainRows, error: null }),
         };
       }
       if (columns === "start_date") {
@@ -750,7 +739,7 @@ describe("makeTransactionRecurring", () => {
   });
 
   it("rolls back recurring rule when transaction delete fails", async () => {
-    mockMrTxDeleteEq2.mockResolvedValueOnce({
+    mockMrTxDeleteEq1.mockResolvedValueOnce({
       error: { message: "tx delete fail" },
     });
     const result = await makeTransactionRecurring(TX_ONE, {
@@ -968,7 +957,6 @@ describe("moveRecurringOccurrence", () => {
     });
     expect(result.error?.message).toBe("skip failed");
     expect(mockTxDeleteEq1).toHaveBeenCalledWith("id", TX_NEW);
-    expect(mockTxDeleteEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("when date changed and insert fails returns error without calling skip", async () => {
@@ -1006,8 +994,7 @@ describe("moveRecurringOccurrence", () => {
 describe("endRecurringRuleFuture", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEq2.mockResolvedValue({ error: null });
-    mockEq1.mockReturnValue({ eq: mockEq2 });
+    mockEq1.mockResolvedValue({ error: null });
     mockUpdate.mockReturnValue({ eq: mockEq1 });
     fromTableHandler = (table: string) => {
       if (table === "recurring_rules") {
@@ -1017,16 +1004,15 @@ describe("endRecurringRuleFuture", () => {
     };
   });
 
-  it("updates recurring_rules with end_date day before occurrence and filters by id and user_id", async () => {
+  it("updates recurring_rules with end_date day before occurrence and filters by id", async () => {
     const result = await endRecurringRuleFuture(R1, "2025-03-15");
     expect(result.error).toBeNull();
     expect(mockUpdate).toHaveBeenCalledWith({ end_date: "2025-03-14" });
     expect(mockEq1).toHaveBeenCalledWith("id", R1);
-    expect(mockEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("returns error when update fails", async () => {
-    mockEq2.mockResolvedValueOnce({ error: { message: "DB error" } });
+    mockEq1.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await endRecurringRuleFuture(R1, "2025-03-15");
     expect(result.error).not.toBeNull();
   });
@@ -1044,8 +1030,9 @@ describe("createCategory", () => {
     };
   });
 
-  it("inserts category with user_id, name, icon, type", async () => {
+  it("inserts category with user_id, account_id, name, icon, type", async () => {
     const result = await createCategory({
+      accountId: ACC1,
       name: "Groceries",
       icon: "ShoppingCart",
       type: "expense",
@@ -1053,6 +1040,7 @@ describe("createCategory", () => {
     expect(result.error).toBeNull();
     expect(mockInsert).toHaveBeenCalledWith({
       user_id: "user-1",
+      account_id: ACC1,
       name: "Groceries",
       icon: "ShoppingCart",
       type: "expense",
@@ -1062,6 +1050,7 @@ describe("createCategory", () => {
   it("returns error when insert fails", async () => {
     mockInsert.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await createCategory({
+      accountId: ACC1,
       name: "Groceries",
       icon: "ShoppingCart",
       type: "expense",
@@ -1073,8 +1062,7 @@ describe("createCategory", () => {
 describe("updateCategory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEq2.mockResolvedValue({ error: null });
-    mockEq1.mockReturnValue({ eq: mockEq2 });
+    mockEq1.mockResolvedValue({ error: null });
     mockUpdate.mockReturnValue({ eq: mockEq1 });
     fromTableHandler = (table: string) => {
       if (table === "categories") {
@@ -1084,7 +1072,7 @@ describe("updateCategory", () => {
     };
   });
 
-  it("updates category with payload and filters by id and user_id", async () => {
+  it("updates category with payload and filters by id", async () => {
     const result = await updateCategory(CAT1, {
       name: "Food",
       icon: "UtensilsCrossed",
@@ -1097,11 +1085,10 @@ describe("updateCategory", () => {
       type: "expense",
     });
     expect(mockEq1).toHaveBeenCalledWith("id", CAT1);
-    expect(mockEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("returns error when update fails", async () => {
-    mockEq2.mockResolvedValueOnce({ error: { message: "DB error" } });
+    mockEq1.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await updateCategory(CAT1, { name: "Food" });
     expect(result.error).not.toBeNull();
   });
@@ -1110,8 +1097,7 @@ describe("updateCategory", () => {
 describe("deleteCategory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDeleteEq2.mockResolvedValue({ error: null });
-    mockDeleteEq1.mockReturnValue({ eq: mockDeleteEq2 });
+    mockDeleteEq1.mockResolvedValue({ error: null });
     mockDelete.mockReturnValue({ eq: mockDeleteEq1 });
     fromTableHandler = (table: string) => {
       if (table === "categories") {
@@ -1121,16 +1107,15 @@ describe("deleteCategory", () => {
     };
   });
 
-  it("deletes category and filters by id and user_id", async () => {
+  it("deletes category and filters by id", async () => {
     const result = await deleteCategory(CAT1);
     expect(result.error).toBeNull();
     expect(mockDelete).toHaveBeenCalled();
     expect(mockDeleteEq1).toHaveBeenCalledWith("id", CAT1);
-    expect(mockDeleteEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("returns error when delete fails", async () => {
-    mockDeleteEq2.mockResolvedValueOnce({ error: { message: "DB error" } });
+    mockDeleteEq1.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await deleteCategory(CAT1);
     expect(result.error).not.toBeNull();
   });
@@ -1164,6 +1149,7 @@ describe("mutation payload validation (Zod)", () => {
 
   it("createCategory returns { error } for empty name after trim", async () => {
     const result = await createCategory({
+      accountId: ACC1,
       name: "   ",
       icon: "ShoppingCart",
       type: "expense",

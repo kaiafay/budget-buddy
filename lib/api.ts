@@ -16,18 +16,26 @@ export async function fetchAccounts(): Promise<Account[]> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
+  // P3-3: read role from account_members directly so a future moderator/transfer role works correctly
   const { data, error } = await supabase
-    .from("accounts")
-    .select("id, name, starting_balance, user_id")
-    .order("created_at", { ascending: true });
+    .from("account_members")
+    .select("role, accounts(id, name, starting_balance, user_id, created_at)")
+    .eq("user_id", user.id)
+    .order("created_at", { referencedTable: "accounts", ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    name: row.name,
-    starting_balance: Number(row.starting_balance),
-    user_id: row.user_id,
-    role: row.user_id === user.id ? 'owner' : 'member' as 'owner' | 'member',
-  }));
+  return (data ?? [])
+    .map((row) => {
+      const acc = row.accounts as unknown as { id: string; name: string; starting_balance: number; user_id: string } | null;
+      if (!acc) return null;
+      return {
+        id: acc.id,
+        name: acc.name,
+        starting_balance: Number(acc.starting_balance),
+        user_id: acc.user_id,
+        role: row.role as 'owner' | 'member',
+      };
+    })
+    .filter((a): a is Account => a !== null);
 }
 
 export async function fetchCalendarData(
@@ -208,7 +216,7 @@ export async function fetchCategories(accountId: string): Promise<Category[]> {
     }));
     await supabase
       .from("categories")
-      .upsert(rows, { onConflict: "user_id,name", ignoreDuplicates: true });
+      .upsert(rows, { onConflict: "account_id,name", ignoreDuplicates: true });
     const { data: reselect, error: reselectError } = await supabase
       .from("categories")
       .select("id, name, icon, type, account_id")

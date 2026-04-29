@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
   Users,
   UserPlus,
@@ -31,7 +31,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { glassSectionIconClass } from "@/lib/glass-classes";
-import { accountsSwrKey, pendingInvitationsSwrKey } from "@/lib/swr-keys";
+import {
+  accountsSwrKey,
+  membersSwrKey,
+  pendingInvitationsSwrKey,
+  transactionsSwrKey,
+} from "@/lib/swr-keys";
+import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
 import { fetchPendingInvitations } from "@/lib/api";
 import {
   createInvitation,
@@ -41,7 +47,6 @@ import {
 } from "@/lib/transactions-mutations";
 import { getAccountMembers } from "@/lib/member-actions";
 import { useActiveAccount } from "@/components/active-account-provider";
-import type { AccountMember } from "@/lib/types";
 
 interface BudgetMembersSectionProps {
   accountId: string;
@@ -56,8 +61,12 @@ export function BudgetMembersSection({
   const { accounts, setActiveAccount } = useActiveAccount();
   const isOwner = role === "owner";
 
-  const [members, setMembers] = useState<AccountMember[]>([]);
-  const [membersLoading, setMembersLoading] = useState(false);
+  // P2-4: use SWR instead of bare useEffect+useState — cache, dedup, revalidate on remount
+  const { data: membersResult, isLoading: membersLoading } = useSWR(
+    membersSwrKey(accountId),
+    () => getAccountMembers(accountId),
+  );
+  const members = membersResult?.data ?? [];
 
   const { data: pendingInvitations = [], mutate: mutatePending } = useSWR(
     isOwner ? pendingInvitationsSwrKey(accountId) : null,
@@ -77,18 +86,12 @@ export function BudgetMembersSection({
 
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [isRevoking, startRevokeTransition] = useTransition();
+  // P3-1: track which pending invitation was just copy-linked for UX feedback
+  const [copiedInvId, setCopiedInvId] = useState<string | null>(null);
 
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
   const [isLeaving, startLeaveTransition] = useTransition();
-
-  useEffect(() => {
-    setMembersLoading(true);
-    void getAccountMembers(accountId).then(({ data }) => {
-      setMembers(data ?? []);
-      setMembersLoading(false);
-    });
-  }, [accountId]);
 
   function closeInviteDialog() {
     setInviteDialogOpen(false);
@@ -101,6 +104,13 @@ export function BudgetMembersSection({
   function handleInvite() {
     setInviteError(null);
     startInviteTransition(async () => {
+      // P1-3: check existing membership before generating invite so the owner
+      // sees a clear error instead of a confusing failure at acceptance time.
+      const emailLower = inviteEmail.trim().toLowerCase();
+      if (members.some((m) => m.email.toLowerCase() === emailLower)) {
+        setInviteError("This person already has access to this budget.");
+        return;
+      }
       const { data, error } = await createInvitation(accountId, inviteEmail);
       if (error || !data) {
         setInviteError(error?.message ?? "Something went wrong.");
@@ -118,6 +128,14 @@ export function BudgetMembersSection({
     setTimeout(() => setCopied(false), 2000);
   }
 
+  // P3-1: copy link for already-generated pending invitations
+  function handleCopyInviteLink(token: string, invId: string) {
+    const link = `${window.location.origin}/invite/${token}`;
+    void navigator.clipboard.writeText(link);
+    setCopiedInvId(invId);
+    setTimeout(() => setCopiedInvId(null), 2000);
+  }
+
   function handleRemove(userId: string) {
     setRemovingUserId(userId);
     setRemoveError(null);
@@ -128,7 +146,7 @@ export function BudgetMembersSection({
         setRemovingUserId(null);
         return;
       }
-      setMembers((prev) => prev.filter((m) => m.user_id !== userId));
+      void mutate(membersSwrKey(accountId));
       setRemovingUserId(null);
     });
   }
@@ -153,6 +171,9 @@ export function BudgetMembersSection({
       const next = accounts.find((a) => a.id !== accountId);
       if (next) setActiveAccount(next.id);
       void mutate(accountsSwrKey);
+      // P2-3: clear stale cached data for the account we just left
+      void mutate(transactionsSwrKey(accountId));
+      invalidateNext12CalendarMonths(accountId);
       setLeaveOpen(false);
     });
   }
@@ -224,6 +245,19 @@ export function BudgetMembersSection({
                     {inv.invited_email}
                   </span>
                 </div>
+                {/* P3-1: copy link button so owners can re-share without revoking */}
+                <button
+                  type="button"
+                  aria-label={`Copy invite link for ${inv.invited_email}`}
+                  onClick={() => handleCopyInviteLink(inv.token, inv.id)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/50 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white active:bg-white/15"
+                >
+                  {copiedInvId === inv.id ? (
+                    <Check className="h-4 w-4 text-green-400" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </button>
                 <button
                   type="button"
                   aria-label={`Revoke invitation for ${inv.invited_email}`}

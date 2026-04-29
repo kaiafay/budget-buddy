@@ -51,7 +51,7 @@ export type AccountMember = {
   account_id: string;
   user_id: string;
   role: 'owner' | 'member';
-  invited_by: string;
+  invited_by: string | null;
   created_at: string;
   email: string;
 };

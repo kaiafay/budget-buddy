@@ -53,7 +53,19 @@ export async function acceptInvitation(token: string): Promise<{
       role: "member",
       invited_by: invite.invited_by,
     });
-    if (memberError) return { data: null, error: "Failed to join budget. Please try again." };
+    if (memberError) {
+      // P2-1: concurrent accept — the other request already inserted the row.
+      // Re-check membership; if found, treat as success rather than surfacing a confusing error.
+      const { data: nowMember } = await adminClient
+        .from("account_members")
+        .select("id")
+        .eq("account_id", invite.account_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!nowMember) {
+        return { data: null, error: "Failed to join budget. Please try again." };
+      }
+    }
   }
 
   await adminClient
