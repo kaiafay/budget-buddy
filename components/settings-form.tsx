@@ -102,6 +102,8 @@ export default function SettingsForm() {
     isLoading: accountsLoading,
   } = useActiveAccount();
 
+  const isSharedMember = activeAccount?.role === "member";
+
   const [accountName, setAccountName] = useState(activeAccount?.name ?? "");
   const [startingBalance, setStartingBalance] = useState(
     activeAccount ? String(activeAccount.starting_balance) : "",
@@ -233,6 +235,7 @@ export default function SettingsForm() {
 
   const saveAccountName = useCallback(async () => {
     if (!activeAccountId) return;
+    if (activeAccount?.role === "member") return;
     if (!accountName.trim()) return;
     if (activeAccount && accountName === activeAccount.name) return;
     setAccountError(null);
@@ -649,6 +652,11 @@ export default function SettingsForm() {
           >
             Name
           </Label>
+          {isSharedMember && (
+            <p className="text-xs text-white/50" id="accountNameMemberHint">
+              Only the budget owner can rename this budget.
+            </p>
+          )}
           <Input
             id="accountName"
             type="text"
@@ -656,7 +664,10 @@ export default function SettingsForm() {
             onChange={(e) => setAccountName(e.target.value)}
             className={glassInputClass}
             placeholder="e.g. Main Checking"
-            disabled={!activeAccountId}
+            disabled={!activeAccountId || isSharedMember}
+            aria-describedby={
+              isSharedMember ? "accountNameMemberHint" : undefined
+            }
           />
           {accountError && <InlineError>{accountError}</InlineError>}
         </div>
