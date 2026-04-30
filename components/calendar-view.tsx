@@ -279,6 +279,14 @@ export function CalendarView({
     );
   }
 
+  if (accountsLoading) {
+    return (
+      <div className="flex flex-col px-5 pb-6 pt-12 text-white">
+        <div className="glass-card h-32 rounded-2xl animate-pulse" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col pb-6">
       {/* Top bar */}
