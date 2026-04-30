@@ -90,11 +90,15 @@ export function ActiveAccountProvider({ children }: { children: React.ReactNode 
     setHydrated(true);
   }, [accounts, urlAccountId]);
 
-  const setActiveAccount = useCallback((id: string) => {
-    if (!UUID_REGEX.test(id)) return;
-    setActiveAccountIdState(id);
-    writeStoredActiveAccount(id);
-  }, []);
+  const setActiveAccount = useCallback(
+    (id: string) => {
+      if (!UUID_REGEX.test(id)) return;
+      if (!accounts?.some((a) => a.id === id)) return;
+      setActiveAccountIdState(id);
+      writeStoredActiveAccount(id);
+    },
+    [accounts],
+  );
 
   const value = useMemo<ActiveAccountContextValue>(() => {
     const resolvedAccounts = accounts ?? [];
