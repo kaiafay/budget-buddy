@@ -52,6 +52,7 @@ import {
   glassSectionIconClass,
 } from "@/lib/glass-classes";
 import { cn } from "@/lib/utils";
+import { withActiveAccountQuery } from "@/lib/url";
 
 function getInitialDate(
   searchParams: ReturnType<typeof useSearchParams>,
@@ -188,7 +189,11 @@ function AddTransactionPage() {
           }
           invalidateNext12CalendarMonths(accountId);
           mutate(transactionsSwrKey(accountId));
-          router.push(fromTransactions ? "/transactions" : `/?selected=${dateStr}`);
+          router.push(
+            fromTransactions
+              ? withActiveAccountQuery("/transactions", accountId)
+              : withActiveAccountQuery(`/?selected=${dateStr}`, accountId),
+          );
           return;
         }
         const { error: updateError } = await updateTransaction(editTxId, {
@@ -205,7 +210,11 @@ function AddTransactionPage() {
         const currentYear = date.getFullYear();
         mutate(calendarMonthSwrKey(currentMonth, currentYear, accountId));
         mutate(transactionsSwrKey(accountId));
-        router.push(fromTransactions ? "/transactions" : `/?selected=${dateStr}`);
+        router.push(
+          fromTransactions
+            ? withActiveAccountQuery("/transactions", accountId)
+            : withActiveAccountQuery(`/?selected=${dateStr}`, accountId),
+        );
         return;
       }
 
@@ -276,7 +285,7 @@ function AddTransactionPage() {
         mutate(calendarMonthSwrKey(currentMonth, currentYear, accountId));
         mutate(transactionsSwrKey(accountId));
       }
-      router.push(`/?selected=${dateStr}`);
+      router.push(withActiveAccountQuery(`/?selected=${dateStr}`, accountId));
     });
   }
 
@@ -291,7 +300,11 @@ function AddTransactionPage() {
           return;
         }
         invalidateNext12CalendarMonths(accountId);
-        router.push(fromTransactions ? "/transactions" : `/?selected=${result.targetDate}`);
+        router.push(
+          fromTransactions
+            ? withActiveAccountQuery("/transactions", accountId)
+            : withActiveAccountQuery(`/?selected=${result.targetDate}`, accountId),
+        );
       } catch {
         setError(USER_FACING_ERROR);
       }

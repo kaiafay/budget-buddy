@@ -34,6 +34,7 @@ import {
 } from "@/lib/swr-keys";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
 import { useActiveAccount } from "@/components/active-account-provider";
+import { withActiveAccountQuery } from "@/lib/url";
 import { AmountText } from "@/components/amount-text";
 import { ErrorBanner } from "@/components/error-banner";
 import { InlineError } from "@/components/inline-error";
@@ -376,9 +377,19 @@ export default function TransactionsPage() {
       initParams.set("initRecurring", "true");
       if (rule?.frequency) initParams.set("initFrequency", rule.frequency);
       if (rule?.end_date) initParams.set("initEndDate", rule.end_date);
-      router.push(`/add?edit=rule:${ruleId}&date=${t.date}&${initParams}`);
+      router.push(
+        withActiveAccountQuery(
+          `/add?edit=rule:${ruleId}&date=${t.date}&${initParams}`,
+          accountId,
+        ),
+      );
     } else {
-      router.push(`/add?edit=${t.id}&date=${t.date}&${initParams}`);
+      router.push(
+        withActiveAccountQuery(
+          `/add?edit=${t.id}&date=${t.date}&${initParams}`,
+          accountId,
+        ),
+      );
     }
   }
 
@@ -621,7 +632,7 @@ export default function TransactionsPage() {
                 </p>
               </div>
               <Link
-                href="/add"
+                href={withActiveAccountQuery("/add", accountId)}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 active:bg-primary/80"
               >
                 <Plus className="h-4 w-4" aria-hidden />

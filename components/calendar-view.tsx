@@ -23,6 +23,7 @@ import { CalendarGrid } from "@/components/calendar-grid";
 import { DayTransactionsContent } from "@/components/day-sheet";
 import { AccountPicker } from "@/components/account-picker";
 import { useActiveAccount } from "@/components/active-account-provider";
+import { withActiveAccountQuery } from "@/lib/url";
 
 interface CalendarViewProps {
   initialMonth: number;
@@ -247,9 +248,13 @@ export function CalendarView({
 
   function handleDaySelect(date: string) {
     setSelectedDate(date);
-    router.replace(`/?month=${month}&year=${year}&selected=${date}`, {
-      scroll: false,
-    });
+    router.replace(
+      withActiveAccountQuery(
+        `/?month=${month}&year=${year}&selected=${date}`,
+        activeAccountId,
+      ),
+      { scroll: false },
+    );
   }
 
   if (!accountsLoading && hasNoAccounts) {

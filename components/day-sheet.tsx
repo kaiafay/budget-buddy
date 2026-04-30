@@ -50,6 +50,7 @@ import type { Transaction, RecurringRule } from "@/lib/types";
 import { useSortedCategories } from "@/hooks/use-sorted-categories";
 import { useRecurringEditScope } from "@/hooks/use-recurring-edit-scope";
 import { cn } from "@/lib/utils";
+import { withActiveAccountQuery } from "@/lib/url";
 
 const NO_CATEGORY_VALUE = "__none__";
 
@@ -362,7 +363,7 @@ export function DayTransactionsContent({
         asChild
         className="mt-4 h-11 w-full border border-white/20 bg-primary text-white hover:bg-primary/90 active:bg-primary/80"
       >
-        <Link href={`/add?date=${date}`}>
+        <Link href={withActiveAccountQuery(`/add?date=${date}`, accountId)}>
           <Plus className="mr-2 h-4 w-4" />
           Add transaction
         </Link>
