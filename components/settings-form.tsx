@@ -11,6 +11,8 @@ import {
   Plus,
   RefreshCw,
   CheckCircle2,
+  Wallet,
+  Check,
 } from "lucide-react";
 import { format } from "date-fns";
 import { createClient } from "@/lib/supabase/client";
@@ -22,7 +24,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { glassInputClass, glassSectionIconClass } from "@/lib/glass-classes";
-import { calendarMonthSwrKey } from "@/lib/swr-keys";
+import {
+  accountsSwrKey,
+  calendarMonthSwrKey,
+  categoriesSwrKey,
+  transactionsSwrKey,
+} from "@/lib/swr-keys";
 import {
   Dialog,
   DialogContent,
@@ -46,21 +53,19 @@ import {
 } from "@/components/category-icons";
 import { fetchCategories, fetchCategoryUsageCount, fetchCalendarData } from "@/lib/api";
 import {
+  createAccount,
   createCategory,
+  updateAccount,
   updateCategory,
   deleteCategory,
+  deleteBudget,
   recalibrateBalance,
 } from "@/lib/transactions-mutations";
 import { getProjectedBalances, sumRecurringBeforeDate } from "@/lib/projection";
 import { USER_FACING_ERROR } from "@/lib/errors";
 import type { Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-interface Props {
-  initialName: string;
-  initialBalance: string;
-  accountId: string | null;
-}
+import { useActiveAccount } from "@/components/active-account-provider";
 
 function formatCurrency(value: number): string {
   const abs = Math.abs(value).toLocaleString("en-US", {
@@ -70,39 +75,69 @@ function formatCurrency(value: number): string {
   return value < 0 ? `-$${abs}` : `$${abs}`;
 }
 
-export default function SettingsForm({
-  initialName,
-  initialBalance,
-  accountId: initialAccountId,
-}: Props) {
+export default function SettingsForm() {
   const todayDate = new Date();
-  const currentMonth = todayDate.getMonth() + 1; // 1-based for fetchCalendarData
+  const currentMonth = todayDate.getMonth() + 1;
   const currentYear = todayDate.getFullYear();
   const todayStr = format(todayDate, "yyyy-MM-dd");
 
-  const [accountName, setAccountName] = useState(initialName);
-  const [startingBalance, setStartingBalance] = useState(initialBalance);
-  const [hasSetBalance, setHasSetBalance] = useState(initialBalance !== "");
+  const {
+    accounts,
+    activeAccountId,
+    activeAccount,
+    setActiveAccount,
+    isLoading: accountsLoading,
+  } = useActiveAccount();
+
+  const [accountName, setAccountName] = useState(activeAccount?.name ?? "");
+  const [startingBalance, setStartingBalance] = useState(
+    activeAccount ? String(activeAccount.starting_balance) : "",
+  );
+  const [hasSetBalance, setHasSetBalance] = useState(
+    (activeAccount?.starting_balance ?? 0) !== 0,
+  );
   const [balanceError, setBalanceError] = useState<string | null>(null);
   const [accountError, setAccountError] = useState<string | null>(null);
-  const [accountId, setAccountId] = useState(initialAccountId);
+  const [isSavingBalance, startSaveBalanceTransition] = useTransition();
 
   const [recalibrateOpen, setRecalibrateOpen] = useState(false);
   const [actualBalanceInput, setActualBalanceInput] = useState("");
   const [recalibrateError, setRecalibrateError] = useState<string | null>(null);
   const [savedDelta, setSavedDelta] = useState<number | null>(null);
   const [isRecalibrating, startRecalibrateTransition] = useTransition();
-  const [isSavingBalance, startSaveBalanceTransition] = useTransition();
+
+  const [createBudgetOpen, setCreateBudgetOpen] = useState(false);
+  const [newBudgetName, setNewBudgetName] = useState("");
+  const [newBudgetBalance, setNewBudgetBalance] = useState("");
+  const [createBudgetError, setCreateBudgetError] = useState<string | null>(null);
+  const [isCreatingBudget, startCreateBudgetTransition] = useTransition();
 
   const router = useRouter();
   const { mutate } = useSWRConfig();
-  const { data: categories = [] } = useSWR("categories", fetchCategories);
+  const { data: categories = [] } = useSWR(
+    activeAccountId ? categoriesSwrKey(activeAccountId) : null,
+    () => fetchCategories(activeAccountId as string),
+  );
 
-  // Only fetch calendar data while the recalibrate modal is open — reuses cached data
-  // if the user already visited the calendar this session.
+  // Sync editable fields when the active account changes (e.g. picker switches)
+  // or when accounts finish loading.
+  useEffect(() => {
+    setAccountName(activeAccount?.name ?? "");
+    setStartingBalance(
+      activeAccount ? String(activeAccount.starting_balance) : "",
+    );
+    setHasSetBalance((activeAccount?.starting_balance ?? 0) !== 0);
+    setAccountError(null);
+    setBalanceError(null);
+  }, [activeAccount?.id, activeAccount?.name, activeAccount?.starting_balance]);
+
+  const calendarKey =
+    recalibrateOpen && activeAccountId
+      ? calendarMonthSwrKey(currentMonth, currentYear, activeAccountId)
+      : null;
   const { data: calData, isLoading: calLoading } = useSWR(
-    recalibrateOpen ? calendarMonthSwrKey(currentMonth, currentYear) : null,
-    () => fetchCalendarData(currentMonth, currentYear),
+    calendarKey,
+    () => fetchCalendarData(currentMonth, currentYear, activeAccountId as string),
   );
 
   const projectedTodayBalance = useMemo(() => {
@@ -126,12 +161,12 @@ export default function SettingsForm({
       carryForward,
       (calData.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) })),
       mappedRules,
-      todayDate.getMonth(), // 0-indexed
+      todayDate.getMonth(),
       currentYear,
       calData.exceptions ?? [],
     );
     return balances[todayStr] ?? null;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calData]);
 
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
@@ -141,67 +176,50 @@ export default function SettingsForm({
     icon: "Tag",
     type: "expense" as "expense" | "income",
   });
-  const [categoryFormError, setCategoryFormError] = useState<string | null>(
-    null,
-  );
-  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
-    null,
-  );
+  const [categoryFormError, setCategoryFormError] = useState<string | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [deleteUsageCount, setDeleteUsageCount] = useState<{
     transactions: number;
     rules: number;
   } | null>(null);
-  const [categoryDeleteError, setCategoryDeleteError] = useState<string | null>(
-    null,
-  );
+  const [categoryDeleteError, setCategoryDeleteError] = useState<string | null>(null);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [isCategoryPending, startCategoryTransition] = useTransition();
   const [isSigningOut, startSignOutTransition] = useTransition();
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
-  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(
-    null,
-  );
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   const [isDeletingAccount, startDeleteAccountTransition] = useTransition();
+  const [budgetToDelete, setBudgetToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleteBudgetError, setDeleteBudgetError] = useState<string | null>(null);
+  const [isDeletingBudget, startDeleteBudgetTransition] = useTransition();
 
   const saveSeqRef = useRef(0);
-  const skipNextDebounceRef = useRef(true);
+  const skipNextNameDebounceRef = useRef(true);
 
-  // Autosaves account name only — balance is never written via autosave.
-  // Short-circuits when no account exists yet (account is created on initial balance save).
   const saveAccountName = useCallback(async () => {
-    if (!accountId) return;
+    if (!activeAccountId) return;
+    if (!accountName.trim()) return;
+    if (activeAccount && accountName === activeAccount.name) return;
     setAccountError(null);
-
     const seq = ++saveSeqRef.current;
-
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      if (seq !== saveSeqRef.current) return;
-      setAccountError("You must be signed in.");
-      return;
-    }
-
-    const { error: updateError } = await supabase
-      .from("accounts")
-      .update({ name: accountName })
-      .eq("id", accountId)
-      .eq("user_id", user.id);
-
+    const { error: updateError } = await updateAccount(activeAccountId, {
+      name: accountName.trim(),
+    });
     if (updateError) {
       if (seq !== saveSeqRef.current) return;
-      setAccountError(updateError.message);
+      setAccountError(USER_FACING_ERROR);
+      return;
     }
-  }, [accountName, accountId]);
+    if (seq !== saveSeqRef.current) return;
+    void mutate(accountsSwrKey);
+  }, [accountName, activeAccountId, activeAccount, mutate]);
 
   const saveAccountNameRef = useRef(saveAccountName);
   saveAccountNameRef.current = saveAccountName;
 
   useEffect(() => {
-    if (skipNextDebounceRef.current) {
-      skipNextDebounceRef.current = false;
+    if (skipNextNameDebounceRef.current) {
+      skipNextNameDebounceRef.current = false;
       return;
     }
     const timer = setTimeout(() => {
@@ -210,8 +228,12 @@ export default function SettingsForm({
     return () => clearTimeout(timer);
   }, [accountName]);
 
-  // Called once when a new user explicitly sets their starting balance for the first time.
-  // Creates the account record if it doesn't exist yet, then flips to read-only mode.
+  // Reset the "skip next debounce" flag whenever the active account changes so
+  // the just-loaded name value doesn't trigger an autosave.
+  useEffect(() => {
+    skipNextNameDebounceRef.current = true;
+  }, [activeAccountId]);
+
   function handleSaveInitialBalance() {
     setBalanceError(null);
     const balance = parseFloat(startingBalance);
@@ -219,40 +241,19 @@ export default function SettingsForm({
       setBalanceError("Please enter a valid starting balance.");
       return;
     }
+    if (!activeAccountId) return;
     startSaveBalanceTransition(async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        setBalanceError("You must be signed in.");
+      const { error } = await updateAccount(activeAccountId, {
+        starting_balance: balance,
+      });
+      if (error) {
+        setBalanceError(USER_FACING_ERROR);
         return;
       }
-      if (accountId) {
-        const { error } = await supabase
-          .from("accounts")
-          .update({ starting_balance: balance })
-          .eq("id", accountId)
-          .eq("user_id", user.id);
-        if (error) {
-          setBalanceError(error.message);
-          return;
-        }
-      } else {
-        const { data: inserted, error } = await supabase
-          .from("accounts")
-          .insert({ user_id: user.id, name: accountName, starting_balance: balance })
-          .select("id")
-          .single();
-        if (error) {
-          setBalanceError(error.message);
-          return;
-        }
-        if (inserted?.id) setAccountId(inserted.id);
-      }
       setHasSetBalance(true);
-      mutate(calendarMonthSwrKey(new Date().getMonth() + 1, new Date().getFullYear()));
-      mutate("transactions");
+      void mutate(accountsSwrKey);
+      void mutate(calendarMonthSwrKey(currentMonth, currentYear, activeAccountId));
+      void mutate(transactionsSwrKey(activeAccountId));
     });
   }
 
@@ -270,7 +271,7 @@ export default function SettingsForm({
   }
 
   function handleRecalibrate() {
-    if (projectedTodayBalance === null || !accountId) return;
+    if (projectedTodayBalance === null || !activeAccountId) return;
     const actual = parseFloat(actualBalanceInput);
     if (Number.isNaN(actual)) {
       setRecalibrateError("Please enter a valid amount.");
@@ -286,7 +287,7 @@ export default function SettingsForm({
     setRecalibrateError(null);
     startRecalibrateTransition(async () => {
       const { error } = await recalibrateBalance({
-        accountId,
+        accountId: activeAccountId,
         delta,
         date: todayStr,
       });
@@ -294,9 +295,56 @@ export default function SettingsForm({
         setRecalibrateError(error.message);
         return;
       }
-      mutate("transactions");
-      mutate(calendarMonthSwrKey(currentMonth, currentYear));
+      mutate(transactionsSwrKey(activeAccountId));
+      mutate(calendarMonthSwrKey(currentMonth, currentYear, activeAccountId));
       setSavedDelta(delta);
+    });
+  }
+
+  function openCreateBudgetDialog() {
+    setNewBudgetName("");
+    setNewBudgetBalance("");
+    setCreateBudgetError(null);
+    setCreateBudgetOpen(true);
+  }
+
+  function closeCreateBudgetDialog() {
+    setCreateBudgetOpen(false);
+    setNewBudgetName("");
+    setNewBudgetBalance("");
+    setCreateBudgetError(null);
+  }
+
+  function handleCreateBudget(e: React.FormEvent) {
+    e.preventDefault();
+    setCreateBudgetError(null);
+    const name = newBudgetName.trim();
+    if (!name) {
+      setCreateBudgetError("Enter a budget name.");
+      return;
+    }
+    const parsedBalance =
+      newBudgetBalance.trim() === "" ? 0 : parseFloat(newBudgetBalance);
+    if (Number.isNaN(parsedBalance)) {
+      setCreateBudgetError("Enter a valid starting balance.");
+      return;
+    }
+    startCreateBudgetTransition(async () => {
+      const { data, error } = await createAccount({
+        name,
+        starting_balance: parsedBalance,
+      });
+      if (error || !data?.id) {
+        setCreateBudgetError(USER_FACING_ERROR);
+        return;
+      }
+      try {
+        window.localStorage.setItem("budget-buddy:active-account", data.id);
+      } catch {
+        // ignore storage failures; provider falls back to first available account
+      }
+      await mutate(accountsSwrKey);
+      closeCreateBudgetDialog();
     });
   }
 
@@ -332,6 +380,10 @@ export default function SettingsForm({
       return;
     }
     startCategoryTransition(async () => {
+      if (!activeAccountId) {
+        setCategoryFormError(USER_FACING_ERROR);
+        return;
+      }
       if (editingCategory) {
         const { error: err } = await updateCategory(editingCategory.id, {
           name,
@@ -340,7 +392,7 @@ export default function SettingsForm({
         });
         if (err) {
           if (
-            err.message.includes("categories_user_id_name_key") ||
+            err.message.includes("categories_account_id_name_key") ||
             err.message.includes("duplicate key")
           ) {
             setCategoryFormError("A category with this name already exists.");
@@ -351,13 +403,14 @@ export default function SettingsForm({
         }
       } else {
         const { error: err } = await createCategory({
+          accountId: activeAccountId,
           name,
           icon: categoryForm.icon,
           type: categoryForm.type,
         });
         if (err) {
           if (
-            err.message.includes("categories_user_id_name_key") ||
+            err.message.includes("categories_account_id_name_key") ||
             err.message.includes("duplicate key")
           ) {
             setCategoryFormError("A category with this name already exists.");
@@ -367,7 +420,7 @@ export default function SettingsForm({
           return;
         }
       }
-      mutate("categories");
+      void mutate(categoriesSwrKey(activeAccountId));
       closeCategoryDialog();
     });
   }
@@ -375,15 +428,19 @@ export default function SettingsForm({
   function requestDeleteCategory(cat: Category) {
     setCategoryDeleteError(null);
     startCategoryTransition(async () => {
+      if (!activeAccountId) {
+        setCategoryDeleteError(USER_FACING_ERROR);
+        return;
+      }
       try {
-        const count = await fetchCategoryUsageCount(cat.id);
+        const count = await fetchCategoryUsageCount(cat.id, activeAccountId);
         if (count.transactions === 0 && count.rules === 0) {
           const { error: err } = await deleteCategory(cat.id);
           if (err) {
             setCategoryDeleteError(USER_FACING_ERROR);
             return;
           }
-          mutate("categories");
+          void mutate(categoriesSwrKey(activeAccountId));
           return;
         }
         setDeleteUsageCount(count);
@@ -396,7 +453,7 @@ export default function SettingsForm({
 
   function confirmDeleteCategory() {
     const id = categoryToDelete?.id;
-    if (!id) return;
+    if (!id || !activeAccountId) return;
     setCategoryDeleteError(null);
     startCategoryTransition(async () => {
       try {
@@ -405,7 +462,7 @@ export default function SettingsForm({
           setCategoryDeleteError(USER_FACING_ERROR);
           return;
         }
-        mutate("categories");
+        void mutate(categoriesSwrKey(activeAccountId));
         setCategoryToDelete(null);
         setDeleteUsageCount(null);
       } catch {
@@ -419,6 +476,49 @@ export default function SettingsForm({
   const dialogSubmitButtonClass =
     "h-11 rounded-xl border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80";
 
+  if (!accountsLoading && accounts.length === 0) {
+    return (
+      <div className="flex flex-col gap-5 px-5 pb-8 text-white">
+        <div className="page-enter-2 glass-card flex flex-col gap-4 rounded-2xl p-4">
+          <div className="flex items-center gap-3 pb-1">
+            <div className={glassSectionIconClass}>
+              <Wallet className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-white">
+                Create your first budget
+              </span>
+              <span className="text-xs text-white/60">
+                Track expenses against an opening balance.
+              </span>
+            </div>
+          </div>
+          <Button
+            type="button"
+            onClick={openCreateBudgetDialog}
+            className={dialogSubmitButtonClass}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Create budget
+          </Button>
+        </div>
+
+        <CreateBudgetDialog
+          open={createBudgetOpen}
+          name={newBudgetName}
+          balance={newBudgetBalance}
+          error={createBudgetError}
+          isPending={isCreatingBudget}
+          onNameChange={setNewBudgetName}
+          onBalanceChange={setNewBudgetBalance}
+          onSubmit={handleCreateBudget}
+          onClose={closeCreateBudgetDialog}
+          submitClassName={dialogSubmitButtonClass}
+        />
+      </div>
+    );
+  }
+
   return (
     <form
       onSubmit={(e) => e.preventDefault()}
@@ -427,10 +527,78 @@ export default function SettingsForm({
       <div className="page-enter-2 glass-card flex flex-col gap-4 rounded-2xl p-4">
         <div className="flex items-center gap-3 pb-1">
           <div className={glassSectionIconClass}>
+            <Wallet className="h-4 w-4 text-primary" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-white">Budgets</span>
+            <span className="text-xs text-white/60">
+              {accounts.length === 1
+                ? "1 budget"
+                : `${accounts.length} budgets`}
+            </span>
+          </div>
+        </div>
+        {accounts.length > 1 && (
+          <ul className="flex flex-col gap-1">
+            {accounts.map((acc) => {
+              const isActive = acc.id === activeAccountId;
+              return (
+                <li key={acc.id}>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveAccount(acc.id)}
+                      className={cn(
+                        "flex min-w-0 flex-1 items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+                        isActive
+                          ? "border-white/30 bg-white/15 text-white"
+                          : "border-white/10 bg-white/5 text-white/80 hover:bg-white/10",
+                      )}
+                    >
+                      <Check
+                        className={cn(
+                          "h-4 w-4 shrink-0",
+                          isActive ? "opacity-100" : "opacity-0",
+                        )}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 truncate">{acc.name}</span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete ${acc.name}`}
+                      onClick={() => {
+                        setDeleteBudgetError(null);
+                        setBudgetToDelete({ id: acc.id, name: acc.name });
+                      }}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/50 transition-colors hover:border-destructive/40 hover:bg-destructive/15 hover:text-red-300 active:bg-destructive/20"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
+          onClick={openCreateBudgetDialog}
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          New budget
+        </Button>
+      </div>
+
+      <div className="page-enter-2 glass-card flex flex-col gap-4 rounded-2xl p-4">
+        <div className="flex items-center gap-3 pb-1">
+          <div className={glassSectionIconClass}>
             <User className="h-4 w-4 text-primary" />
           </div>
           <span className="text-sm font-medium text-white">
-            Account Details
+            {accounts.length > 1 ? "Selected budget" : "Account Details"}
           </span>
         </div>
         <div className="flex flex-col gap-2">
@@ -438,7 +606,7 @@ export default function SettingsForm({
             htmlFor="accountName"
             className="text-xs font-medium text-white/70"
           >
-            Account Name
+            Name
           </Label>
           <Input
             id="accountName"
@@ -447,6 +615,7 @@ export default function SettingsForm({
             onChange={(e) => setAccountName(e.target.value)}
             className={glassInputClass}
             placeholder="e.g. Main Checking"
+            disabled={!activeAccountId}
           />
           {accountError && <InlineError>{accountError}</InlineError>}
         </div>
@@ -465,7 +634,8 @@ export default function SettingsForm({
         {hasSetBalance ? (
           <div className="flex flex-col gap-3">
             <p className="text-xs text-white/50">
-              Your opening balance when you started tracking. Use Recalibrate to sync Budget Buddy with your actual bank balance.
+              Your opening balance when you started tracking this budget. Use
+              Recalibrate to sync Budget Buddy with your actual bank balance.
             </p>
             <div className="flex items-center justify-between rounded-xl border border-white/20 bg-white/10 px-4 py-3">
               <span className="text-xs font-medium text-white/60">
@@ -480,49 +650,54 @@ export default function SettingsForm({
               variant="outline"
               className="h-11 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20 active:bg-white/15"
               onClick={openRecalibrateModal}
+              disabled={!activeAccountId}
             >
               <RefreshCw className="mr-2 h-4 w-4" />
               Recalibrate balance
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <p className="text-xs text-white/50">
-              Enter your account balance at the time you started tracking in Budget Buddy.
+              Enter your account balance at the time you started tracking in
+              Budget Buddy.
             </p>
-            <Label
-              htmlFor="balance"
-              className="text-xs font-medium text-white/70"
-            >
-              Amount
-            </Label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-white/70">
-                $
-              </span>
-              <Input
-                id="balance"
-                type="text"
-                inputMode="decimal"
-                value={startingBalance}
-                onChange={(e) => {
-                  if (/^-?\d*\.?\d{0,2}$/.test(e.target.value)) {
-                    setStartingBalance(e.target.value);
-                  }
-                }}
-                className="h-11 rounded-xl border-white/20 bg-white/10 pl-8 tabular-nums text-white placeholder:text-white/40"
-                placeholder="0.00"
-              />
+            <div className="flex flex-col gap-2">
+              <Label
+                htmlFor="balance"
+                className="text-xs font-medium text-white/70"
+              >
+                Amount
+              </Label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-white/70">
+                  $
+                </span>
+                <Input
+                  id="balance"
+                  type="text"
+                  inputMode="decimal"
+                  value={startingBalance}
+                  onChange={(e) => {
+                    if (/^-?\d*\.?\d{0,2}$/.test(e.target.value)) {
+                      setStartingBalance(e.target.value);
+                    }
+                  }}
+                  className="h-11 rounded-xl border-white/20 bg-white/10 pl-8 tabular-nums text-white placeholder:text-white/40"
+                  placeholder="0.00"
+                  disabled={!activeAccountId}
+                />
+              </div>
+              {balanceError && <InlineError>{balanceError}</InlineError>}
+              <Button
+                type="button"
+                disabled={isSavingBalance || !startingBalance || !activeAccountId}
+                onClick={handleSaveInitialBalance}
+                className="h-11 rounded-xl border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
+              >
+                Save starting balance
+              </Button>
             </div>
-            {balanceError && <InlineError>{balanceError}</InlineError>}
-            <Button
-              type="button"
-              disabled={isSavingBalance || !startingBalance}
-              onClick={handleSaveInitialBalance}
-              className={dialogSubmitButtonClass}
-            >
-              Save starting balance
-            </Button>
           </div>
         )}
       </div>
@@ -624,13 +799,12 @@ export default function SettingsForm({
                   setSignOutError(signOutErr.message);
                   return;
                 }
-                mutate("transactions");
-                mutate(
-                  calendarMonthSwrKey(
-                    new Date().getMonth() + 1,
-                    new Date().getFullYear(),
-                  ),
-                );
+                if (activeAccountId) {
+                  mutate(transactionsSwrKey(activeAccountId));
+                  mutate(
+                    calendarMonthSwrKey(currentMonth, currentYear, activeAccountId),
+                  );
+                }
                 router.push("/login");
               });
             }}
@@ -653,7 +827,6 @@ export default function SettingsForm({
           </button>
         </div>
 
-        {/* Recalibrate balance modal */}
         <Dialog
           open={recalibrateOpen}
           onOpenChange={(open) => !open && closeRecalibrateModal()}
@@ -756,6 +929,19 @@ export default function SettingsForm({
             </div>
           </DialogContent>
         </Dialog>
+
+        <CreateBudgetDialog
+          open={createBudgetOpen}
+          name={newBudgetName}
+          balance={newBudgetBalance}
+          error={createBudgetError}
+          isPending={isCreatingBudget}
+          onNameChange={setNewBudgetName}
+          onBalanceChange={setNewBudgetBalance}
+          onSubmit={handleCreateBudget}
+          onClose={closeCreateBudgetDialog}
+          submitClassName={dialogSubmitButtonClass}
+        />
 
         <Dialog
           open={categoryDialogOpen}
@@ -884,6 +1070,59 @@ export default function SettingsForm({
         </AlertDialog>
 
         <AlertDialog
+          open={!!budgetToDelete}
+          onOpenChange={(open) => {
+            if (!open) {
+              setBudgetToDelete(null);
+              setDeleteBudgetError(null);
+            }
+          }}
+        >
+          <AlertDialogContent className="border-white/20 bg-card text-card-foreground">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete &ldquo;{budgetToDelete?.name}&rdquo;?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete this budget and all its transactions
+                and recurring rules. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {deleteBudgetError && (
+              <InlineError light>{deleteBudgetError}</InlineError>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-xl border border-border bg-muted text-foreground hover:bg-muted/80">
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (!budgetToDelete) return;
+                  const { id } = budgetToDelete;
+                  setDeleteBudgetError(null);
+                  startDeleteBudgetTransition(async () => {
+                    const { error } = await deleteBudget(id);
+                    if (error) {
+                      setDeleteBudgetError(USER_FACING_ERROR);
+                      return;
+                    }
+                    if (activeAccountId === id) {
+                      const next = accounts.find((a) => a.id !== id);
+                      if (next) setActiveAccount(next.id);
+                    }
+                    setBudgetToDelete(null);
+                    void mutate(accountsSwrKey);
+                  });
+                }}
+                disabled={isDeletingBudget}
+                className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80"
+              >
+                Delete budget
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
           open={deleteAccountOpen}
           onOpenChange={(open) => {
             if (!open) {
@@ -896,8 +1135,8 @@ export default function SettingsForm({
             <AlertDialogHeader>
               <AlertDialogTitle>Delete account?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete your account and all your data.
-                This cannot be undone.
+                This will permanently delete your account and all your data,
+                including every budget. This cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             {deleteAccountError && (
@@ -921,13 +1160,16 @@ export default function SettingsForm({
                       }
                       const supabase = createClient();
                       await supabase.auth.signOut();
-                      mutate("transactions");
-                      mutate(
-                        calendarMonthSwrKey(
-                          new Date().getMonth() + 1,
-                          new Date().getFullYear(),
-                        ),
-                      );
+                      if (activeAccountId) {
+                        mutate(transactionsSwrKey(activeAccountId));
+                        mutate(
+                          calendarMonthSwrKey(
+                            currentMonth,
+                            currentYear,
+                            activeAccountId,
+                          ),
+                        );
+                      }
                       router.push("/login");
                     } catch {
                       setDeleteAccountError(USER_FACING_ERROR);
@@ -944,5 +1186,94 @@ export default function SettingsForm({
         </AlertDialog>
       </div>
     </form>
+  );
+}
+
+function CreateBudgetDialog({
+  open,
+  name,
+  balance,
+  error,
+  isPending,
+  onNameChange,
+  onBalanceChange,
+  onSubmit,
+  onClose,
+  submitClassName,
+}: {
+  open: boolean;
+  name: string;
+  balance: string;
+  error: string | null;
+  isPending: boolean;
+  onNameChange: (v: string) => void;
+  onBalanceChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  onClose: () => void;
+  submitClassName: string;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="border-white/20 bg-card text-card-foreground">
+        <DialogHeader>
+          <DialogTitle>New budget</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label
+              htmlFor="newBudgetName"
+              className="text-sm font-medium text-muted-foreground"
+            >
+              Name
+            </Label>
+            <Input
+              id="newBudgetName"
+              value={name}
+              onChange={(e) => onNameChange(e.target.value)}
+              className="h-11 rounded-xl border-border bg-background text-foreground placeholder:text-muted-foreground"
+              placeholder="e.g. Savings"
+              autoFocus
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label
+              htmlFor="newBudgetBalance"
+              className="text-sm font-medium text-muted-foreground"
+            >
+              Starting balance
+            </Label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                $
+              </span>
+              <Input
+                id="newBudgetBalance"
+                type="text"
+                inputMode="decimal"
+                value={balance}
+                onChange={(e) => {
+                  if (/^\d*\.?\d{0,2}$/.test(e.target.value)) {
+                    onBalanceChange(e.target.value);
+                  }
+                }}
+                className="h-11 rounded-xl border-border bg-background pl-8 tabular-nums text-foreground placeholder:text-muted-foreground"
+                placeholder="0.00"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Leave blank to start at $0.00.
+            </p>
+          </div>
+          {error && <InlineError light>{error}</InlineError>}
+          <Button
+            type="submit"
+            disabled={isPending}
+            className={submitClassName}
+          >
+            {isPending ? "Creating…" : "Create budget"}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

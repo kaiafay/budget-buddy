@@ -3,6 +3,7 @@ export type Category = {
   name: string;
   icon: string;
   type: "expense" | "income";
+  account_id?: string;
 };
 
 export type Transaction = {
@@ -12,6 +13,7 @@ export type Transaction = {
   date: string;
   recurring?: boolean;
   category_id?: string | null;
+  account_id?: string | null;
 };
 
 export type RecurringRule = {
@@ -23,6 +25,7 @@ export type RecurringRule = {
   end_date?: string | null;
   category_id?: string | null;
   root_rule_id?: string | null;
+  account_id?: string | null;
 };
 
 export type RecurringException = {

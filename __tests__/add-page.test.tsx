@@ -4,14 +4,37 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import AddPage from "@/app/(app)/add/page";
 import * as mutations from "@/lib/transactions-mutations";
 
+const ACCOUNT_ID = "11111111-1111-4111-8111-111111111111";
+
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({ push: vi.fn(), back: vi.fn() })),
   useSearchParams: vi.fn(() => ({ get: vi.fn().mockReturnValue(null) })),
 }));
 
 vi.mock("swr", () => ({
-  default: vi.fn().mockReturnValue({ data: [] }),
+  default: vi.fn(),
   mutate: vi.fn(),
+}));
+
+import useSWR from "swr";
+const mockUseEditLoader = vi.fn();
+
+vi.mock("@/hooks/use-edit-loader", () => ({
+  useEditLoader: (...args: unknown[]) => mockUseEditLoader(...args),
+}));
+
+vi.mock("@/components/active-account-provider", () => ({
+  useActiveAccount: () => ({
+    accounts: [
+      { id: ACCOUNT_ID, name: "Main", starting_balance: 0 },
+    ],
+    activeAccountId: ACCOUNT_ID,
+    activeAccount: { id: ACCOUNT_ID, name: "Main", starting_balance: 0 },
+    setActiveAccount: vi.fn(),
+    isLoading: false,
+    hasNoAccounts: false,
+    error: null,
+  }),
 }));
 
 vi.mock("@/lib/supabase/client", () => ({
@@ -25,7 +48,7 @@ vi.mock("@/lib/supabase/client", () => ({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
           maybeSingle: vi.fn().mockResolvedValue({
-            data: { id: "account-1" },
+            data: { id: ACCOUNT_ID },
             error: null,
           }),
         }),
@@ -38,17 +61,30 @@ vi.mock("@/lib/transactions-mutations", () => ({
   createTransaction: vi.fn(),
   createRecurringRule: vi.fn(),
   updateTransaction: vi.fn(),
+  makeTransactionRecurring: vi.fn(),
 }));
 
 describe("AddPage amount validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseEditLoader.mockReturnValue({
+      loading: false,
+      error: null,
+      retry: vi.fn(),
+    });
+    vi.mocked(useSWR).mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: undefined,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as unknown as ReturnType<typeof useSWR>);
   });
 
   it('shows inline error and does not call mutations when amount is "."', async () => {
     render(<AddPage />);
 
-    // Wait for the async account load to complete (enables the submit button)
+    // Submit button is enabled as soon as the active account is provided.
     await waitFor(() => {
       expect(
         screen.getByRole("button", { name: /add expense/i }),
@@ -73,5 +109,19 @@ describe("AddPage amount validation", () => {
     ).toBeInTheDocument();
     expect(mutations.createTransaction).not.toHaveBeenCalled();
     expect(mutations.createRecurringRule).not.toHaveBeenCalled();
+  });
+
+  it("renders edit loader budget-mismatch errors inline", async () => {
+    mockUseEditLoader.mockReturnValueOnce({
+      loading: false,
+      error: "This transaction belongs to a different budget.",
+      retry: vi.fn(),
+    });
+
+    render(<AddPage />);
+
+    expect(
+      await screen.findByText("This transaction belongs to a different budget."),
+    ).toBeInTheDocument();
   });
 });

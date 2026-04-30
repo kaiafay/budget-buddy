@@ -16,9 +16,16 @@ const frequencySchema = z.enum(["weekly", "biweekly", "monthly", "yearly"]);
 
 const categoryIdOptionalSchema = z.union([uuidSchema, z.null()]).optional();
 
-export const accountSchema = z.object({
-  name: z.string().trim().min(1).max(100),
+const accountNameSchema = z.string().trim().min(1).max(100);
+
+export const createAccountPayloadSchema = z.object({
+  name: accountNameSchema,
   starting_balance: amountSchema,
+});
+
+export const updateAccountPayloadSchema = z.object({
+  name: accountNameSchema.optional(),
+  starting_balance: amountSchema.optional(),
 });
 
 export const recalibrateBalancePayloadSchema = z.object({
@@ -86,6 +93,7 @@ export const recurringSegmentPayloadSchema = z.object({
 );
 
 export const createCategoryPayloadSchema = z.object({
+  accountId: uuidSchema,
   name: categoryNameSchema,
   icon: categoryIconSchema,
   type: z.enum(["expense", "income"]),

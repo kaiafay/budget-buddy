@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   applyRecurringEditFromDate,
+  createAccount,
   createRecurringRule,
   createTransaction,
   deleteCategory,
@@ -29,6 +30,9 @@ const CAT_X = "55555555-5555-5555-8555-555555555555";
 const ACC1 = "66666666-6666-4666-8666-666666666666";
 const ACC123 = "77777777-7777-4777-8777-777777777777";
 const TX_NEW = "88888888-8888-4888-8888-888888888888";
+const ACC_NEW = "99999999-9999-4999-8999-999999999999";
+
+const mockRpc = vi.fn().mockResolvedValue({ data: null, error: null });
 
 const mockEq2 = vi.fn().mockResolvedValue({ error: null });
 const mockEq1 = vi.fn().mockReturnValue({ eq: mockEq2 });
@@ -172,6 +176,7 @@ vi.mock("@/lib/supabase/client", () => ({
       }),
     },
     from: vi.fn((table: string) => fromTableHandler(table)),
+    rpc: mockRpc,
   })),
 }));
 
@@ -1032,6 +1037,50 @@ describe("endRecurringRuleFuture", () => {
   });
 });
 
+describe("createAccount", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRpc.mockResolvedValue({ data: ACC_NEW, error: null });
+  });
+
+  it("calls create_account_with_member RPC with user id, name, and starting_balance", async () => {
+    const result = await createAccount({
+      name: "Vacation",
+      starting_balance: 100,
+    });
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual({ id: ACC_NEW });
+    expect(mockRpc).toHaveBeenCalledWith("create_account_with_member", {
+      p_user_id: "user-1",
+      p_name: "Vacation",
+      p_starting_balance: 100,
+    });
+  });
+
+  it("returns error when RPC fails", async () => {
+    mockRpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "duplicate key" },
+    });
+    const result = await createAccount({
+      name: "Vacation",
+      starting_balance: 0,
+    });
+    expect(result.data).toBeNull();
+    expect(result.error).not.toBeNull();
+  });
+
+  it("returns error when RPC returns null id", async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: null });
+    const result = await createAccount({
+      name: "Vacation",
+      starting_balance: 0,
+    });
+    expect(result.data).toBeNull();
+    expect(result.error?.message).toMatch(/no id/i);
+  });
+});
+
 describe("createCategory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1044,8 +1093,9 @@ describe("createCategory", () => {
     };
   });
 
-  it("inserts category with user_id, name, icon, type", async () => {
+  it("inserts category with user_id, account_id, name, icon, type", async () => {
     const result = await createCategory({
+      accountId: ACC1,
       name: "Groceries",
       icon: "ShoppingCart",
       type: "expense",
@@ -1053,6 +1103,7 @@ describe("createCategory", () => {
     expect(result.error).toBeNull();
     expect(mockInsert).toHaveBeenCalledWith({
       user_id: "user-1",
+      account_id: ACC1,
       name: "Groceries",
       icon: "ShoppingCart",
       type: "expense",
@@ -1062,6 +1113,7 @@ describe("createCategory", () => {
   it("returns error when insert fails", async () => {
     mockInsert.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await createCategory({
+      accountId: ACC1,
       name: "Groceries",
       icon: "ShoppingCart",
       type: "expense",
@@ -1073,8 +1125,7 @@ describe("createCategory", () => {
 describe("updateCategory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEq2.mockResolvedValue({ error: null });
-    mockEq1.mockReturnValue({ eq: mockEq2 });
+    mockEq1.mockResolvedValue({ error: null });
     mockUpdate.mockReturnValue({ eq: mockEq1 });
     fromTableHandler = (table: string) => {
       if (table === "categories") {
@@ -1084,7 +1135,7 @@ describe("updateCategory", () => {
     };
   });
 
-  it("updates category with payload and filters by id and user_id", async () => {
+  it("updates category with payload and filters by id", async () => {
     const result = await updateCategory(CAT1, {
       name: "Food",
       icon: "UtensilsCrossed",
@@ -1097,11 +1148,10 @@ describe("updateCategory", () => {
       type: "expense",
     });
     expect(mockEq1).toHaveBeenCalledWith("id", CAT1);
-    expect(mockEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("returns error when update fails", async () => {
-    mockEq2.mockResolvedValueOnce({ error: { message: "DB error" } });
+    mockEq1.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await updateCategory(CAT1, { name: "Food" });
     expect(result.error).not.toBeNull();
   });
@@ -1110,8 +1160,7 @@ describe("updateCategory", () => {
 describe("deleteCategory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDeleteEq2.mockResolvedValue({ error: null });
-    mockDeleteEq1.mockReturnValue({ eq: mockDeleteEq2 });
+    mockDeleteEq1.mockResolvedValue({ error: null });
     mockDelete.mockReturnValue({ eq: mockDeleteEq1 });
     fromTableHandler = (table: string) => {
       if (table === "categories") {
@@ -1121,16 +1170,15 @@ describe("deleteCategory", () => {
     };
   });
 
-  it("deletes category and filters by id and user_id", async () => {
+  it("deletes category and filters by id", async () => {
     const result = await deleteCategory(CAT1);
     expect(result.error).toBeNull();
     expect(mockDelete).toHaveBeenCalled();
     expect(mockDeleteEq1).toHaveBeenCalledWith("id", CAT1);
-    expect(mockDeleteEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("returns error when delete fails", async () => {
-    mockDeleteEq2.mockResolvedValueOnce({ error: { message: "DB error" } });
+    mockDeleteEq1.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await deleteCategory(CAT1);
     expect(result.error).not.toBeNull();
   });
@@ -1164,12 +1212,23 @@ describe("mutation payload validation (Zod)", () => {
 
   it("createCategory returns { error } for empty name after trim", async () => {
     const result = await createCategory({
+      accountId: ACC1,
       name: "   ",
       icon: "ShoppingCart",
       type: "expense",
     });
     expect(result.error).not.toBeNull();
     expect(result.error?.message).toMatch(/name/i);
+  });
+
+  it("createCategory returns { error } when accountId is invalid", async () => {
+    const result = await createCategory({
+      accountId: "not-a-uuid",
+      name: "Groceries",
+      icon: "ShoppingCart",
+      type: "expense",
+    });
+    expect(result.error).not.toBeNull();
   });
 });
 

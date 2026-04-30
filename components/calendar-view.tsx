@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
 import { format } from "date-fns";
@@ -9,7 +10,7 @@ import type { Transaction, RecurringRule } from "@/lib/types";
 import { fetchCalendarData } from "@/lib/api";
 import { mapRecurringRuleRow } from "@/lib/recurring-rules";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
-import { calendarMonthSwrKey } from "@/lib/swr-keys";
+import { calendarMonthSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
 import {
   getProjectedBalances,
   sumRecurringBeforeDate,
@@ -20,6 +21,9 @@ import { AmountText } from "@/components/amount-text";
 import { ErrorBanner } from "@/components/error-banner";
 import { CalendarGrid } from "@/components/calendar-grid";
 import { DayTransactionsContent } from "@/components/day-sheet";
+import { AccountPicker } from "@/components/account-picker";
+import { useActiveAccount } from "@/components/active-account-provider";
+import { withActiveAccountQuery } from "@/lib/url";
 
 interface CalendarViewProps {
   initialMonth: number;
@@ -40,6 +44,13 @@ export function CalendarView({
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const {
+    accounts,
+    activeAccountId,
+    setActiveAccount,
+    isLoading: accountsLoading,
+    hasNoAccounts,
+  } = useActiveAccount();
   const [month, setMonth] = useState(initialMonth);
   const [year, setYear] = useState(initialYear);
   const [slideDirection, setSlideDirection] = useState<"prev" | "next" | null>(
@@ -59,18 +70,20 @@ export function CalendarView({
   }, [initialSelectedDate]);
 
   const { mutate } = useSWRConfig();
+  const calendarKey = activeAccountId
+    ? calendarMonthSwrKey(month, year, activeAccountId)
+    : null;
   const {
     data,
     isLoading,
     error: calendarError,
     mutate: revalidateCalendarMonth,
   } = useSWR(
-    calendarMonthSwrKey(month, year),
-    () => fetchCalendarData(month, year),
+    calendarKey,
+    () => fetchCalendarData(month, year, activeAccountId as string),
     { keepPreviousData: true },
   );
 
-  const accountName = data?.account?.name ?? "";
   const recurringRulesMapped: RecurringRule[] = useMemo(
     () => (data?.recurringRules ?? []).map(mapRecurringRuleRow),
     [data?.recurringRules],
@@ -168,14 +181,18 @@ export function CalendarView({
   const needDaySheetMonth =
     effectiveDate && (effMonth !== month || effYear !== year);
 
+  const daySheetKey =
+    needDaySheetMonth && activeAccountId
+      ? calendarMonthSwrKey(effMonth, effYear, activeAccountId)
+      : null;
   const {
     data: daySheetMonthData,
     isLoading: daySheetMonthLoading,
     error: daySheetMonthError,
     mutate: revalidateDaySheetMonth,
   } = useSWR(
-    needDaySheetMonth ? calendarMonthSwrKey(effMonth, effYear) : null,
-    () => fetchCalendarData(effMonth, effYear),
+    daySheetKey,
+    () => fetchCalendarData(effMonth, effYear, activeAccountId as string),
     { keepPreviousData: true },
   );
 
@@ -209,6 +226,12 @@ export function CalendarView({
   const daySheetLoading =
     needDaySheetMonth && daySheetMonthLoading && !daySheetMonthError;
 
+  /** Accounts list + active id resolving — avoid flashing wrong picker/balances; keep grid skeleton visible */
+  const accountHydrating = accountsLoading;
+
+  const calendarGridLoading =
+    (accountHydrating || isLoading) && !calendarError;
+
   function onPrevMonth() {
     setSlideDirection("prev");
     if (month === 1) {
@@ -231,16 +254,42 @@ export function CalendarView({
 
   function handleDaySelect(date: string) {
     setSelectedDate(date);
-    router.replace(`/?month=${month}&year=${year}&selected=${date}`, {
-      scroll: false,
-    });
+    router.replace(
+      withActiveAccountQuery(
+        `/?month=${month}&year=${year}&selected=${date}`,
+        activeAccountId,
+      ),
+      { scroll: false },
+    );
+  }
+
+  if (!accountsLoading && hasNoAccounts) {
+    return (
+      <div className="flex flex-col px-5 pb-6 pt-12 text-white">
+        <div className="glass-card flex flex-col items-center gap-4 rounded-2xl px-6 py-10 text-center">
+          <h2 className="text-base font-semibold text-white">
+            Create your first budget
+          </h2>
+          <p className="text-sm text-white/70">
+            You don&apos;t have a budget yet. Set one up in Settings to start
+            tracking transactions.
+          </p>
+          <Link
+            href="/settings"
+            className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 active:bg-primary/80"
+          >
+            Go to Settings
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col pb-6">
       {/* Top bar */}
       <header className="flex items-center justify-between px-5 pb-2 pt-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1 greeting-enter">
             <span className="wave-emoji shrink-0" aria-hidden>
               👋
@@ -252,11 +301,20 @@ export function CalendarView({
               ) : null}
             </span>
           </div>
-          <h1 className="account-enter min-h-7 text-xl font-semibold text-white">
-            {accountName || "\u00A0"}
-          </h1>
+          {accountHydrating ? (
+            <div
+              className="account-enter mt-0.5 min-h-7 w-48 max-w-[85%] animate-pulse rounded-lg bg-white/10"
+              aria-hidden
+            />
+          ) : (
+            <AccountPicker
+              accounts={accounts}
+              activeAccountId={activeAccountId}
+              onSelect={setActiveAccount}
+            />
+          )}
         </div>
-        <div className="glass account-enter flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white">
+        <div className="glass account-enter flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white">
           {avatarInitials}
         </div>
       </header>
@@ -271,36 +329,50 @@ export function CalendarView({
       )}
 
       {/* Balance hero card */}
-      <div className="balance-card-1 px-5 pb-2 pt-1">
-        <div className="glass-card flex flex-col gap-0.5 rounded-2xl p-4">
-          <span className="text-xs text-white/85">Current Balance</span>
-          <AmountText
-            amount={todayBalance}
-            variant="hero"
-            signDisplay="negativeOnly"
-          />
-        </div>
-      </div>
+      {accountHydrating ? (
+        <>
+          <div className="balance-card-1 px-5 pb-2 pt-1">
+            <div className="glass-card h-[4.75rem] animate-pulse rounded-2xl p-4" />
+          </div>
+          <div className="flex gap-2 px-5 pb-3">
+            <div className="balance-card-2 glass-card h-[3.25rem] flex-1 animate-pulse rounded-2xl" />
+            <div className="balance-card-3 glass-card h-[3.25rem] flex-1 animate-pulse rounded-2xl" />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="balance-card-1 px-5 pb-2 pt-1">
+            <div className="glass-card flex flex-col gap-0.5 rounded-2xl p-4">
+              <span className="text-xs text-white/85">Current Balance</span>
+              <AmountText
+                amount={todayBalance}
+                variant="hero"
+                signDisplay="negativeOnly"
+              />
+            </div>
+          </div>
 
-      {/* Income / Expenses row */}
-      <div className="flex gap-2 px-5 pb-3">
-        <div className="balance-card-2 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
-          <span className="text-[10px] text-white/85">Income</span>
-          <AmountText
-            amount={monthIncome}
-            polarity="positive"
-            signDisplay="always"
-          />
-        </div>
-        <div className="balance-card-3 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
-          <span className="text-[10px] text-white/85">Expenses</span>
-          <AmountText
-            amount={monthExpenses}
-            polarity="negative"
-            signDisplay="always"
-          />
-        </div>
-      </div>
+          {/* Income / Expenses row */}
+          <div className="flex gap-2 px-5 pb-3">
+            <div className="balance-card-2 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
+              <span className="text-[10px] text-white/85">Income</span>
+              <AmountText
+                amount={monthIncome}
+                polarity="positive"
+                signDisplay="always"
+              />
+            </div>
+            <div className="balance-card-3 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
+              <span className="text-[10px] text-white/85">Expenses</span>
+              <AmountText
+                amount={monthExpenses}
+                polarity="negative"
+                signDisplay="always"
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Calendar */}
       <div className="calendar-enter glass-card mt-1 mx-4 overflow-hidden rounded-3xl">
@@ -317,7 +389,7 @@ export function CalendarView({
             balanceMonth={month}
             onPrevMonth={onPrevMonth}
             onNextMonth={onNextMonth}
-            isLoading={isLoading && !calendarError}
+            isLoading={calendarGridLoading}
             selectedDate={selectedDate}
             onSelectedDateChange={handleDaySelect}
           />
@@ -328,7 +400,7 @@ export function CalendarView({
             message="Couldn't load transactions for this day."
             onRetry={() => void revalidateDaySheetMonth()}
           />
-        ) : daySheetLoading ? (
+        ) : accountHydrating || daySheetLoading ? (
           <div className="border-t border-white/20 px-5 pb-6 pt-4">
             <p className="text-overlay text-xs text-white/70">Loading…</p>
           </div>
@@ -337,7 +409,7 @@ export function CalendarView({
             date={effectiveDate}
             transactions={daySheetTransactions}
             recurringRules={daySheetRecurringMapped}
-            accountId={data?.account?.id ?? null}
+            accountId={activeAccountId}
             onMutate={(opts) => {
               const td = opts?.targetDate;
               if (td && td.length >= 10) {
@@ -355,18 +427,23 @@ export function CalendarView({
                   setYear(ty);
                 }
               }
+              if (!activeAccountId) return;
               if (opts?.recurringTouch) {
-                invalidateNext12CalendarMonths();
-                mutate(calendarMonthSwrKey(month, year));
+                invalidateNext12CalendarMonths(activeAccountId);
+                mutate(calendarMonthSwrKey(month, year, activeAccountId));
                 if (needDaySheetMonth) {
-                  mutate(calendarMonthSwrKey(effMonth, effYear));
+                  mutate(
+                    calendarMonthSwrKey(effMonth, effYear, activeAccountId),
+                  );
                 }
               } else {
-                mutate(calendarMonthSwrKey(month, year));
+                mutate(calendarMonthSwrKey(month, year, activeAccountId));
                 if (needDaySheetMonth) {
-                  mutate(calendarMonthSwrKey(effMonth, effYear));
+                  mutate(
+                    calendarMonthSwrKey(effMonth, effYear, activeAccountId),
+                  );
                 }
-                mutate("transactions");
+                mutate(transactionsSwrKey(activeAccountId));
               }
             }}
           />

@@ -34,3 +34,6 @@ supabase/
 *.md
 !README.md
 *.txt
+
+# local DB dumps
+/backups

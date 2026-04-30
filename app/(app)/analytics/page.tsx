@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import useSWR from "swr";
 import {
   format,
@@ -28,8 +29,10 @@ import type { TooltipProps } from "recharts";
 import { fetchTransactions, fetchCategories } from "@/lib/api";
 import { expandRecurringForDateRange } from "@/lib/projection";
 import { mapRecurringRuleRow } from "@/lib/recurring-rules";
+import { categoriesSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
 import { cn } from "@/lib/utils";
 import { ErrorBanner } from "@/components/error-banner";
+import { useActiveAccount } from "@/components/active-account-provider";
 
 type TimeRange = "current" | "last3";
 
@@ -102,14 +105,21 @@ function formatAxisValue(value: number): string {
 
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>("current");
+  const { activeAccountId, hasNoAccounts, isLoading: accountsLoading } = useActiveAccount();
 
   const {
     data: txData,
     error: txError,
     isLoading: txLoading,
     mutate: retryTransactions,
-  } = useSWR("transactions", fetchTransactions);
-  const { data: categories = [] } = useSWR("categories", fetchCategories);
+  } = useSWR(
+    activeAccountId ? transactionsSwrKey(activeAccountId) : null,
+    () => fetchTransactions(activeAccountId as string),
+  );
+  const { data: categories = [] } = useSWR(
+    activeAccountId ? categoriesSwrKey(activeAccountId) : null,
+    () => fetchCategories(activeAccountId as string),
+  );
 
   const { startDate, endDate } = useMemo(() => {
     const now = new Date();
@@ -218,13 +228,35 @@ export default function AnalyticsPage() {
     });
   }, [allTransactions, timeRange]);
 
-  const isLoading = txLoading && !txData;
+  const isLoading = !activeAccountId || (txLoading && !txData);
   const hasNoTimeSeriesData = timeSeriesData.every(
     (d) => d.income === 0 && d.expenses === 0,
   );
 
+  if (!accountsLoading && hasNoAccounts) {
+    return (
+      <div className="flex flex-col px-5 pb-6 pt-12 text-white">
+        <div className="glass-card flex flex-col items-center gap-4 rounded-2xl px-6 py-10 text-center">
+          <h2 className="text-base font-semibold text-white">
+            Create your first budget
+          </h2>
+          <p className="text-sm text-white/70">
+            You don&apos;t have a budget yet. Set one up in Settings to start
+            tracking transactions.
+          </p>
+          <Link
+            href="/settings"
+            className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 active:bg-primary/80"
+          >
+            Go to Settings
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col overflow-x-hidden">
+    <div className="flex flex-col overflow-x-clip">
       <header className="page-enter-1 px-5 pb-4 pt-6">
         <h1 className="text-xl font-semibold text-white">Analytics</h1>
         <p className="text-sm text-white/70">Your spending insights</p>

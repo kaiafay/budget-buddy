@@ -17,6 +17,8 @@ export type RecurringRuleRowInput = {
   label: string;
   frequency: string;
   category_id?: string | null;
+  root_rule_id?: string | null;
+  account_id?: string | null;
 };
 
 export function mapRecurringRuleRow(row: RecurringRuleRowInput): RecurringRule {
@@ -28,5 +30,7 @@ export function mapRecurringRuleRow(row: RecurringRuleRowInput): RecurringRule {
     label: row.label,
     frequency: row.frequency as "weekly" | "biweekly" | "monthly" | "yearly",
     category_id: row.category_id ?? null,
+    root_rule_id: row.root_rule_id ?? null,
+    account_id: row.account_id ?? null,
   };
 }

@@ -34,12 +34,18 @@ interface EditLoaderSetters {
  * skip the full fetch (preventing a race that would overwrite user edits). For recurring
  * rules we still run fetchNextChainSegment since it's needed for date picker constraints.
  */
+const WRONG_BUDGET_TX =
+  "This transaction belongs to a different budget.";
+const WRONG_BUDGET_RULE =
+  "This recurring rule belongs to a different budget.";
+
 export function useEditLoader(
   editTxId: string | null,
   editRuleId: string | null,
   dateParam: string | null,
   setters: EditLoaderSetters,
   hasInitialData = false,
+  expectedAccountId?: string | null,
 ) {
   const [loading, setLoading] = useState(
     !hasInitialData && !!(editTxId || editRuleId),
@@ -103,6 +109,10 @@ export function useEditLoader(
             setError("Couldn't find this transaction.");
             return;
           }
+          if (expectedAccountId && tx.account_id !== expectedAccountId) {
+            setError(WRONG_BUDGET_TX);
+            return;
+          }
           setLabel(tx.label);
           setAmount(Math.abs(Number(tx.amount)).toFixed(2));
           setType(Number(tx.amount) >= 0 ? "income" : "expense");
@@ -122,6 +132,13 @@ export function useEditLoader(
         .then((rule) => {
           if (!rule) {
             setError("Couldn't find this recurring rule.");
+            return;
+          }
+          if (
+            expectedAccountId &&
+            rule.account_id !== expectedAccountId
+          ) {
+            setError(WRONG_BUDGET_RULE);
             return;
           }
           setLabel(rule.label);
@@ -151,7 +168,7 @@ export function useEditLoader(
     }
     // All setters are stable useState dispatchers — safe to omit from deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editTxId, editRuleId, dateParam, hasInitialData, retryKey]);
+  }, [editTxId, editRuleId, dateParam, hasInitialData, expectedAccountId, retryKey]);
 
   function retry() {
     setError(null);

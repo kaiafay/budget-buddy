@@ -1,15 +1,16 @@
 "use client";
 
-import { Suspense, useState, useEffect, useTransition } from "react";
+import { Suspense, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, CalendarIcon, Repeat } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import useSWR from "swr";
 import { mutate } from "swr";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
-import { calendarMonthSwrKey } from "@/lib/swr-keys";
-import { createClient } from "@/lib/supabase/client";
+import { calendarMonthSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
 import { fetchCategories } from "@/lib/api";
+import { categoriesSwrKey } from "@/lib/swr-keys";
+import { useActiveAccount } from "@/components/active-account-provider";
 import { GlassCategorySelectTrigger } from "@/components/glass-category-select-trigger";
 import {
   createTransaction,
@@ -51,6 +52,7 @@ import {
   glassSectionIconClass,
 } from "@/lib/glass-classes";
 import { cn } from "@/lib/utils";
+import { withActiveAccountQuery } from "@/lib/url";
 
 function getInitialDate(
   searchParams: ReturnType<typeof useSearchParams>,
@@ -110,7 +112,8 @@ function AddTransactionPage() {
   });
   const [endDatePickerOpen, setEndDatePickerOpen] = useState(false);
   const [recurrenceCount, setRecurrenceCount] = useState("12");
-  const [accountId, setAccountId] = useState<string | null>(null);
+  const { activeAccountId } = useActiveAccount();
+  const accountId = activeAccountId;
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const hasInitialData = isEditMode && searchParams.get("initPrefilled") === "1";
@@ -119,44 +122,33 @@ function AddTransactionPage() {
     loading: editLoading,
     error: editLoadError,
     retry: retryEditLoad,
-  } = useEditLoader(editTxId, editRuleId, searchParams.get("date"), {
-    setLabel,
-    setAmount,
-    setType,
-    setCategoryId,
-    setDate,
-    setRecurring,
-    setFrequency,
-    setScopeOccurrenceDate: scope.setOccurrenceDate,
-    setScopeNextSegmentDate: scope.setNextSegmentDate,
-    setScopeNextSegmentLoading: scope.setNextSegmentLoading,
-    setEndCondition,
-    setEndDate,
-  }, hasInitialData);
+  } = useEditLoader(
+    editTxId,
+    editRuleId,
+    searchParams.get("date"),
+    {
+      setLabel,
+      setAmount,
+      setType,
+      setCategoryId,
+      setDate,
+      setRecurring,
+      setFrequency,
+      setScopeOccurrenceDate: scope.setOccurrenceDate,
+      setScopeNextSegmentDate: scope.setNextSegmentDate,
+      setScopeNextSegmentLoading: scope.setNextSegmentLoading,
+      setEndCondition,
+      setEndDate,
+    },
+    hasInitialData,
+    accountId,
+  );
 
-  const { data: categories = [] } = useSWR("categories", fetchCategories);
+  const { data: categories = [] } = useSWR(
+    accountId ? categoriesSwrKey(accountId) : null,
+    () => fetchCategories(accountId as string),
+  );
   const sortedCategories = useSortedCategories(categories, type);
-
-  useEffect(() => {
-    async function loadAccount() {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data, error: fetchError } = await supabase
-        .from("accounts")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (fetchError) {
-        setError(USER_FACING_ERROR);
-        return;
-      }
-      if (data?.id) setAccountId(data.id);
-    }
-    loadAccount();
-  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -195,9 +187,13 @@ function AddTransactionPage() {
             setError(USER_FACING_ERROR);
             return;
           }
-          invalidateNext12CalendarMonths();
-          mutate("transactions");
-          router.push(fromTransactions ? "/transactions" : `/?selected=${dateStr}`);
+          invalidateNext12CalendarMonths(accountId);
+          mutate(transactionsSwrKey(accountId));
+          router.push(
+            fromTransactions
+              ? withActiveAccountQuery("/transactions", accountId)
+              : withActiveAccountQuery(`/?selected=${dateStr}`, accountId),
+          );
           return;
         }
         const { error: updateError } = await updateTransaction(editTxId, {
@@ -212,9 +208,13 @@ function AddTransactionPage() {
         }
         const currentMonth = date.getMonth() + 1;
         const currentYear = date.getFullYear();
-        mutate(calendarMonthSwrKey(currentMonth, currentYear));
-        mutate("transactions");
-        router.push(fromTransactions ? "/transactions" : `/?selected=${dateStr}`);
+        mutate(calendarMonthSwrKey(currentMonth, currentYear, accountId));
+        mutate(transactionsSwrKey(accountId));
+        router.push(
+          fromTransactions
+            ? withActiveAccountQuery("/transactions", accountId)
+            : withActiveAccountQuery(`/?selected=${dateStr}`, accountId),
+        );
         return;
       }
 
@@ -267,7 +267,7 @@ function AddTransactionPage() {
           setError(USER_FACING_ERROR);
           return;
         }
-        invalidateNext12CalendarMonths();
+        invalidateNext12CalendarMonths(accountId);
       } else {
         const { error: insertError } = await createTransaction({
           accountId,
@@ -282,15 +282,16 @@ function AddTransactionPage() {
         }
         const currentMonth = date.getMonth() + 1;
         const currentYear = date.getFullYear();
-        mutate(calendarMonthSwrKey(currentMonth, currentYear));
-        mutate("transactions");
+        mutate(calendarMonthSwrKey(currentMonth, currentYear, accountId));
+        mutate(transactionsSwrKey(accountId));
       }
-      router.push(`/?selected=${dateStr}`);
+      router.push(withActiveAccountQuery(`/?selected=${dateStr}`, accountId));
     });
   }
 
   function confirmRecurringEditScope(s: "once" | "fromDate") {
     setError(null);
+    if (!accountId) return;
     startTransition(async () => {
       try {
         const result = await scope.confirmScope(s);
@@ -298,8 +299,12 @@ function AddTransactionPage() {
           setError(USER_FACING_ERROR);
           return;
         }
-        invalidateNext12CalendarMonths();
-        router.push(fromTransactions ? "/transactions" : `/?selected=${result.targetDate}`);
+        invalidateNext12CalendarMonths(accountId);
+        router.push(
+          fromTransactions
+            ? withActiveAccountQuery("/transactions", accountId)
+            : withActiveAccountQuery(`/?selected=${result.targetDate}`, accountId),
+        );
       } catch {
         setError(USER_FACING_ERROR);
       }

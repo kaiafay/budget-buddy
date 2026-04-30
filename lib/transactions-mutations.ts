@@ -11,6 +11,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import {
   applyRecurringEditFromDateArgsSchema,
+  createAccountPayloadSchema,
   createCategoryPayloadSchema,
   createRecurringRulePayloadSchema,
   createTransactionPayloadSchema,
@@ -20,6 +21,7 @@ import {
   safeParseMutation,
   skipRecurringOccurrenceArgsSchema,
   splitRecurringRuleAtDateArgsSchema,
+  updateAccountPayloadSchema,
   updateCategoryPayloadSchema,
   updateRecurringSegmentInPlaceArgsSchema,
   updateTransactionPayloadSchema,
@@ -794,6 +796,7 @@ export async function recalibrateBalance(payload: {
 }
 
 export async function createCategory(payload: {
+  accountId: string;
   name: string;
   icon: string;
   type: "expense" | "income";
@@ -807,6 +810,7 @@ export async function createCategory(payload: {
   if (!user) return { error: new Error("Not authenticated") };
   const { error } = await supabase.from("categories").insert({
     user_id: user.id,
+    account_id: parsed.data.accountId,
     name: parsed.data.name,
     icon: parsed.data.icon,
     type: parsed.data.type,
@@ -838,6 +842,79 @@ export async function updateCategory(
   const { error } = await supabase
     .from("categories")
     .update(update)
+    .eq("id", idParsed.data);
+  return { error: error ?? null };
+}
+
+export async function createAccount(payload: {
+  name: string;
+  starting_balance: number;
+}): Promise<{ data: { id: string } | null; error: Error | null }> {
+  const parsed = safeParseMutation(createAccountPayloadSchema, payload);
+  if (!parsed.ok) return { data: null, error: parsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: new Error("Not authenticated") };
+  const { data, error } = await supabase.rpc("create_account_with_member", {
+    p_user_id: user.id,
+    p_name: parsed.data.name,
+    p_starting_balance: parsed.data.starting_balance,
+  });
+  if (error) return { data: null, error };
+  if (data == null) {
+    return {
+      data: null,
+      error: new Error("RPC returned no id"),
+    };
+  }
+  return { data: { id: String(data) }, error: null };
+}
+
+export async function updateAccount(
+  id: string,
+  payload: { name?: string; starting_balance?: number },
+): Promise<{ error: Error | null }> {
+  const idParsed = safeParseMutation(uuidSchema, id);
+  if (!idParsed.ok) return { error: idParsed.error };
+  const payloadParsed = safeParseMutation(updateAccountPayloadSchema, payload);
+  if (!payloadParsed.ok) return { error: payloadParsed.error };
+  if (
+    payloadParsed.data.name === undefined &&
+    payloadParsed.data.starting_balance === undefined
+  ) {
+    return { error: null };
+  }
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+  const update: { name?: string; starting_balance?: number } = {};
+  if (payloadParsed.data.name !== undefined) update.name = payloadParsed.data.name;
+  if (payloadParsed.data.starting_balance !== undefined) {
+    update.starting_balance = payloadParsed.data.starting_balance;
+  }
+  const { error } = await supabase
+    .from("accounts")
+    .update(update)
+    .eq("id", idParsed.data)
+    .eq("user_id", user.id);
+  return { error: error ?? null };
+}
+
+export async function deleteBudget(id: string): Promise<{ error: Error | null }> {
+  const idParsed = safeParseMutation(uuidSchema, id);
+  if (!idParsed.ok) return { error: idParsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+  const { error } = await supabase
+    .from("accounts")
+    .delete()
     .eq("id", idParsed.data)
     .eq("user_id", user.id);
   return { error: error ?? null };
@@ -854,7 +931,6 @@ export async function deleteCategory(id: string): Promise<{ error: Error | null 
   const { error } = await supabase
     .from("categories")
     .delete()
-    .eq("id", idParsed.data)
-    .eq("user_id", user.id);
+    .eq("id", idParsed.data);
   return { error: error ?? null };
 }
