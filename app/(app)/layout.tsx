@@ -34,8 +34,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SWRConfig
       value={{
-        revalidateOnFocus: false,
-        revalidateOnReconnect: false,
+        revalidateOnFocus: true,
+        revalidateOnReconnect: true,
       }}
     >
       <Suspense fallback={null}>
