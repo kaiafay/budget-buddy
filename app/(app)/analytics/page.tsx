@@ -29,7 +29,7 @@ import type { TooltipProps } from "recharts";
 import { fetchTransactions, fetchCategories } from "@/lib/api";
 import { expandRecurringForDateRange } from "@/lib/projection";
 import { mapRecurringRuleRow } from "@/lib/recurring-rules";
-import { transactionsSwrKey } from "@/lib/swr-keys";
+import { categoriesSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
 import { cn } from "@/lib/utils";
 import { ErrorBanner } from "@/components/error-banner";
 import { useActiveAccount } from "@/components/active-account-provider";
@@ -116,7 +116,10 @@ export default function AnalyticsPage() {
     activeAccountId ? transactionsSwrKey(activeAccountId) : null,
     () => fetchTransactions(activeAccountId as string),
   );
-  const { data: categories = [] } = useSWR("categories", fetchCategories);
+  const { data: categories = [] } = useSWR(
+    activeAccountId ? categoriesSwrKey(activeAccountId) : null,
+    () => fetchCategories(activeAccountId as string),
+  );
 
   const { startDate, endDate } = useMemo(() => {
     const now = new Date();

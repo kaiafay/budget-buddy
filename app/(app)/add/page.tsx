@@ -9,6 +9,7 @@ import { mutate } from "swr";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
 import { calendarMonthSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
 import { fetchCategories } from "@/lib/api";
+import { categoriesSwrKey } from "@/lib/swr-keys";
 import { useActiveAccount } from "@/components/active-account-provider";
 import { GlassCategorySelectTrigger } from "@/components/glass-category-select-trigger";
 import {
@@ -135,7 +136,10 @@ function AddTransactionPage() {
     setEndDate,
   }, hasInitialData);
 
-  const { data: categories = [] } = useSWR("categories", fetchCategories);
+  const { data: categories = [] } = useSWR(
+    accountId ? categoriesSwrKey(accountId) : null,
+    () => fetchCategories(accountId as string),
+  );
   const sortedCategories = useSortedCategories(categories, type);
 
   function handleSubmit(e: React.FormEvent) {

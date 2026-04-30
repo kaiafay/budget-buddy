@@ -1093,8 +1093,9 @@ describe("createCategory", () => {
     };
   });
 
-  it("inserts category with user_id, name, icon, type", async () => {
+  it("inserts category with user_id, account_id, name, icon, type", async () => {
     const result = await createCategory({
+      accountId: ACC1,
       name: "Groceries",
       icon: "ShoppingCart",
       type: "expense",
@@ -1102,6 +1103,7 @@ describe("createCategory", () => {
     expect(result.error).toBeNull();
     expect(mockInsert).toHaveBeenCalledWith({
       user_id: "user-1",
+      account_id: ACC1,
       name: "Groceries",
       icon: "ShoppingCart",
       type: "expense",
@@ -1111,6 +1113,7 @@ describe("createCategory", () => {
   it("returns error when insert fails", async () => {
     mockInsert.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await createCategory({
+      accountId: ACC1,
       name: "Groceries",
       icon: "ShoppingCart",
       type: "expense",
@@ -1122,8 +1125,7 @@ describe("createCategory", () => {
 describe("updateCategory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEq2.mockResolvedValue({ error: null });
-    mockEq1.mockReturnValue({ eq: mockEq2 });
+    mockEq1.mockResolvedValue({ error: null });
     mockUpdate.mockReturnValue({ eq: mockEq1 });
     fromTableHandler = (table: string) => {
       if (table === "categories") {
@@ -1133,7 +1135,7 @@ describe("updateCategory", () => {
     };
   });
 
-  it("updates category with payload and filters by id and user_id", async () => {
+  it("updates category with payload and filters by id", async () => {
     const result = await updateCategory(CAT1, {
       name: "Food",
       icon: "UtensilsCrossed",
@@ -1146,11 +1148,10 @@ describe("updateCategory", () => {
       type: "expense",
     });
     expect(mockEq1).toHaveBeenCalledWith("id", CAT1);
-    expect(mockEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("returns error when update fails", async () => {
-    mockEq2.mockResolvedValueOnce({ error: { message: "DB error" } });
+    mockEq1.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await updateCategory(CAT1, { name: "Food" });
     expect(result.error).not.toBeNull();
   });
@@ -1159,8 +1160,7 @@ describe("updateCategory", () => {
 describe("deleteCategory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDeleteEq2.mockResolvedValue({ error: null });
-    mockDeleteEq1.mockReturnValue({ eq: mockDeleteEq2 });
+    mockDeleteEq1.mockResolvedValue({ error: null });
     mockDelete.mockReturnValue({ eq: mockDeleteEq1 });
     fromTableHandler = (table: string) => {
       if (table === "categories") {
@@ -1170,16 +1170,15 @@ describe("deleteCategory", () => {
     };
   });
 
-  it("deletes category and filters by id and user_id", async () => {
+  it("deletes category and filters by id", async () => {
     const result = await deleteCategory(CAT1);
     expect(result.error).toBeNull();
     expect(mockDelete).toHaveBeenCalled();
     expect(mockDeleteEq1).toHaveBeenCalledWith("id", CAT1);
-    expect(mockDeleteEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("returns error when delete fails", async () => {
-    mockDeleteEq2.mockResolvedValueOnce({ error: { message: "DB error" } });
+    mockDeleteEq1.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await deleteCategory(CAT1);
     expect(result.error).not.toBeNull();
   });
@@ -1213,12 +1212,23 @@ describe("mutation payload validation (Zod)", () => {
 
   it("createCategory returns { error } for empty name after trim", async () => {
     const result = await createCategory({
+      accountId: ACC1,
       name: "   ",
       icon: "ShoppingCart",
       type: "expense",
     });
     expect(result.error).not.toBeNull();
     expect(result.error?.message).toMatch(/name/i);
+  });
+
+  it("createCategory returns { error } when accountId is invalid", async () => {
+    const result = await createCategory({
+      accountId: "not-a-uuid",
+      name: "Groceries",
+      icon: "ShoppingCart",
+      type: "expense",
+    });
+    expect(result.error).not.toBeNull();
   });
 });
 

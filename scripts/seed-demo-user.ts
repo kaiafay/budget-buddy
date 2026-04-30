@@ -134,6 +134,7 @@ async function main(): Promise<void> {
 
   const categoryRows = CATEGORY_SEEDS.map((c) => ({
     user_id: userId,
+    account_id: accountId,
     name: c.name,
     icon: c.icon,
     type: c.type,

@@ -93,6 +93,7 @@ export const recurringSegmentPayloadSchema = z.object({
 );
 
 export const createCategoryPayloadSchema = z.object({
+  accountId: uuidSchema,
   name: categoryNameSchema,
   icon: categoryIconSchema,
   type: z.enum(["expense", "income"]),

@@ -69,6 +69,7 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 
 - id: uuid (primary key)
 - user_id: uuid (references auth.users)
+- account_id: uuid (references accounts)
 - name: text
 - icon: text (icon name from ALLOWED_CATEGORY_ICON_NAMES in components/category-icons.tsx)
 - type: text ('expense' | 'income')
@@ -86,7 +87,7 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 ## Architecture Rules
 
 - The app uses SWR for client-side data fetching via lib/api.ts
-- fetchCalendarData(month, year, accountId) and fetchTransactions(accountId) are the two main data fetching functions (used with useSWR). fetchAccounts() returns the user's full account list for the picker.
+- fetchCalendarData(month, year, accountId) and fetchTransactions(accountId) are the two main data fetching functions (used with useSWR). fetchAccounts() returns the user's full account list for the picker. fetchCategories(accountId) scopes categories to the active budget.
 - Mutations use the Supabase browser client (lib/supabase/client.ts) and call mutate() from SWR after success to invalidate cache
 - mutate() is the primary cache invalidation method — not router.refresh()
 - Auth protection: root `proxy.ts` (Next.js 16 proxy convention — not `middleware.ts`; edge redirects for `/login` vs app routes)
@@ -96,7 +97,7 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 - After any mutation, invalidate SWR cache appropriately (always include accountId where keys are account-scoped):
   - One-time transaction create/update/delete: `mutate(transactionsSwrKey(accountId))` plus `mutate(calendarMonthSwrKey(txMonth, txYear, accountId))`
   - Recurring rule mutations (edit, skip, delete): `invalidateNext12CalendarMonths(accountId)` from lib/swr-invalidate.ts (shared with /add page); on the calendar home, `DayTransactionsContent` calls `onMutate({ recurringTouch: true })` so the parent also revalidates the visible `calendarMonthSwrKey(month, year, accountId)` (covers months outside the next-12-from-today window)
-  - Category mutations: `mutate("categories")` only
+  - Category mutations: `mutate(categoriesSwrKey(accountId))` only
   - Active-budget settings save (auto, debounced): `mutate(accountsSwrKey)` + `mutate(transactionsSwrKey(accountId))` + `mutate(calendarMonthSwrKey(currentMonth, currentYear, accountId))`
   - Account create / rename: `mutate(accountsSwrKey)`. After a create, immediately switch active account to the new id via `setActiveAccount(newId)` so the user lands on the new budget.
 - Home calendar URL (`app/(app)/page.tsx`): optional `?month=` (1–12) and `?year=` (1900–2100); invalid or missing query values fall back to the current month/year; optional `?selected=` (`yyyy-MM-dd`, validated) pre-selects that day and aligns the visible month (e.g. after save from `/add`). Tapping a day in `components/calendar-view.tsx` calls `router.replace` with `month`, `year`, and `selected` so `router.back()` from `/add` restores selection.

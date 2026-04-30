@@ -796,6 +796,7 @@ export async function recalibrateBalance(payload: {
 }
 
 export async function createCategory(payload: {
+  accountId: string;
   name: string;
   icon: string;
   type: "expense" | "income";
@@ -809,6 +810,7 @@ export async function createCategory(payload: {
   if (!user) return { error: new Error("Not authenticated") };
   const { error } = await supabase.from("categories").insert({
     user_id: user.id,
+    account_id: parsed.data.accountId,
     name: parsed.data.name,
     icon: parsed.data.icon,
     type: parsed.data.type,
@@ -840,8 +842,7 @@ export async function updateCategory(
   const { error } = await supabase
     .from("categories")
     .update(update)
-    .eq("id", idParsed.data)
-    .eq("user_id", user.id);
+    .eq("id", idParsed.data);
   return { error: error ?? null };
 }
 
@@ -930,7 +931,6 @@ export async function deleteCategory(id: string): Promise<{ error: Error | null 
   const { error } = await supabase
     .from("categories")
     .delete()
-    .eq("id", idParsed.data)
-    .eq("user_id", user.id);
+    .eq("id", idParsed.data);
   return { error: error ?? null };
 }

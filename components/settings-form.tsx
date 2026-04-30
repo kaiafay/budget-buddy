@@ -24,7 +24,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { glassInputClass, glassSectionIconClass } from "@/lib/glass-classes";
-import { accountsSwrKey, calendarMonthSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
+import {
+  accountsSwrKey,
+  calendarMonthSwrKey,
+  categoriesSwrKey,
+  transactionsSwrKey,
+} from "@/lib/swr-keys";
 import {
   Dialog,
   DialogContent,
@@ -109,7 +114,10 @@ export default function SettingsForm() {
 
   const router = useRouter();
   const { mutate } = useSWRConfig();
-  const { data: categories = [] } = useSWR("categories", fetchCategories);
+  const { data: categories = [] } = useSWR(
+    activeAccountId ? categoriesSwrKey(activeAccountId) : null,
+    () => fetchCategories(activeAccountId as string),
+  );
 
   // Sync editable fields when the active account changes (e.g. picker switches)
   // or when accounts finish loading.
@@ -368,6 +376,10 @@ export default function SettingsForm() {
       return;
     }
     startCategoryTransition(async () => {
+      if (!activeAccountId) {
+        setCategoryFormError(USER_FACING_ERROR);
+        return;
+      }
       if (editingCategory) {
         const { error: err } = await updateCategory(editingCategory.id, {
           name,
@@ -376,7 +388,7 @@ export default function SettingsForm() {
         });
         if (err) {
           if (
-            err.message.includes("categories_user_id_name_key") ||
+            err.message.includes("categories_account_id_name_key") ||
             err.message.includes("duplicate key")
           ) {
             setCategoryFormError("A category with this name already exists.");
@@ -387,13 +399,14 @@ export default function SettingsForm() {
         }
       } else {
         const { error: err } = await createCategory({
+          accountId: activeAccountId,
           name,
           icon: categoryForm.icon,
           type: categoryForm.type,
         });
         if (err) {
           if (
-            err.message.includes("categories_user_id_name_key") ||
+            err.message.includes("categories_account_id_name_key") ||
             err.message.includes("duplicate key")
           ) {
             setCategoryFormError("A category with this name already exists.");
@@ -403,7 +416,7 @@ export default function SettingsForm() {
           return;
         }
       }
-      mutate("categories");
+      void mutate(categoriesSwrKey(activeAccountId));
       closeCategoryDialog();
     });
   }
@@ -411,15 +424,19 @@ export default function SettingsForm() {
   function requestDeleteCategory(cat: Category) {
     setCategoryDeleteError(null);
     startCategoryTransition(async () => {
+      if (!activeAccountId) {
+        setCategoryDeleteError(USER_FACING_ERROR);
+        return;
+      }
       try {
-        const count = await fetchCategoryUsageCount(cat.id);
+        const count = await fetchCategoryUsageCount(cat.id, activeAccountId);
         if (count.transactions === 0 && count.rules === 0) {
           const { error: err } = await deleteCategory(cat.id);
           if (err) {
             setCategoryDeleteError(USER_FACING_ERROR);
             return;
           }
-          mutate("categories");
+          void mutate(categoriesSwrKey(activeAccountId));
           return;
         }
         setDeleteUsageCount(count);
@@ -432,7 +449,7 @@ export default function SettingsForm() {
 
   function confirmDeleteCategory() {
     const id = categoryToDelete?.id;
-    if (!id) return;
+    if (!id || !activeAccountId) return;
     setCategoryDeleteError(null);
     startCategoryTransition(async () => {
       try {
@@ -441,7 +458,7 @@ export default function SettingsForm() {
           setCategoryDeleteError(USER_FACING_ERROR);
           return;
         }
-        mutate("categories");
+        void mutate(categoriesSwrKey(activeAccountId));
         setCategoryToDelete(null);
         setDeleteUsageCount(null);
       } catch {

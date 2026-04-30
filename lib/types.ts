@@ -3,6 +3,7 @@ export type Category = {
   name: string;
   icon: string;
   type: "expense" | "income";
+  account_id?: string;
 };
 
 export type Transaction = {

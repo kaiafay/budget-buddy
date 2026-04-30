@@ -31,6 +31,7 @@ import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dial
 import { GlassCategorySelectTrigger } from "@/components/glass-category-select-trigger";
 import { TransactionLeadingIcon } from "@/components/transaction-leading-icon";
 import { fetchCategories, fetchNextChainSegment } from "@/lib/api";
+import { categoriesSwrKey } from "@/lib/swr-keys";
 import { getRecurringRuleIdAndDate } from "@/lib/recurring-rules";
 import {
   glassAmountInputClass,
@@ -101,7 +102,10 @@ export function DayTransactionsContent({
   const [isPending, startTransition] = useTransition();
   const scope = useRecurringEditScope(accountId);
 
-  const { data: categories = [] } = useSWR("categories", fetchCategories);
+  const { data: categories = [] } = useSWR(
+    accountId ? categoriesSwrKey(accountId) : null,
+    () => fetchCategories(accountId as string),
+  );
   const sortedCategories = useSortedCategories(categories, editType);
 
   function openDrawer(t: Transaction) {
