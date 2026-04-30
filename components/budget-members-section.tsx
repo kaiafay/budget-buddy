@@ -111,7 +111,7 @@ export function BudgetMembersSection({
         setInviteError("This person already has access to this budget.");
         return;
       }
-      const { data, error } = await createInvitation(accountId, inviteEmail);
+      const { data, error } = await createInvitation(accountId, inviteEmail.trim());
       if (error || !data) {
         setInviteError(error?.message ?? "Something went wrong.");
         return;
