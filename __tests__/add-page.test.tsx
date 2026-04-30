@@ -17,6 +17,11 @@ vi.mock("swr", () => ({
 }));
 
 import useSWR from "swr";
+const mockUseEditLoader = vi.fn();
+
+vi.mock("@/hooks/use-edit-loader", () => ({
+  useEditLoader: (...args: unknown[]) => mockUseEditLoader(...args),
+}));
 
 vi.mock("@/components/active-account-provider", () => ({
   useActiveAccount: () => ({
@@ -62,6 +67,11 @@ vi.mock("@/lib/transactions-mutations", () => ({
 describe("AddPage amount validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseEditLoader.mockReturnValue({
+      loading: false,
+      error: null,
+      retry: vi.fn(),
+    });
     vi.mocked(useSWR).mockReturnValue({
       data: [],
       isLoading: false,
@@ -99,5 +109,19 @@ describe("AddPage amount validation", () => {
     ).toBeInTheDocument();
     expect(mutations.createTransaction).not.toHaveBeenCalled();
     expect(mutations.createRecurringRule).not.toHaveBeenCalled();
+  });
+
+  it("renders edit loader budget-mismatch errors inline", async () => {
+    mockUseEditLoader.mockReturnValueOnce({
+      loading: false,
+      error: "This transaction belongs to a different budget.",
+      retry: vi.fn(),
+    });
+
+    render(<AddPage />);
+
+    expect(
+      await screen.findByText("This transaction belongs to a different budget."),
+    ).toBeInTheDocument();
   });
 });

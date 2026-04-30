@@ -22,11 +22,13 @@ vi.mock("swr", () => ({
 }));
 
 function Harness() {
-  const { activeAccountId, setActiveAccount, isLoading } = useActiveAccount();
+  const { activeAccountId, setActiveAccount, isLoading, hasNoAccounts } =
+    useActiveAccount();
   return (
     <div>
       <div data-testid="active-account">{activeAccountId ?? "none"}</div>
       <div data-testid="loading">{String(isLoading)}</div>
+      <div data-testid="has-no-accounts">{String(hasNoAccounts)}</div>
       <button type="button" onClick={() => setActiveAccount(ACC3)}>
         set-unknown
       </button>
@@ -72,5 +74,59 @@ describe("ActiveAccountProvider", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "set-known" }));
     expect(screen.getByTestId("active-account").textContent).toBe(ACC1);
+  });
+
+  it("falls back to localStorage when URL param is missing", async () => {
+    window.localStorage.setItem("budget-buddy:active-account", ACC2);
+
+    render(
+      <ActiveAccountProvider>
+        <Harness />
+      </ActiveAccountProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("false");
+    });
+
+    expect(screen.getByTestId("active-account").textContent).toBe(ACC2);
+  });
+
+  it("falls back to first account when localStorage value is stale", async () => {
+    window.localStorage.setItem("budget-buddy:active-account", ACC3);
+
+    render(
+      <ActiveAccountProvider>
+        <Harness />
+      </ActiveAccountProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("false");
+    });
+
+    expect(screen.getByTestId("active-account").textContent).toBe(ACC1);
+    expect(window.localStorage.getItem("budget-buddy:active-account")).toBe(ACC1);
+  });
+
+  it("sets hasNoAccounts when account list is empty", async () => {
+    mockUseSWR.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: undefined,
+    });
+
+    render(
+      <ActiveAccountProvider>
+        <Harness />
+      </ActiveAccountProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("false");
+    });
+
+    expect(screen.getByTestId("active-account").textContent).toBe("none");
+    expect(screen.getByTestId("has-no-accounts").textContent).toBe("true");
   });
 });

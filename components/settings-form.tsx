@@ -338,8 +338,12 @@ export default function SettingsForm() {
         setCreateBudgetError(USER_FACING_ERROR);
         return;
       }
+      try {
+        window.localStorage.setItem("budget-buddy:active-account", data.id);
+      } catch {
+        // ignore storage failures; provider falls back to first available account
+      }
       await mutate(accountsSwrKey);
-      setActiveAccount(data.id);
       closeCreateBudgetDialog();
     });
   }
