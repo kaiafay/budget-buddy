@@ -856,23 +856,19 @@ export async function createAccount(payload: {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { data: null, error: new Error("Not authenticated") };
-  const { data, error } = await supabase
-    .from("accounts")
-    .insert({
-      user_id: user.id,
-      name: parsed.data.name,
-      starting_balance: parsed.data.starting_balance,
-    })
-    .select("id")
-    .single();
+  const { data, error } = await supabase.rpc("create_account_with_member", {
+    p_user_id: user.id,
+    p_name: parsed.data.name,
+    p_starting_balance: parsed.data.starting_balance,
+  });
   if (error) return { data: null, error };
-  if (!data?.id) {
+  if (data == null) {
     return {
       data: null,
-      error: new Error("Insert succeeded but no id returned"),
+      error: new Error("RPC returned no id"),
     };
   }
-  return { data: { id: data.id as string }, error: null };
+  return { data: { id: String(data) }, error: null };
 }
 
 export async function updateAccount(
