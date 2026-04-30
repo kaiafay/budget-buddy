@@ -32,7 +32,6 @@ import { GlassCategorySelectTrigger } from "@/components/glass-category-select-t
 import { TransactionLeadingIcon } from "@/components/transaction-leading-icon";
 import { categoriesSwrKey } from "@/lib/swr-keys";
 import { fetchCategories, fetchNextChainSegment } from "@/lib/api";
-import { categoriesSwrKey } from "@/lib/swr-keys";
 import { getRecurringRuleIdAndDate } from "@/lib/recurring-rules";
 import {
   glassAmountInputClass,
