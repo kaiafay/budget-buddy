@@ -92,7 +92,7 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 - mutate() is the primary cache invalidation method — not router.refresh()
 - Auth protection: root `proxy.ts` (Next.js 16 proxy convention — not `middleware.ts`; edge redirects for `/login` vs app routes)
 - Transaction, recurring rule, and account mutations all live in lib/transactions-mutations.ts — never inline these in components. Settings auto-saves the active budget's name/starting balance (debounced 1s) via `updateAccount`; category CRUD still uses explicit dialog actions.
-- Active budget context: `components/active-account-provider.tsx` exposes `useActiveAccount()` (mounted in `app/(app)/layout.tsx` inside a `<Suspense>`). Resolution order on mount: `?account=<uuid>` URL param (read-only input) → localStorage key `budget-buddy:active-account` → first account in the list. The picker writes to localStorage only — it never pushes the active id to the URL. Pages that already manage URL state (calendar, /add) may still include `?account=` on outbound deep links so back-navigation restores the right budget.
+- Active budget context: `components/active-account-provider.tsx` exposes `useActiveAccount()` (mounted in `app/(app)/layout.tsx` inside a `<Suspense>`). Resolution order on mount: `?account=<uuid>` URL param (read-only input) → localStorage key `budget-buddy:active-account` → first account in the list. The picker writes to localStorage only — it never pushes the active id to the URL. `setActiveAccount(id)` must ignore ids not present in the loaded `accounts` list. Pages that already manage URL state (calendar, /add) may include `?account=` on outbound deep links so back-navigation and cross-device opens restore the intended budget.
 - All app reads (calendar, transactions, analytics, day sheet, /add) MUST scope queries by the active account: pass `activeAccountId` to fetchers, gate SWR keys with `activeAccountId ? ... : null` so we never fetch unscoped, and include `accountId` in cache keys.
 - After any mutation, invalidate SWR cache appropriately (always include accountId where keys are account-scoped):
   - One-time transaction create/update/delete: `mutate(transactionsSwrKey(accountId))` plus `mutate(calendarMonthSwrKey(txMonth, txYear, accountId))`
@@ -137,6 +137,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - app/api/delete-account/ — authenticated `POST` route; deletes all user data in FK-safe order then removes the auth user via admin client (`SUPABASE_SERVICE_ROLE_KEY`)
 - components/ — shared components
 - hooks/use-sorted-categories.ts — `useSortedCategories()` for category dropdown ordering (expense vs income first)
+- hooks/use-edit-loader.ts — `useEditLoader()` guards edit loads by `expectedAccountId` and shows a budget-mismatch error instead of pre-filling cross-account data
 - components/ui/ — shadcn primitives (edit directly for global changes, see Component Rules)
 - components/recurring-edit-scope-dialog.tsx — scope picker dialog for recurring transaction edits (just this / this and future)
 - components/category-icons.tsx — category icon map, getCategoryColor, ALLOWED_CATEGORY_ICON_NAMES
@@ -157,6 +158,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - lib/format-currency.ts — `formatCurrencyAmount()` (magnitude via `Math.abs`, `toLocaleString` fraction options)
 - lib/errors.ts — shared user-facing error copy (USER_FACING_ERROR)
 - lib/recurring-rules.ts — `mapRecurringRuleRow()` for Supabase recurring_rules rows → App `RecurringRule`
+- lib/url.ts — `withActiveAccountQuery(path, accountId)` appends read-only `?account=` query input to deep links (`/`, `/add`, `/transactions`)
 - lib/api.ts — SWR data fetching (fetchAccounts, fetchCalendarData(month, year, accountId), fetchTransactions(accountId), fetchTransaction, fetchRecurringRule). All account-scoped fetchers filter by both `user_id` and `account_id`; `fetchCalendarData` also explicitly filters `recurring_exceptions` to rule_ids belonging to the active account before merging.
 - lib/swr-invalidate.ts — `invalidateNext12CalendarMonths(accountId)` invalidates next-12 calendar months + transactions list for the given account.
 - lib/swr-keys.ts — `calendarMonthSwrKey(month, year, accountId)`, `transactionsSwrKey(accountId)`, and the static `accountsSwrKey = "accounts"`.
