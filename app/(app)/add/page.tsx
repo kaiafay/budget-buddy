@@ -121,20 +121,27 @@ function AddTransactionPage() {
     loading: editLoading,
     error: editLoadError,
     retry: retryEditLoad,
-  } = useEditLoader(editTxId, editRuleId, searchParams.get("date"), {
-    setLabel,
-    setAmount,
-    setType,
-    setCategoryId,
-    setDate,
-    setRecurring,
-    setFrequency,
-    setScopeOccurrenceDate: scope.setOccurrenceDate,
-    setScopeNextSegmentDate: scope.setNextSegmentDate,
-    setScopeNextSegmentLoading: scope.setNextSegmentLoading,
-    setEndCondition,
-    setEndDate,
-  }, hasInitialData);
+  } = useEditLoader(
+    editTxId,
+    editRuleId,
+    searchParams.get("date"),
+    {
+      setLabel,
+      setAmount,
+      setType,
+      setCategoryId,
+      setDate,
+      setRecurring,
+      setFrequency,
+      setScopeOccurrenceDate: scope.setOccurrenceDate,
+      setScopeNextSegmentDate: scope.setNextSegmentDate,
+      setScopeNextSegmentLoading: scope.setNextSegmentLoading,
+      setEndCondition,
+      setEndDate,
+    },
+    hasInitialData,
+    accountId,
+  );
 
   const { data: categories = [] } = useSWR(
     accountId ? categoriesSwrKey(accountId) : null,
