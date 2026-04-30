@@ -118,7 +118,7 @@ export default function AnalyticsPage() {
   );
   const { data: categories = [] } = useSWR(
     activeAccountId ? categoriesSwrKey(activeAccountId) : null,
-    () => fetchCategories(activeAccountId!),
+    () => fetchCategories(activeAccountId as string),
   );
 
   const { startDate, endDate } = useMemo(() => {

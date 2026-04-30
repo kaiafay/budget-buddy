@@ -851,13 +851,13 @@ export async function createAccount(payload: {
     p_starting_balance: parsed.data.starting_balance,
   });
   if (error) return { data: null, error };
-  if (!data) {
+  if (data == null) {
     return {
       data: null,
-      error: new Error("Insert succeeded but no id returned"),
+      error: new Error("RPC returned no id"),
     };
   }
-  return { data: { id: data as string }, error: null };
+  return { data: { id: String(data) }, error: null };
 }
 
 export async function updateAccount(

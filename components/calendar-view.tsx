@@ -23,6 +23,7 @@ import { CalendarGrid } from "@/components/calendar-grid";
 import { DayTransactionsContent } from "@/components/day-sheet";
 import { AccountPicker } from "@/components/account-picker";
 import { useActiveAccount } from "@/components/active-account-provider";
+import { withActiveAccountQuery } from "@/lib/url";
 
 interface CalendarViewProps {
   initialMonth: number;
@@ -225,6 +226,12 @@ export function CalendarView({
   const daySheetLoading =
     needDaySheetMonth && daySheetMonthLoading && !daySheetMonthError;
 
+  /** Accounts list + active id resolving — avoid flashing wrong picker/balances; keep grid skeleton visible */
+  const accountHydrating = accountsLoading;
+
+  const calendarGridLoading =
+    (accountHydrating || isLoading) && !calendarError;
+
   function onPrevMonth() {
     setSlideDirection("prev");
     if (month === 1) {
@@ -247,9 +254,13 @@ export function CalendarView({
 
   function handleDaySelect(date: string) {
     setSelectedDate(date);
-    router.replace(`/?month=${month}&year=${year}&selected=${date}`, {
-      scroll: false,
-    });
+    router.replace(
+      withActiveAccountQuery(
+        `/?month=${month}&year=${year}&selected=${date}`,
+        activeAccountId,
+      ),
+      { scroll: false },
+    );
   }
 
   if (!accountsLoading && hasNoAccounts) {
@@ -290,11 +301,18 @@ export function CalendarView({
               ) : null}
             </span>
           </div>
-          <AccountPicker
-            accounts={accounts}
-            activeAccountId={activeAccountId}
-            onSelect={setActiveAccount}
-          />
+          {accountHydrating ? (
+            <div
+              className="account-enter mt-0.5 min-h-7 w-48 max-w-[85%] animate-pulse rounded-lg bg-white/10"
+              aria-hidden
+            />
+          ) : (
+            <AccountPicker
+              accounts={accounts}
+              activeAccountId={activeAccountId}
+              onSelect={setActiveAccount}
+            />
+          )}
         </div>
         <div className="glass account-enter flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white">
           {avatarInitials}
@@ -311,36 +329,50 @@ export function CalendarView({
       )}
 
       {/* Balance hero card */}
-      <div className="balance-card-1 px-5 pb-2 pt-1">
-        <div className="glass-card flex flex-col gap-0.5 rounded-2xl p-4">
-          <span className="text-xs text-white/85">Current Balance</span>
-          <AmountText
-            amount={todayBalance}
-            variant="hero"
-            signDisplay="negativeOnly"
-          />
-        </div>
-      </div>
+      {accountHydrating ? (
+        <>
+          <div className="balance-card-1 px-5 pb-2 pt-1">
+            <div className="glass-card h-[4.75rem] animate-pulse rounded-2xl p-4" />
+          </div>
+          <div className="flex gap-2 px-5 pb-3">
+            <div className="balance-card-2 glass-card h-[3.25rem] flex-1 animate-pulse rounded-2xl" />
+            <div className="balance-card-3 glass-card h-[3.25rem] flex-1 animate-pulse rounded-2xl" />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="balance-card-1 px-5 pb-2 pt-1">
+            <div className="glass-card flex flex-col gap-0.5 rounded-2xl p-4">
+              <span className="text-xs text-white/85">Current Balance</span>
+              <AmountText
+                amount={todayBalance}
+                variant="hero"
+                signDisplay="negativeOnly"
+              />
+            </div>
+          </div>
 
-      {/* Income / Expenses row */}
-      <div className="flex gap-2 px-5 pb-3">
-        <div className="balance-card-2 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
-          <span className="text-[10px] text-white/85">Income</span>
-          <AmountText
-            amount={monthIncome}
-            polarity="positive"
-            signDisplay="always"
-          />
-        </div>
-        <div className="balance-card-3 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
-          <span className="text-[10px] text-white/85">Expenses</span>
-          <AmountText
-            amount={monthExpenses}
-            polarity="negative"
-            signDisplay="always"
-          />
-        </div>
-      </div>
+          {/* Income / Expenses row */}
+          <div className="flex gap-2 px-5 pb-3">
+            <div className="balance-card-2 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
+              <span className="text-[10px] text-white/85">Income</span>
+              <AmountText
+                amount={monthIncome}
+                polarity="positive"
+                signDisplay="always"
+              />
+            </div>
+            <div className="balance-card-3 glass-card flex flex-1 flex-col gap-0.5 rounded-2xl p-3">
+              <span className="text-[10px] text-white/85">Expenses</span>
+              <AmountText
+                amount={monthExpenses}
+                polarity="negative"
+                signDisplay="always"
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Calendar */}
       <div className="calendar-enter glass-card mt-1 mx-4 overflow-hidden rounded-3xl">
@@ -357,7 +389,7 @@ export function CalendarView({
             balanceMonth={month}
             onPrevMonth={onPrevMonth}
             onNextMonth={onNextMonth}
-            isLoading={isLoading && !calendarError}
+            isLoading={calendarGridLoading}
             selectedDate={selectedDate}
             onSelectedDateChange={handleDaySelect}
           />
@@ -368,7 +400,7 @@ export function CalendarView({
             message="Couldn't load transactions for this day."
             onRetry={() => void revalidateDaySheetMonth()}
           />
-        ) : daySheetLoading ? (
+        ) : accountHydrating || daySheetLoading ? (
           <div className="border-t border-white/20 px-5 pb-6 pt-4">
             <p className="text-overlay text-xs text-white/70">Loading…</p>
           </div>

@@ -69,6 +69,7 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 
 - id: uuid (primary key)
 - user_id: uuid (references auth.users)
+- account_id: uuid (references accounts)
 - name: text
 - icon: text (icon name from ALLOWED_CATEGORY_ICON_NAMES in components/category-icons.tsx)
 - type: text ('expense' | 'income')
@@ -86,20 +87,21 @@ Chain: root has `root_rule_id = null`; splits have `root_rule_id = original_root
 ## Architecture Rules
 
 - The app uses SWR for client-side data fetching via lib/api.ts
-- fetchCalendarData(month, year, accountId) and fetchTransactions(accountId) are the two main data fetching functions (used with useSWR). fetchAccounts() returns the user's full account list for the picker.
+- fetchCalendarData(month, year, accountId) and fetchTransactions(accountId) are the two main data fetching functions (used with useSWR). fetchAccounts() returns the user's full account list for the picker. fetchCategories(accountId) scopes categories to the active budget.
 - Mutations use the Supabase browser client (lib/supabase/client.ts) and call mutate() from SWR after success to invalidate cache
 - mutate() is the primary cache invalidation method — not router.refresh()
 - Auth protection: root `proxy.ts` (Next.js 16 proxy convention — not `middleware.ts`; edge redirects for `/login` vs app routes)
 - Transaction, recurring rule, and account mutations all live in lib/transactions-mutations.ts — never inline these in components. Settings auto-saves the active budget's name/starting balance (debounced 1s) via `updateAccount`; category CRUD still uses explicit dialog actions.
-- Active budget context: `components/active-account-provider.tsx` exposes `useActiveAccount()` (mounted in `app/(app)/layout.tsx` inside a `<Suspense>`). Resolution order on mount: `?account=<uuid>` URL param (read-only input) → localStorage key `budget-buddy:active-account` → first account in the list. The picker writes to localStorage only — it never pushes the active id to the URL. Pages that already manage URL state (calendar, /add) may still include `?account=` on outbound deep links so back-navigation restores the right budget.
+- Active budget context: `components/active-account-provider.tsx` exposes `useActiveAccount()` (mounted in `app/(app)/layout.tsx` inside a `<Suspense>`). Resolution order on mount: `?account=<uuid>` URL param (read-only input) → localStorage key `budget-buddy:active-account` → first account in the list. The picker writes to localStorage only — it never pushes the active id to the URL. `setActiveAccount(id)` must ignore ids not present in the loaded `accounts` list. Pages that already manage URL state (calendar, /add) may include `?account=` on outbound deep links so back-navigation and cross-device opens restore the intended budget.
 - All app reads (calendar, transactions, analytics, day sheet, /add) MUST scope queries by the active account: pass `activeAccountId` to fetchers, gate SWR keys with `activeAccountId ? ... : null` so we never fetch unscoped, and include `accountId` in cache keys.
 - After any mutation, invalidate SWR cache appropriately (always include accountId where keys are account-scoped):
   - One-time transaction create/update/delete: `mutate(transactionsSwrKey(accountId))` plus `mutate(calendarMonthSwrKey(txMonth, txYear, accountId))`
   - Recurring rule mutations (edit, skip, delete): `invalidateNext12CalendarMonths(accountId)` from lib/swr-invalidate.ts (shared with /add page); on the calendar home, `DayTransactionsContent` calls `onMutate({ recurringTouch: true })` so the parent also revalidates the visible `calendarMonthSwrKey(month, year, accountId)` (covers months outside the next-12-from-today window)
-  - Category mutations: `mutate("categories")` only
+  - Category mutations: `mutate(categoriesSwrKey(accountId))` only
   - Active-budget settings save (auto, debounced): `mutate(accountsSwrKey)` + `mutate(transactionsSwrKey(accountId))` + `mutate(calendarMonthSwrKey(currentMonth, currentYear, accountId))`
   - Account create / rename: `mutate(accountsSwrKey)`. After a create, immediately switch active account to the new id via `setActiveAccount(newId)` so the user lands on the new budget.
 - Home calendar URL (`app/(app)/page.tsx`): optional `?month=` (1–12) and `?year=` (1900–2100); invalid or missing query values fall back to the current month/year; optional `?selected=` (`yyyy-MM-dd`, validated) pre-selects that day and aligns the visible month (e.g. after save from `/add`). Tapping a day in `components/calendar-view.tsx` calls `router.replace` with `month`, `year`, and `selected` so `router.back()` from `/add` restores selection.
+- Calendar home: while `useActiveAccount().isLoading` (accounts fetch + active-id hydration), show pulse placeholders for the budget picker row and balance strip only; `CalendarGrid` uses its normal skeleton (`isLoading`) so the page layout matches pre-hydration UX instead of a blank full-screen gate.
 - Calendar header greeting uses `given_name` from `user_metadata` when present (`lib/user-display.ts`). Avatar initials use `given_name` + `family_name`, then fall back to `name`, `display_name`, `preferred_username` — not from email. Values are read on the server in `app/(app)/page.tsx` and passed into `CalendarView` as props; after profile name changes, use `router.refresh()` (or revisit `/`) so RSC passes updated props
 
 ## Design System
@@ -136,6 +138,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - app/api/delete-account/ — authenticated `POST` route; deletes all user data in FK-safe order then removes the auth user via admin client (`SUPABASE_SERVICE_ROLE_KEY`)
 - components/ — shared components
 - hooks/use-sorted-categories.ts — `useSortedCategories()` for category dropdown ordering (expense vs income first)
+- hooks/use-edit-loader.ts — `useEditLoader()` guards edit loads by `expectedAccountId` and shows a budget-mismatch error instead of pre-filling cross-account data
 - components/ui/ — shadcn primitives (edit directly for global changes, see Component Rules)
 - components/recurring-edit-scope-dialog.tsx — scope picker dialog for recurring transaction edits (just this / this and future)
 - components/category-icons.tsx — category icon map, getCategoryColor, ALLOWED_CATEGORY_ICON_NAMES
@@ -156,6 +159,7 @@ components/ui/ contains shadcn primitives that you own and can modify.
 - lib/format-currency.ts — `formatCurrencyAmount()` (magnitude via `Math.abs`, `toLocaleString` fraction options)
 - lib/errors.ts — shared user-facing error copy (USER_FACING_ERROR)
 - lib/recurring-rules.ts — `mapRecurringRuleRow()` for Supabase recurring_rules rows → App `RecurringRule`
+- lib/url.ts — `withActiveAccountQuery(path, accountId)` appends read-only `?account=` query input to deep links (`/`, `/add`, `/transactions`)
 - lib/api.ts — SWR data fetching (fetchAccounts, fetchCalendarData(month, year, accountId), fetchTransactions(accountId), fetchTransaction, fetchRecurringRule). All account-scoped fetchers filter by both `user_id` and `account_id`; `fetchCalendarData` also explicitly filters `recurring_exceptions` to rule_ids belonging to the active account before merging.
 - lib/swr-invalidate.ts — `invalidateNext12CalendarMonths(accountId)` invalidates next-12 calendar months + transactions list for the given account.
 - lib/swr-keys.ts — `calendarMonthSwrKey(month, year, accountId)`, `transactionsSwrKey(accountId)`, and the static `accountsSwrKey = "accounts"`.

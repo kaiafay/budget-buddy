@@ -193,7 +193,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="flex items-center gap-2">
             <p className="text-base font-medium text-white">
-              You're almost in!
+              You&apos;re almost in!
             </p>
           </div>
           <p className="text-sm text-white/70">

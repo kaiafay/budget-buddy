@@ -194,6 +194,7 @@ const DEFAULT_CATEGORIES: {
 ];
 
 export async function fetchCategories(accountId: string): Promise<Category[]> {
+  const parsedAccountId = uuidSchema.parse(accountId);
   const supabase = createClient();
   const {
     data: { user },
@@ -202,14 +203,14 @@ export async function fetchCategories(accountId: string): Promise<Category[]> {
   const { data, error } = await supabase
     .from("categories")
     .select("id, name, icon, type, account_id")
-    .eq("account_id", accountId)
+    .eq("account_id", parsedAccountId)
     .order("name", { ascending: true });
   if (error) throw new Error(error.message);
   const categories = (data ?? []) as Category[];
   if (categories.length === 0) {
     const rows = DEFAULT_CATEGORIES.map((c) => ({
       user_id: user.id,
-      account_id: accountId,
+      account_id: parsedAccountId,
       name: c.name,
       icon: c.icon,
       type: c.type,
@@ -220,7 +221,7 @@ export async function fetchCategories(accountId: string): Promise<Category[]> {
     const { data: reselect, error: reselectError } = await supabase
       .from("categories")
       .select("id, name, icon, type, account_id")
-      .eq("account_id", accountId)
+      .eq("account_id", parsedAccountId)
       .order("name", { ascending: true });
     if (reselectError) throw new Error(reselectError.message);
     return (reselect ?? []) as Category[];
@@ -355,7 +356,10 @@ export async function fetchNextChainSegment(
 
 export async function fetchCategoryUsageCount(
   categoryId: string,
+  accountId: string,
 ): Promise<{ transactions: number; rules: number }> {
+  const parsedCategoryId = uuidSchema.parse(categoryId);
+  const parsedAccountId = uuidSchema.parse(accountId);
   const supabase = createClient();
   const {
     data: { user },
@@ -365,11 +369,15 @@ export async function fetchCategoryUsageCount(
     supabase
       .from("transactions")
       .select("id", { count: "exact", head: true })
-      .eq("category_id", categoryId),
+      .eq("user_id", user.id)
+      .eq("account_id", parsedAccountId)
+      .eq("category_id", parsedCategoryId),
     supabase
       .from("recurring_rules")
       .select("id", { count: "exact", head: true })
-      .eq("category_id", categoryId),
+      .eq("user_id", user.id)
+      .eq("account_id", parsedAccountId)
+      .eq("category_id", parsedCategoryId),
   ]);
   if (txRes.error || rulesRes.error) {
     throw new Error(USER_FACING_ERROR);

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   applyRecurringEditFromDate,
+  createAccount,
   createRecurringRule,
   createTransaction,
   deleteCategory,
@@ -29,6 +30,9 @@ const CAT_X = "55555555-5555-5555-8555-555555555555";
 const ACC1 = "66666666-6666-4666-8666-666666666666";
 const ACC123 = "77777777-7777-4777-8777-777777777777";
 const TX_NEW = "88888888-8888-4888-8888-888888888888";
+const ACC_NEW = "99999999-9999-4999-8999-999999999999";
+
+const mockRpc = vi.fn().mockResolvedValue({ data: null, error: null });
 
 const mockEq2 = vi.fn().mockResolvedValue({ error: null });
 const mockEq1 = vi.fn().mockReturnValue({ eq: mockEq2 });
@@ -161,6 +165,7 @@ vi.mock("@/lib/supabase/client", () => ({
       }),
     },
     from: vi.fn((table: string) => fromTableHandler(table)),
+    rpc: mockRpc,
   })),
 }));
 
@@ -1018,6 +1023,50 @@ describe("endRecurringRuleFuture", () => {
   });
 });
 
+describe("createAccount", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRpc.mockResolvedValue({ data: ACC_NEW, error: null });
+  });
+
+  it("calls create_account_with_member RPC with user id, name, and starting_balance", async () => {
+    const result = await createAccount({
+      name: "Vacation",
+      starting_balance: 100,
+    });
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual({ id: ACC_NEW });
+    expect(mockRpc).toHaveBeenCalledWith("create_account_with_member", {
+      p_user_id: "user-1",
+      p_name: "Vacation",
+      p_starting_balance: 100,
+    });
+  });
+
+  it("returns error when RPC fails", async () => {
+    mockRpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "duplicate key" },
+    });
+    const result = await createAccount({
+      name: "Vacation",
+      starting_balance: 0,
+    });
+    expect(result.data).toBeNull();
+    expect(result.error).not.toBeNull();
+  });
+
+  it("returns error when RPC returns null id", async () => {
+    mockRpc.mockResolvedValueOnce({ data: null, error: null });
+    const result = await createAccount({
+      name: "Vacation",
+      starting_balance: 0,
+    });
+    expect(result.data).toBeNull();
+    expect(result.error?.message).toMatch(/no id/i);
+  });
+});
+
 describe("createCategory", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -1156,6 +1205,16 @@ describe("mutation payload validation (Zod)", () => {
     });
     expect(result.error).not.toBeNull();
     expect(result.error?.message).toMatch(/name/i);
+  });
+
+  it("createCategory returns { error } when accountId is invalid", async () => {
+    const result = await createCategory({
+      accountId: "not-a-uuid",
+      name: "Groceries",
+      icon: "ShoppingCart",
+      type: "expense",
+    });
+    expect(result.error).not.toBeNull();
   });
 });
 
