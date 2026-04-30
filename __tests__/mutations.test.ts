@@ -1029,7 +1029,7 @@ describe("createAccount", () => {
     mockRpc.mockResolvedValue({ data: ACC_NEW, error: null });
   });
 
-  it("calls create_account_with_member RPC with user id, name, and starting_balance", async () => {
+  it("calls create_account_with_member RPC with name and starting_balance (no p_user_id — RPC uses auth.uid())", async () => {
     const result = await createAccount({
       name: "Vacation",
       starting_balance: 100,
@@ -1037,7 +1037,6 @@ describe("createAccount", () => {
     expect(result.error).toBeNull();
     expect(result.data).toEqual({ id: ACC_NEW });
     expect(mockRpc).toHaveBeenCalledWith("create_account_with_member", {
-      p_user_id: "user-1",
       p_name: "Vacation",
       p_starting_balance: 100,
     });

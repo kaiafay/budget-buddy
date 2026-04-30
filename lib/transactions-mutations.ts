@@ -845,8 +845,9 @@ export async function createAccount(payload: {
   // P1-1: use an RPC so both inserts are atomic — avoids the chicken-and-egg
   // where the account_members INSERT fails after accounts INSERT succeeds,
   // leaving the account permanently inaccessible under RLS.
+  // p_user_id removed: RPC now uses auth.uid() directly to prevent caller
+  // from supplying an arbitrary user_id (C-1 security fix).
   const { data, error } = await supabase.rpc("create_account_with_member", {
-    p_user_id: user.id,
     p_name: parsed.data.name,
     p_starting_balance: parsed.data.starting_balance,
   });

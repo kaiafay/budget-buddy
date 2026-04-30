@@ -365,17 +365,17 @@ export async function fetchCategoryUsageCount(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
+  // M-1: user_id filters removed — RLS scopes by account membership.
+  // Keeping them caused members to see understated usage counts (only their own rows).
   const [txRes, rulesRes] = await Promise.all([
     supabase
       .from("transactions")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
       .eq("account_id", parsedAccountId)
       .eq("category_id", parsedCategoryId),
     supabase
       .from("recurring_rules")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
       .eq("account_id", parsedAccountId)
       .eq("category_id", parsedCategoryId),
   ]);

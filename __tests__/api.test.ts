@@ -10,9 +10,10 @@ vi.mock("@/lib/supabase/client", () => ({
   })),
 }));
 
-import { fetchAccounts, fetchCategories } from "@/lib/api";
+import { fetchAccounts, fetchCategories, fetchCategoryUsageCount } from "@/lib/api";
 
 const ACCOUNT_ID = "11111111-1111-4111-8111-111111111111";
+const CATEGORY_ID = "22222222-2222-4222-8222-222222222222";
 
 describe("api fetcher contracts", () => {
   beforeEach(() => {
@@ -96,5 +97,38 @@ describe("api fetcher contracts", () => {
     expect(select).toHaveBeenCalledWith("id, name, icon, type, account_id");
     expect(eq).toHaveBeenCalledWith("account_id", ACCOUNT_ID);
     expect(order).toHaveBeenCalledWith("name", { ascending: true });
+  });
+
+  it("fetchCategoryUsageCount scopes by account_id only — no user_id filter", async () => {
+    // Chain: .select(_, {count,head}).eq("account_id").eq("category_id") → resolves
+    const eqCategory = vi.fn().mockResolvedValue({ count: 3, error: null });
+    const eqAccount = vi.fn().mockReturnValue({ eq: eqCategory });
+    const select = vi.fn().mockReturnValue({ eq: eqAccount });
+
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "transactions" || table === "recurring_rules") {
+        return { select };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    await fetchCategoryUsageCount(CATEGORY_ID, ACCOUNT_ID);
+
+    // Both tables queried
+    expect(mockFrom).toHaveBeenCalledWith("transactions");
+    expect(mockFrom).toHaveBeenCalledWith("recurring_rules");
+
+    // First filter must be account_id (not user_id)
+    expect(eqAccount).toHaveBeenCalledWith("account_id", ACCOUNT_ID);
+    expect(eqCategory).toHaveBeenCalledWith("category_id", CATEGORY_ID);
+
+    // user_id must NOT appear as a filter anywhere in the chain
+    const allEqCalls = [
+      ...eqAccount.mock.calls,
+      ...eqCategory.mock.calls,
+    ];
+    for (const [col] of allEqCalls) {
+      expect(col).not.toBe("user_id");
+    }
   });
 });
