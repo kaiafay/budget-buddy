@@ -17,11 +17,13 @@ export async function fetchAccounts(): Promise<Account[]> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
   // P3-3: read role from account_members directly so a future moderator/transfer role works correctly
+  // N-1: order by account_members.created_at (not accounts.created_at) so created_at
+  // doesn't need to be fetched from the nested join.
   const { data, error } = await supabase
     .from("account_members")
-    .select("role, accounts(id, name, starting_balance, user_id, created_at)")
+    .select("role, created_at, accounts(id, name, starting_balance, user_id)")
     .eq("user_id", user.id)
-    .order("created_at", { referencedTable: "accounts", ascending: true });
+    .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? [])
     .map((row) => {
@@ -65,10 +67,13 @@ export async function fetchCalendarData(
 
   const [accountRes, txBeforeRes, txRes, rulesRes, exceptionsRes] =
     await Promise.all([
+      // M-4: query account_members with join so role is read from DB,
+      // not derived client-side (avoids silent breakage if roles expand).
       supabase
-        .from("accounts")
-        .select("id, name, starting_balance, user_id")
-        .eq("id", parsedAccountId)
+        .from("account_members")
+        .select("role, accounts!inner(id, name, starting_balance, user_id)")
+        .eq("account_id", parsedAccountId)
+        .eq("user_id", user.id)
         .maybeSingle(),
       supabase
         .from("transactions")
@@ -102,13 +107,19 @@ export async function fetchCalendarData(
   if (exceptionsRes.error) throw new Error(exceptionsRes.error.message);
 
   const accountRow = accountRes.data
-    ? {
-        id: accountRes.data.id,
-        name: accountRes.data.name,
-        starting_balance: Number(accountRes.data.starting_balance),
-        user_id: accountRes.data.user_id,
-        role: accountRes.data.user_id === user.id ? 'owner' : 'member' as 'owner' | 'member',
-      }
+    ? (() => {
+        const acc = accountRes.data.accounts as unknown as {
+          id: string; name: string; starting_balance: number; user_id: string;
+        } | null;
+        if (!acc) return null;
+        return {
+          id: acc.id,
+          name: acc.name,
+          starting_balance: Number(acc.starting_balance),
+          user_id: acc.user_id,
+          role: accountRes.data.role as 'owner' | 'member',
+        };
+      })()
     : null;
 
   // recurring_exceptions are joined to recurring_rules via rule_id and the rules

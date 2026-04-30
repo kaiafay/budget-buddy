@@ -59,13 +59,10 @@ describe("api fetcher contracts", () => {
     ]);
     expect(mockFrom).toHaveBeenCalledWith("account_members");
     expect(select).toHaveBeenCalledWith(
-      "role, accounts(id, name, starting_balance, user_id, created_at)",
+      "role, created_at, accounts(id, name, starting_balance, user_id)",
     );
     expect(eq).toHaveBeenCalledWith("user_id", "user-1");
-    expect(order).toHaveBeenCalledWith("created_at", {
-      referencedTable: "accounts",
-      ascending: true,
-    });
+    expect(order).toHaveBeenCalledWith("created_at", { ascending: true });
   });
 
   it("fetchCategories(accountId) scopes by account_id", async () => {

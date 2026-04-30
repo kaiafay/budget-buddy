@@ -38,7 +38,11 @@ export async function proxy(request: NextRequest) {
       } = await supabase.auth.getUser();
       if (user) {
         const url = request.nextUrl.clone();
-        url.pathname = "/";
+        // N-4: honour ?next= so authenticated users following an invite link
+        // (/login?next=/invite/TOKEN) land on the right page, not just "/".
+        const next = request.nextUrl.searchParams.get("next");
+        url.pathname = next && next.startsWith("/") ? next : "/";
+        url.search = "";
         return NextResponse.redirect(url);
       }
     }
