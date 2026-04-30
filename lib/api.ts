@@ -18,7 +18,6 @@ export async function fetchAccounts(): Promise<Account[]> {
   const { data, error } = await supabase
     .from("accounts")
     .select("id, name, starting_balance")
-    .eq("user_id", user.id)
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
   return (data ?? []).map((row) => ({
