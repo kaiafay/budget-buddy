@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import {
   User,
   DollarSign,
@@ -51,7 +58,11 @@ import {
   ALLOWED_CATEGORY_ICON_NAMES,
   getCategoryColor,
 } from "@/components/category-icons";
-import { fetchCategories, fetchCategoryUsageCount, fetchCalendarData } from "@/lib/api";
+import {
+  fetchCategories,
+  fetchCategoryUsageCount,
+  fetchCalendarData,
+} from "@/lib/api";
 import {
   createAccount,
   createCategory,
@@ -109,7 +120,9 @@ export default function SettingsForm() {
   const [createBudgetOpen, setCreateBudgetOpen] = useState(false);
   const [newBudgetName, setNewBudgetName] = useState("");
   const [newBudgetBalance, setNewBudgetBalance] = useState("");
-  const [createBudgetError, setCreateBudgetError] = useState<string | null>(null);
+  const [createBudgetError, setCreateBudgetError] = useState<string | null>(
+    null,
+  );
   const [isCreatingBudget, startCreateBudgetTransition] = useTransition();
 
   const router = useRouter();
@@ -129,15 +142,15 @@ export default function SettingsForm() {
     setHasSetBalance((activeAccount?.starting_balance ?? 0) !== 0);
     setAccountError(null);
     setBalanceError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync only on id/name/balance changes
   }, [activeAccount?.id, activeAccount?.name, activeAccount?.starting_balance]);
 
   const calendarKey =
     recalibrateOpen && activeAccountId
       ? calendarMonthSwrKey(currentMonth, currentYear, activeAccountId)
       : null;
-  const { data: calData, isLoading: calLoading } = useSWR(
-    calendarKey,
-    () => fetchCalendarData(currentMonth, currentYear, activeAccountId as string),
+  const { data: calData, isLoading: calLoading } = useSWR(calendarKey, () =>
+    fetchCalendarData(currentMonth, currentYear, activeAccountId as string),
   );
 
   const projectedTodayBalance = useMemo(() => {
@@ -159,7 +172,10 @@ export default function SettingsForm() {
     const carryForward = accountStarting + sumTxBefore + sumRecBefore;
     const balances = getProjectedBalances(
       carryForward,
-      (calData.transactions ?? []).map((t) => ({ ...t, amount: Number(t.amount) })),
+      (calData.transactions ?? []).map((t) => ({
+        ...t,
+        amount: Number(t.amount),
+      })),
       mappedRules,
       todayDate.getMonth(),
       currentYear,
@@ -176,21 +192,34 @@ export default function SettingsForm() {
     icon: "Tag",
     type: "expense" as "expense" | "income",
   });
-  const [categoryFormError, setCategoryFormError] = useState<string | null>(null);
-  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [categoryFormError, setCategoryFormError] = useState<string | null>(
+    null,
+  );
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(
+    null,
+  );
   const [deleteUsageCount, setDeleteUsageCount] = useState<{
     transactions: number;
     rules: number;
   } | null>(null);
-  const [categoryDeleteError, setCategoryDeleteError] = useState<string | null>(null);
+  const [categoryDeleteError, setCategoryDeleteError] = useState<string | null>(
+    null,
+  );
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [isCategoryPending, startCategoryTransition] = useTransition();
   const [isSigningOut, startSignOutTransition] = useTransition();
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
-  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(
+    null,
+  );
   const [isDeletingAccount, startDeleteAccountTransition] = useTransition();
-  const [budgetToDelete, setBudgetToDelete] = useState<{ id: string; name: string } | null>(null);
-  const [deleteBudgetError, setDeleteBudgetError] = useState<string | null>(null);
+  const [budgetToDelete, setBudgetToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [deleteBudgetError, setDeleteBudgetError] = useState<string | null>(
+    null,
+  );
   const [isDeletingBudget, startDeleteBudgetTransition] = useTransition();
 
   const saveSeqRef = useRef(0);
@@ -252,7 +281,9 @@ export default function SettingsForm() {
       }
       setHasSetBalance(true);
       void mutate(accountsSwrKey);
-      void mutate(calendarMonthSwrKey(currentMonth, currentYear, activeAccountId));
+      void mutate(
+        calendarMonthSwrKey(currentMonth, currentYear, activeAccountId),
+      );
       void mutate(transactionsSwrKey(activeAccountId));
     });
   }
@@ -562,7 +593,9 @@ export default function SettingsForm() {
                         )}
                         aria-hidden
                       />
-                      <span className="min-w-0 flex-1 truncate">{acc.name}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {acc.name}
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -691,7 +724,9 @@ export default function SettingsForm() {
               {balanceError && <InlineError>{balanceError}</InlineError>}
               <Button
                 type="button"
-                disabled={isSavingBalance || !startingBalance || !activeAccountId}
+                disabled={
+                  isSavingBalance || !startingBalance || !activeAccountId
+                }
                 onClick={handleSaveInitialBalance}
                 className="h-11 rounded-xl border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
               >
@@ -802,7 +837,11 @@ export default function SettingsForm() {
                 if (activeAccountId) {
                   mutate(transactionsSwrKey(activeAccountId));
                   mutate(
-                    calendarMonthSwrKey(currentMonth, currentYear, activeAccountId),
+                    calendarMonthSwrKey(
+                      currentMonth,
+                      currentYear,
+                      activeAccountId,
+                    ),
                   );
                 }
                 router.push("/login");
@@ -845,7 +884,8 @@ export default function SettingsForm() {
                         Already up to date
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Your balance matches Budget Buddy&apos;s projection — no adjustment was needed.
+                        Your balance matches Budget Buddy&apos;s projection — no
+                        adjustment was needed.
                       </p>
                     </>
                   ) : (
@@ -874,7 +914,8 @@ export default function SettingsForm() {
                 </p>
               ) : projectedTodayBalance === null ? (
                 <p className="text-sm text-destructive">
-                  Unable to load your current balance. Please close and try again.
+                  Unable to load your current balance. Please close and try
+                  again.
                 </p>
               ) : (
                 <>
@@ -1012,7 +1053,11 @@ export default function SettingsForm() {
               {categoryFormError && (
                 <InlineError light>{categoryFormError}</InlineError>
               )}
-              <Button type="submit" disabled={isCategoryPending} className={dialogSubmitButtonClass}>
+              <Button
+                type="submit"
+                disabled={isCategoryPending}
+                className={dialogSubmitButtonClass}
+              >
                 {editingCategory ? "Save changes" : "Add category"}
               </Button>
             </form>
@@ -1080,10 +1125,12 @@ export default function SettingsForm() {
         >
           <AlertDialogContent className="border-white/20 bg-card text-card-foreground">
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete &ldquo;{budgetToDelete?.name}&rdquo;?</AlertDialogTitle>
+              <AlertDialogTitle>
+                Delete &ldquo;{budgetToDelete?.name}&rdquo;?
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete this budget and all its transactions
-                and recurring rules. This cannot be undone.
+                This will permanently delete this budget and all its
+                transactions and recurring rules. This cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             {deleteBudgetError && (
