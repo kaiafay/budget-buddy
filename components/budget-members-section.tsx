@@ -72,15 +72,30 @@ export function BudgetMembersSection({
   const isOwner = role === "owner";
 
   // P2-4: use SWR instead of bare useEffect+useState — cache, dedup, revalidate on remount
-  const { data: membersResult, isLoading: membersLoading } = useSWR(
+  const {
+    data: membersResult,
+    isLoading: membersLoading,
+    error: membersSwrError,
+  } = useSWR(
     membersSwrKey(accountId),
     () => getAccountMembers(accountId),
   );
   const members = membersResult?.data ?? [];
+  const membersLoadError =
+    membersResult?.error ??
+    (membersSwrError instanceof Error
+      ? membersSwrError.message
+      : membersSwrError
+        ? "Failed to load members."
+        : null);
 
-  const { data: pendingInvitations = [], mutate: mutatePending } = useSWR(
-    isOwner ? pendingInvitationsSwrKey(accountId) : null,
-    () => fetchPendingInvitations(accountId),
+  const {
+    data: pendingInvitations = [],
+    mutate: mutatePending,
+    error: pendingInvitationsError,
+    isLoading: pendingInvitationsLoading,
+  } = useSWR(isOwner ? pendingInvitationsSwrKey(accountId) : null, () =>
+    fetchPendingInvitations(accountId),
   );
 
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -98,6 +113,7 @@ export function BudgetMembersSection({
   const [isRevoking, startRevokeTransition] = useTransition();
   // P3-1: track which pending invitation was just copy-linked for UX feedback
   const [copiedInvId, setCopiedInvId] = useState<string | null>(null);
+  const [pendingInviteError, setPendingInviteError] = useState<string | null>(null);
 
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leaveError, setLeaveError] = useState<string | null>(null);
@@ -131,19 +147,29 @@ export function BudgetMembersSection({
     });
   }
 
-  function handleCopyLink() {
+  async function handleCopyLink() {
     if (!inviteLink) return;
-    void navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setInviteError(null);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setInviteError("Couldn't copy the invite link. Select the link and copy it manually.");
+    }
   }
 
   // P3-1: copy link for already-generated pending invitations
-  function handleCopyInviteLink(token: string, invId: string) {
+  async function handleCopyInviteLink(token: string, invId: string) {
     const link = `${window.location.origin}/invite/${token}`;
-    void navigator.clipboard.writeText(link);
-    setCopiedInvId(invId);
-    setTimeout(() => setCopiedInvId(null), 2000);
+    try {
+      await navigator.clipboard.writeText(link);
+      setPendingInviteError(null);
+      setCopiedInvId(invId);
+      setTimeout(() => setCopiedInvId(null), 2000);
+    } catch {
+      setPendingInviteError("Couldn't copy the invite link. Try again from the pending invitation.");
+    }
   }
 
   function handleRemove(userId: string) {
@@ -163,9 +189,14 @@ export function BudgetMembersSection({
 
   function handleRevoke(invitationId: string) {
     setRevokingId(invitationId);
+    setPendingInviteError(null);
     startRevokeTransition(async () => {
       const { error } = await revokeInvitation(invitationId);
-      if (!error) void mutatePending();
+      if (error) {
+        setPendingInviteError(error.message);
+      } else {
+        void mutatePending();
+      }
       setRevokingId(null);
     });
   }
@@ -240,7 +271,22 @@ export function BudgetMembersSection({
         </ul>
       )}
 
-      {removeError && <InlineError>{removeError}</InlineError>}
+      {!membersLoading && membersLoadError && (
+        <InlineError>{membersLoadError}</InlineError>
+      )}
+      {!membersLoading && removeError && <InlineError>{removeError}</InlineError>}
+
+      {isOwner && !pendingInvitationsLoading && pendingInvitationsError && (
+        <InlineError>
+          {pendingInvitationsError instanceof Error
+            ? pendingInvitationsError.message
+            : "Failed to load pending invitations."}
+        </InlineError>
+      )}
+
+      {isOwner && pendingInviteError && (
+        <InlineError>{pendingInviteError}</InlineError>
+      )}
 
       {isOwner && pendingInvitations.length > 0 && (
         <div className="flex flex-col gap-2">
@@ -262,7 +308,7 @@ export function BudgetMembersSection({
                 <button
                   type="button"
                   aria-label={`Copy invite link for ${inv.invited_email}`}
-                  onClick={() => handleCopyInviteLink(inv.token, inv.id)}
+                  onClick={() => void handleCopyInviteLink(inv.token, inv.id)}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/50 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white active:bg-white/15"
                 >
                   {copiedInvId === inv.id ? (
@@ -320,7 +366,7 @@ export function BudgetMembersSection({
                   type="button"
                   variant="outline"
                   className="h-11 shrink-0 rounded-xl border-border"
-                  onClick={handleCopyLink}
+                  onClick={() => void handleCopyLink()}
                 >
                   {copied ? (
                     <Check className="h-4 w-4" />
@@ -329,6 +375,7 @@ export function BudgetMembersSection({
                   )}
                 </Button>
               </div>
+              {inviteError && <InlineError light>{inviteError}</InlineError>}
               <Button
                 type="button"
                 variant="outline"
