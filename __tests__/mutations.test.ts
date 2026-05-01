@@ -1302,7 +1302,10 @@ describe("createInvitation", () => {
     return { insert: vi.fn().mockReturnValue({ select: sel }) };
   }
 
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockRpc.mockResolvedValue({ data: false, error: null });
+  });
 
   it("rejects when caller is not the account owner", async () => {
     fromTableHandler = (table) => {
@@ -1328,6 +1331,37 @@ describe("createInvitation", () => {
 
     const { error } = await createInvitation(ACC_SHARE, "user-1@example.com");
     expect(error?.message).toMatch(/yourself/i);
+  });
+
+  it("rejects when the email already belongs to a budget member", async () => {
+    mockRpc.mockResolvedValueOnce({ data: true, error: null });
+    fromTableHandler = (table) => {
+      if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
+      return {};
+    };
+
+    const { error } = await createInvitation(ACC_SHARE, "guest@example.com");
+
+    expect(error?.message).toBe("This person already has access to this budget.");
+    expect(mockRpc).toHaveBeenCalledWith("account_member_email_exists", {
+      p_account_id: ACC_SHARE,
+      p_email: "guest@example.com",
+    });
+  });
+
+  it("returns member-check errors before creating an invite", async () => {
+    mockRpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "member check failed" },
+    });
+    fromTableHandler = (table) => {
+      if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
+      return {};
+    };
+
+    const { error } = await createInvitation(ACC_SHARE, "guest@example.com");
+
+    expect(error?.message).toBe("member check failed");
   });
 
   it("rejects when a pending invite already exists for that email", async () => {

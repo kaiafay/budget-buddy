@@ -977,6 +977,18 @@ export async function createInvitation(
     return { data: null, error: new Error("Only the budget owner can invite members.") };
   }
 
+  const { data: alreadyMember, error: memberCheckError } = await supabase.rpc(
+    "account_member_email_exists",
+    {
+      p_account_id: parsed.data.accountId,
+      p_email: normalizedEmail,
+    },
+  );
+  if (memberCheckError) return { data: null, error: memberCheckError };
+  if (alreadyMember) {
+    return { data: null, error: new Error("This person already has access to this budget.") };
+  }
+
   const now = new Date().toISOString();
 
   // The DB enforces one unaccepted invite per account/email. Clear expired
