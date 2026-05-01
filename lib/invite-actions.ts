@@ -3,6 +3,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
+type AcceptInvitationRpcResult = {
+  account_id: string | null;
+  account_name: string | null;
+  error_message: string | null;
+};
+
 export async function acceptInvitation(token: string): Promise<{
   data: { accountId: string; accountName: string } | null;
   error: string | null;
@@ -23,57 +29,35 @@ export async function acceptInvitation(token: string): Promise<{
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
-  const { data: invite } = await adminClient
-    .from("budget_invitations")
-    .select("id, account_id, invited_email, invited_by, expires_at, accepted_at, accounts(name)")
-    .eq("token", token)
-    .maybeSingle();
+  const { data, error } = await adminClient
+    .rpc("accept_budget_invitation", {
+      p_token: token,
+      p_user_id: user.id,
+      p_user_email: user.email?.toLowerCase() ?? "",
+    })
+    .single();
 
-  if (!invite) return { data: null, error: "Invalid or expired invitation." };
-  if (invite.accepted_at) return { data: null, error: "This invitation has already been used." };
-  if (new Date(invite.expires_at) < new Date()) {
-    return { data: null, error: "This invitation has expired." };
-  }
-  if (invite.invited_email !== user.email?.toLowerCase()) {
-    return { data: null, error: "This invitation was sent to a different email address." };
+  if (error) {
+    console.error("accept_budget_invitation failed", error);
+    return { data: null, error: "Failed to join budget. Please try again." };
   }
 
-  // Idempotent: if already a member, just mark the invite accepted and succeed
-  const { data: existing } = await adminClient
-    .from("account_members")
-    .select("id")
-    .eq("account_id", invite.account_id)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (!existing) {
-    const { error: memberError } = await adminClient.from("account_members").insert({
-      account_id: invite.account_id,
-      user_id: user.id,
-      role: "member",
-      invited_by: invite.invited_by,
-    });
-    if (memberError) {
-      // P2-1: concurrent accept — the other request already inserted the row.
-      // Re-check membership; if found, treat as success rather than surfacing a confusing error.
-      const { data: nowMember } = await adminClient
-        .from("account_members")
-        .select("id")
-        .eq("account_id", invite.account_id)
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (!nowMember) {
-        return { data: null, error: "Failed to join budget. Please try again." };
-      }
-    }
+  const result = data as AcceptInvitationRpcResult | null;
+  if (!result) {
+    return { data: null, error: "Failed to join budget. Please try again." };
+  }
+  if (result.error_message) {
+    return { data: null, error: result.error_message };
+  }
+  if (!result.account_id) {
+    return { data: null, error: "Failed to join budget. Please try again." };
   }
 
-  await adminClient
-    .from("budget_invitations")
-    .update({ accepted_at: new Date().toISOString() })
-    .eq("id", invite.id);
-
-  const accountName =
-    (invite.accounts as unknown as { name: string } | null)?.name ?? "Shared Budget";
-  return { data: { accountId: invite.account_id as string, accountName }, error: null };
+  return {
+    data: {
+      accountId: result.account_id,
+      accountName: result.account_name ?? "Shared Budget",
+    },
+    error: null,
+  };
 }
