@@ -38,7 +38,9 @@ export default async function InvitePage({
     .maybeSingle();
 
   let errorMessage: string | null = null;
+  let errorCode: "wrong-email" | null = null;
   let accountName: string | null = null;
+  let invitedEmail: string | null = null;
 
   if (!invite) {
     errorMessage = "This invitation link is invalid.";
@@ -50,6 +52,8 @@ export default async function InvitePage({
   } else if (invite.invited_email !== user.email?.toLowerCase()) {
     errorMessage =
       "This invitation was sent to a different email address. Make sure you're signed in with the correct account.";
+    errorCode = "wrong-email";
+    invitedEmail = invite.invited_email as string;
   } else {
     accountName =
       (invite.accounts as unknown as { name: string } | null)?.name ?? "Shared Budget";
@@ -60,6 +64,9 @@ export default async function InvitePage({
       token={token}
       accountName={accountName}
       errorMessage={errorMessage}
+      errorCode={errorCode}
+      invitedEmail={invitedEmail}
+      currentUserEmail={user.email ?? null}
     />
   );
 }

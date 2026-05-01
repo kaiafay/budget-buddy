@@ -6,20 +6,36 @@ import { AuthCard } from "@/components/auth-card";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/inline-error";
 import { acceptInvitation } from "@/lib/invite-actions";
+import { createClient } from "@/lib/supabase/client";
 
 interface InviteClientProps {
   token: string;
   accountName: string | null;
   errorMessage: string | null;
+  errorCode?: "wrong-email" | null;
+  invitedEmail?: string | null;
+  currentUserEmail?: string | null;
+}
+
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return email;
+  const visible = local.slice(0, Math.min(2, local.length));
+  return `${visible}${local.length > 2 ? "***" : "*"}@${domain}`;
 }
 
 export function InviteClient({
   token,
   accountName,
   errorMessage,
+  errorCode = null,
+  invitedEmail = null,
+  currentUserEmail = null,
 }: InviteClientProps) {
   const router = useRouter();
   const [accepting, setAccepting] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleAccept() {
@@ -34,14 +50,63 @@ export function InviteClient({
     router.push(`/?account=${data.accountId}`);
   }
 
+  async function handleUseAnotherAccount() {
+    setSigningOut(true);
+    setError(null);
+    const supabase = createClient();
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      setError(signOutError.message);
+      setSigningOut(false);
+      return;
+    }
+    router.push(`/login?next=/invite/${token}`);
+  }
+
   if (errorMessage) {
+    const isWrongEmail = errorCode === "wrong-email";
+    const maskedInvitedEmail = maskEmail(invitedEmail);
+
     return (
       <AuthCard subtitle="Budget invitation">
         <div className="flex flex-col items-center gap-4 text-center">
-          <p className="text-sm text-white/70">{errorMessage}</p>
+          {isWrongEmail ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-white/70">
+                This invitation was sent to{" "}
+                <span className="text-white">
+                  {maskedInvitedEmail ?? "a different email"}
+                </span>
+                .
+              </p>
+              {currentUserEmail && (
+                <p className="text-xs text-white/50">
+                  You&apos;re signed in as {currentUserEmail}.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-white/70">{errorMessage}</p>
+          )}
+          {error && <InlineError>{error}</InlineError>}
+          {isWrongEmail && (
+            <Button
+              onClick={handleUseAnotherAccount}
+              disabled={signingOut}
+              className="h-11 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              {signingOut ? "Signing out..." : "Use another account"}
+            </Button>
+          )}
           <Button
             onClick={() => router.push("/")}
-            className="h-11 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            variant={isWrongEmail ? "ghost" : "default"}
+            disabled={signingOut}
+            className={
+              isWrongEmail
+                ? "h-11 w-full text-sm text-white/70 hover:text-white"
+                : "h-11 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            }
           >
             Go to Budget Buddy
           </Button>
