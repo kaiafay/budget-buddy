@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, UserCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,11 +30,17 @@ export function AccountPicker({
     return (
       <h1
         className={cn(
-          "account-enter min-h-7 text-xl font-semibold text-white",
+          "account-enter flex min-h-7 items-center gap-1.5 text-xl font-semibold text-white",
           className,
         )}
       >
         {label}
+        {active?.role === "member" && (
+          <UserCheck
+            className="h-4 w-4 shrink-0 text-white/60"
+            aria-label="Shared budget"
+          />
+        )}
       </h1>
     );
   }
@@ -77,6 +83,12 @@ export function AccountPicker({
                 aria-hidden
               />
               <span className="min-w-0 flex-1 truncate">{acc.name}</span>
+              {acc.role === "member" && (
+                <UserCheck
+                  className="ml-1 h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                  aria-label="Shared budget"
+                />
+              )}
             </DropdownMenuItem>
           );
         })}

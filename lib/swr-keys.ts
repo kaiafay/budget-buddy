@@ -15,3 +15,11 @@ export const accountsSwrKey = "accounts";
 export function categoriesSwrKey(accountId: string): string {
   return `categories-${accountId}`;
 }
+
+export function pendingInvitationsSwrKey(accountId: string): string {
+  return `pending-invitations-${accountId}`;
+}
+
+export function membersSwrKey(accountId: string): string {
+  return `members-${accountId}`;
+}

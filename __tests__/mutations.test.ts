@@ -2,11 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   applyRecurringEditFromDate,
   createAccount,
+  createInvitation,
   createRecurringRule,
   createTransaction,
   deleteCategory,
+  deleteBudget,
   deleteTransaction,
+  leaveAccount,
   makeTransactionRecurring,
+  removeMember,
   updateRecurringSegmentInPlace,
   splitRecurringRuleAtDate,
   skipRecurringOccurrence,
@@ -20,6 +24,10 @@ import {
   createRecurringRulePayloadSchema,
   recurringSegmentPayloadSchema,
 } from "@/lib/validation";
+
+const ACC_SHARE = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const MEMBER_UID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const INV_TOKEN = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 const R1 = "11111111-1111-4111-8111-111111111111";
 const R2 = "22222222-2222-4222-8222-222222222222";
@@ -50,12 +58,9 @@ const mockExceptionDeleteGte = vi
 const mockExceptionDeleteEqType = vi
   .fn()
   .mockReturnValue({ gte: mockExceptionDeleteGte });
-const mockExceptionDeleteEqUser = vi
-  .fn()
-  .mockReturnValue({ eq: mockExceptionDeleteEqType });
 const mockExceptionDelete = vi
   .fn()
-  .mockReturnValue({ eq: mockExceptionDeleteEqUser });
+  .mockReturnValue({ eq: mockExceptionDeleteEqType });
 
 type RuleRow = {
   id: string;
@@ -71,9 +76,7 @@ const RULE_EDIT_COLS = "id, start_date, root_rule_id, account_id, category_id";
 function ruleSelectChain(singleData: RuleRow) {
   return {
     eq: vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({
-        single: vi.fn().mockResolvedValue({ data: singleData, error: null }),
-      }),
+      single: vi.fn().mockResolvedValue({ data: singleData, error: null }),
     }),
   };
 }
@@ -83,31 +86,27 @@ function idSelectForExistingThenChain(
   chainRows: { id: string }[],
 ) {
   return {
-    eq: vi.fn().mockReturnValue({
-      or: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          maybeSingle: vi
-            .fn()
-            .mockResolvedValue({ data: existingRow, error: null }),
-        }),
-        then: (onFulfilled: (v: unknown) => unknown) =>
-          Promise.resolve({ data: chainRows, error: null }).then(onFulfilled),
+    or: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi
+          .fn()
+          .mockResolvedValue({ data: existingRow, error: null }),
       }),
+      then: (onFulfilled: (v: unknown) => unknown) =>
+        Promise.resolve({ data: chainRows, error: null }).then(onFulfilled),
     }),
   };
 }
 
 function startDateNextChain(next: { start_date: string } | null) {
   return {
-    eq: vi.fn().mockReturnValue({
-      or: vi.fn().mockReturnValue({
-        gt: vi.fn().mockReturnValue({
-          order: vi.fn().mockReturnValue({
-            limit: vi.fn().mockReturnValue({
-              maybeSingle: vi
-                .fn()
-                .mockResolvedValue({ data: next, error: null }),
-            }),
+    or: vi.fn().mockReturnValue({
+      gt: vi.fn().mockReturnValue({
+        order: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            maybeSingle: vi
+              .fn()
+              .mockResolvedValue({ data: next, error: null }),
           }),
         }),
       }),
@@ -151,9 +150,7 @@ function recurringRulesFromHandlers(opts: {
           );
         }
         return {
-          eq: vi.fn().mockReturnValue({
-            or: vi.fn().mockResolvedValue({ data: chainRows, error: null }),
-          }),
+          or: vi.fn().mockResolvedValue({ data: chainRows, error: null }),
         };
       }
       if (columns === "start_date") {
@@ -755,7 +752,7 @@ describe("makeTransactionRecurring", () => {
   });
 
   it("rolls back recurring rule when transaction delete fails", async () => {
-    mockMrTxDeleteEq2.mockResolvedValueOnce({
+    mockMrTxDeleteEq1.mockResolvedValueOnce({
       error: { message: "tx delete fail" },
     });
     const result = await makeTransactionRecurring(TX_ONE, {
@@ -973,7 +970,6 @@ describe("moveRecurringOccurrence", () => {
     });
     expect(result.error?.message).toBe("skip failed");
     expect(mockTxDeleteEq1).toHaveBeenCalledWith("id", TX_NEW);
-    expect(mockTxDeleteEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("when date changed and insert fails returns error without calling skip", async () => {
@@ -1011,8 +1007,7 @@ describe("moveRecurringOccurrence", () => {
 describe("endRecurringRuleFuture", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEq2.mockResolvedValue({ error: null });
-    mockEq1.mockReturnValue({ eq: mockEq2 });
+    mockEq1.mockResolvedValue({ error: null });
     mockUpdate.mockReturnValue({ eq: mockEq1 });
     fromTableHandler = (table: string) => {
       if (table === "recurring_rules") {
@@ -1022,16 +1017,15 @@ describe("endRecurringRuleFuture", () => {
     };
   });
 
-  it("updates recurring_rules with end_date day before occurrence and filters by id and user_id", async () => {
+  it("updates recurring_rules with end_date day before occurrence and filters by id", async () => {
     const result = await endRecurringRuleFuture(R1, "2025-03-15");
     expect(result.error).toBeNull();
     expect(mockUpdate).toHaveBeenCalledWith({ end_date: "2025-03-14" });
     expect(mockEq1).toHaveBeenCalledWith("id", R1);
-    expect(mockEq2).toHaveBeenCalledWith("user_id", "user-1");
   });
 
   it("returns error when update fails", async () => {
-    mockEq2.mockResolvedValueOnce({ error: { message: "DB error" } });
+    mockEq1.mockResolvedValueOnce({ error: { message: "DB error" } });
     const result = await endRecurringRuleFuture(R1, "2025-03-15");
     expect(result.error).not.toBeNull();
   });
@@ -1043,7 +1037,7 @@ describe("createAccount", () => {
     mockRpc.mockResolvedValue({ data: ACC_NEW, error: null });
   });
 
-  it("calls create_account_with_member RPC with user id, name, and starting_balance", async () => {
+  it("calls create_account_with_member RPC with name and starting_balance (no p_user_id — RPC uses auth.uid())", async () => {
     const result = await createAccount({
       name: "Vacation",
       starting_balance: 100,
@@ -1051,7 +1045,6 @@ describe("createAccount", () => {
     expect(result.error).toBeNull();
     expect(result.data).toEqual({ id: ACC_NEW });
     expect(mockRpc).toHaveBeenCalledWith("create_account_with_member", {
-      p_user_id: "user-1",
       p_name: "Vacation",
       p_starting_balance: 100,
     });
@@ -1229,6 +1222,291 @@ describe("mutation payload validation (Zod)", () => {
       type: "expense",
     });
     expect(result.error).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Budget-sharing mutations
+// ---------------------------------------------------------------------------
+
+describe("createInvitation", () => {
+  // Helpers that build the chained mock for the accounts owner-check query:
+  //   .select("user_id").eq("id",...).eq("user_id",...).maybeSingle()
+  function ownerCheckChain(data: { user_id: string } | null) {
+    const maybeSingle = vi.fn().mockResolvedValue({ data, error: null });
+    const eq2 = vi.fn().mockReturnValue({ maybeSingle });
+    const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
+    return { select: vi.fn().mockReturnValue({ eq: eq1 }) };
+  }
+
+  // Existing-invite check chain:
+  //   .select("id").eq("account_id",...).eq("invited_email",...).is(...).gt(...).maybeSingle()
+  function existingInviteChain(found: boolean) {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: found ? { id: "existing-invite-id" } : null,
+      error: null,
+    });
+    const gt = vi.fn().mockReturnValue({ maybeSingle });
+    const is = vi.fn().mockReturnValue({ gt });
+    const eq2 = vi.fn().mockReturnValue({ is });
+    const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
+    return { select: vi.fn().mockReturnValue({ eq: eq1 }) };
+  }
+
+  // Insert chain: .insert({}).select("token").single()
+  function insertChain(
+    result: { data: { token: string } | null; error: { code?: string; message: string } | null },
+  ) {
+    const single = vi.fn().mockResolvedValue(result);
+    const sel = vi.fn().mockReturnValue({ single });
+    return { insert: vi.fn().mockReturnValue({ select: sel }) };
+  }
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("rejects when caller is not the account owner", async () => {
+    fromTableHandler = (table) => {
+      if (table === "accounts") return ownerCheckChain(null);
+      return {};
+    };
+    const { error } = await createInvitation(ACC_SHARE, "guest@example.com");
+    expect(error?.message).toMatch(/owner/i);
+  });
+
+  it("rejects self-invite without hitting the DB", async () => {
+    // user mock returns id "user-1" with email "user-1@example.com"
+    const mockGetUserWithEmail = vi.fn().mockResolvedValue({
+      data: { user: { id: "user-1", email: "user-1@example.com" } },
+    });
+    vi.mocked(
+      (await import("@/lib/supabase/client")).createClient,
+    ).mockReturnValueOnce({
+      auth: { getUser: mockGetUserWithEmail },
+      from: vi.fn((table: string) => fromTableHandler(table)),
+      rpc: mockRpc,
+    } as unknown as ReturnType<typeof import("@/lib/supabase/client").createClient>);
+
+    const { error } = await createInvitation(ACC_SHARE, "user-1@example.com");
+    expect(error?.message).toMatch(/yourself/i);
+  });
+
+  it("rejects when a pending invite already exists for that email", async () => {
+    let inviteCallCount = 0;
+    fromTableHandler = (table) => {
+      if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
+      if (table === "budget_invitations") {
+        inviteCallCount++;
+        return existingInviteChain(true);
+      }
+      return {};
+    };
+    const { error } = await createInvitation(ACC_SHARE, "guest@example.com");
+    expect(error?.message).toMatch(/pending/i);
+  });
+
+  it("creates invite and returns token on success", async () => {
+    let inviteCallCount = 0;
+    fromTableHandler = (table) => {
+      if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
+      if (table === "budget_invitations") {
+        inviteCallCount++;
+        if (inviteCallCount === 1) return existingInviteChain(false);
+        return insertChain({ data: { token: INV_TOKEN }, error: null });
+      }
+      return {};
+    };
+    const { data, error } = await createInvitation(ACC_SHARE, "guest@example.com");
+    expect(error).toBeNull();
+    expect(data?.token).toBe(INV_TOKEN);
+  });
+
+  it("normalises email to lowercase before storing", async () => {
+    const captured: { row: Record<string, unknown> | null } = { row: null };
+    let inviteCallCount = 0;
+    fromTableHandler = (table) => {
+      if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
+      if (table === "budget_invitations") {
+        inviteCallCount++;
+        if (inviteCallCount === 1) return existingInviteChain(false);
+        const single = vi.fn().mockResolvedValue({ data: { token: INV_TOKEN }, error: null });
+        const sel = vi.fn().mockReturnValue({ single });
+        const ins = vi.fn().mockImplementation((row: Record<string, unknown>) => {
+          captured.row = row;
+          return { select: sel };
+        });
+        return { insert: ins };
+      }
+      return {};
+    };
+    await createInvitation(ACC_SHARE, "Guest@Example.COM");
+    expect(captured.row?.invited_email).toBe("guest@example.com");
+  });
+
+  it("returns 'already pending' for DB unique constraint violation (23505)", async () => {
+    let inviteCallCount = 0;
+    fromTableHandler = (table) => {
+      if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
+      if (table === "budget_invitations") {
+        inviteCallCount++;
+        if (inviteCallCount === 1) return existingInviteChain(false);
+        return insertChain({ data: null, error: { code: "23505", message: "unique" } });
+      }
+      return {};
+    };
+    const { error } = await createInvitation(ACC_SHARE, "guest@example.com");
+    expect(error?.message).toMatch(/pending/i);
+  });
+
+  it("returns validation error for invalid accountId", async () => {
+    const { error } = await createInvitation("not-a-uuid", "guest@example.com");
+    expect(error?.message).toMatch(/invalid|uuid/i);
+  });
+});
+
+describe("removeMember", () => {
+  // Delete chain: .delete().eq("account_id",...).eq("user_id",...).neq("role","owner")
+  function removeChain(dbError: { message: string } | null = null) {
+    const neq = vi.fn().mockResolvedValue({ error: dbError });
+    const eq2 = vi.fn().mockReturnValue({ neq });
+    const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
+    const del = vi.fn().mockReturnValue({ eq: eq1 });
+    return { delete: del, neq };
+  }
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("owner can remove a member — deletes with account_id, user_id, neq(owner) guard", async () => {
+    const chain = removeChain();
+    fromTableHandler = (table) => {
+      if (table === "account_members") return chain;
+      return {};
+    };
+    const { error } = await removeMember(ACC_SHARE, MEMBER_UID);
+    expect(error).toBeNull();
+    expect(chain.neq).toHaveBeenCalledWith("role", "owner");
+  });
+
+  it("rejects when caller tries to remove themselves (use leaveAccount)", async () => {
+    // Override the user mock to return a valid UUID so the UUID check passes
+    // and we reach the self-removal guard.
+    const { createClient } = await import("@/lib/supabase/client");
+    vi.mocked(createClient).mockReturnValueOnce({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: MEMBER_UID } },
+        }),
+      },
+      from: vi.fn((table: string) => fromTableHandler(table)),
+      rpc: mockRpc,
+    } as unknown as ReturnType<typeof createClient>);
+
+    const { error } = await removeMember(ACC_SHARE, MEMBER_UID);
+    expect(error?.message).toMatch(/leave/i);
+  });
+
+  it("returns error when DB delete fails", async () => {
+    const chain = removeChain({ message: "permission denied" });
+    fromTableHandler = (table) => {
+      if (table === "account_members") return chain;
+      return {};
+    };
+    const { error } = await removeMember(ACC_SHARE, MEMBER_UID);
+    expect(error?.message).toBe("permission denied");
+  });
+});
+
+describe("leaveAccount", () => {
+  // Owner-check chain: .select("user_id").eq("id",...).maybeSingle()
+  function ownerCheckChain(isOwner: boolean) {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: isOwner ? { user_id: "user-1" } : { user_id: "other-user" },
+      error: null,
+    });
+    const eq = vi.fn().mockReturnValue({ maybeSingle });
+    return { select: vi.fn().mockReturnValue({ eq }) };
+  }
+
+  // Delete chain: .delete().eq("account_id",...).eq("user_id",...)
+  function leaveDeleteChain(dbError: { message: string } | null = null) {
+    const eq2 = vi.fn().mockResolvedValue({ error: dbError });
+    const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
+    const del = vi.fn().mockReturnValue({ eq: eq1 });
+    return { delete: del };
+  }
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("member can leave — deletes own account_members row", async () => {
+    fromTableHandler = (table) => {
+      if (table === "accounts") return ownerCheckChain(false);
+      if (table === "account_members") return leaveDeleteChain();
+      return {};
+    };
+    const { error } = await leaveAccount(ACC_SHARE);
+    expect(error).toBeNull();
+  });
+
+  it("owner is blocked from leaving", async () => {
+    fromTableHandler = (table) => {
+      if (table === "accounts") return ownerCheckChain(true);
+      return {};
+    };
+    const { error } = await leaveAccount(ACC_SHARE);
+    expect(error?.message).toMatch(/owner|delete/i);
+  });
+
+  it("returns validation error for invalid accountId", async () => {
+    const { error } = await leaveAccount("not-a-uuid");
+    expect(error?.message).toMatch(/invalid|uuid/i);
+  });
+});
+
+describe("deleteBudget", () => {
+  // Member-guard chain:
+  //   .select("id").eq("account_id",...).neq("role","owner").limit(1).maybeSingle()
+  function memberGuardChain(hasMembers: boolean) {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: hasMembers ? { id: "member-row-id" } : null,
+      error: null,
+    });
+    const limit = vi.fn().mockReturnValue({ maybeSingle });
+    const neq = vi.fn().mockReturnValue({ limit });
+    const eq = vi.fn().mockReturnValue({ neq });
+    return { select: vi.fn().mockReturnValue({ eq }) };
+  }
+
+  // Account-delete chain: .delete().eq("id",...).eq("user_id",...)
+  function accountDeleteChain(dbError: { message: string } | null = null) {
+    const eq2 = vi.fn().mockResolvedValue({ error: dbError });
+    const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
+    const del = vi.fn().mockReturnValue({ eq: eq1 });
+    return { delete: del };
+  }
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("is blocked when non-owner members exist", async () => {
+    fromTableHandler = (table) => {
+      if (table === "account_members") return memberGuardChain(true);
+      return {};
+    };
+    const { error } = await deleteBudget(ACC_SHARE);
+    expect(error?.message).toMatch(/remove all members/i);
+  });
+
+  it("succeeds when no non-owner members exist", async () => {
+    fromTableHandler = (table) => {
+      if (table === "account_members") return memberGuardChain(false);
+      if (table === "accounts") return accountDeleteChain();
+      return {};
+    };
+    const { error } = await deleteBudget(ACC_SHARE);
+    expect(error).toBeNull();
+  });
+
+  it("returns validation error for invalid id", async () => {
+    const { error } = await deleteBudget("not-a-uuid");
+    expect(error?.message).toMatch(/invalid|uuid/i);
   });
 });
 

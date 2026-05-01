@@ -7,9 +7,8 @@ import { format, parseISO } from "date-fns";
 import useSWR from "swr";
 import { mutate } from "swr";
 import { invalidateNext12CalendarMonths } from "@/lib/swr-invalidate";
-import { calendarMonthSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
+import { calendarMonthSwrKey, categoriesSwrKey, transactionsSwrKey } from "@/lib/swr-keys";
 import { fetchCategories } from "@/lib/api";
-import { categoriesSwrKey } from "@/lib/swr-keys";
 import { useActiveAccount } from "@/components/active-account-provider";
 import { GlassCategorySelectTrigger } from "@/components/glass-category-select-trigger";
 import {

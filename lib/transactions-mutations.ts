@@ -13,6 +13,7 @@ import {
   applyRecurringEditFromDateArgsSchema,
   createAccountPayloadSchema,
   createCategoryPayloadSchema,
+  createInvitationPayloadSchema,
   createRecurringRulePayloadSchema,
   createTransactionPayloadSchema,
   endRecurringRuleFutureArgsSchema,
@@ -29,6 +30,10 @@ import {
   uuidSchema,
 } from "@/lib/validation";
 
+// P0-1: user_id WHERE filters removed from all mutations below.
+// RLS (Migration D) now enforces access control for shared accounts;
+// keeping client-side user_id filters would silently block cross-member edits.
+
 export async function deleteTransaction(
   id: string,
 ): Promise<{ error: Error | null }> {
@@ -43,8 +48,7 @@ export async function deleteTransaction(
   const { error } = await supabase
     .from("transactions")
     .delete()
-    .eq("id", parsedId)
-    .eq("user_id", user.id);
+    .eq("id", parsedId);
   return { error: error ?? null };
 }
 
@@ -139,8 +143,7 @@ export async function endRecurringRuleFuture(
   const { error } = await supabase
     .from("recurring_rules")
     .update({ end_date: lastDay })
-    .eq("id", parsedRuleId)
-    .eq("user_id", user.id);
+    .eq("id", parsedRuleId);
   return { error: error ?? null };
 }
 
@@ -338,8 +341,7 @@ export async function updateTransaction(
   const { error } = await supabase
     .from("transactions")
     .update(update)
-    .eq("id", idParsed.data)
-    .eq("user_id", user.id);
+    .eq("id", idParsed.data);
   return { error: error ?? null };
 }
 
@@ -365,14 +367,12 @@ function normalizeRuleDate(value: string): string {
 
 async function fetchRuleForEdit(
   supabase: ReturnType<typeof createClient>,
-  userId: string,
   ruleId: string,
 ): Promise<{ data: RuleForEdit | null; error: Error | null }> {
   const { data, error } = await supabase
     .from("recurring_rules")
     .select(RULE_EDIT_SELECT)
     .eq("id", ruleId)
-    .eq("user_id", userId)
     .single();
   if (error) return { data: null, error: error ?? null };
   if (!data) return { data: null, error: null };
@@ -394,13 +394,11 @@ function resolveRootId(rule: RuleForEdit): string {
 
 async function getChainRuleIds(
   supabase: ReturnType<typeof createClient>,
-  userId: string,
   rootId: string,
 ): Promise<{ ids: string[]; error: Error | null }> {
   const { data, error } = await supabase
     .from("recurring_rules")
     .select("id")
-    .eq("user_id", userId)
     .or(chainOrFilter(rootId));
   if (error) return { ids: [], error: error ?? null };
   const ids = (data ?? []).map((r: { id: string }) => r.id);
@@ -409,7 +407,6 @@ async function getChainRuleIds(
 
 async function deleteModifiedExceptionsFromChain(
   supabase: ReturnType<typeof createClient>,
-  userId: string,
   chainRuleIds: string[],
   fromDate: string,
 ): Promise<{ error: Error | null }> {
@@ -417,7 +414,6 @@ async function deleteModifiedExceptionsFromChain(
   const { error } = await supabase
     .from("recurring_exceptions")
     .delete()
-    .eq("user_id", userId)
     .eq("type", "modified")
     .gte("exception_date", fromDate)
     .in("rule_id", chainRuleIds);
@@ -451,7 +447,6 @@ export async function updateRecurringSegmentInPlace(
   if (!user) return { error: new Error("Not authenticated") };
   const { data: rule, error: fetchError } = await fetchRuleForEdit(
     supabase,
-    user.id,
     parsedRuleId,
   );
   if (fetchError) return { error: fetchError };
@@ -460,7 +455,6 @@ export async function updateRecurringSegmentInPlace(
   const rootId = resolveRootId(rule);
   const { ids: chainRuleIds, error: chainError } = await getChainRuleIds(
     supabase,
-    user.id,
     rootId,
   );
   if (chainError) return { error: chainError };
@@ -506,8 +500,7 @@ export async function updateRecurringSegmentInPlace(
   const { error: updateError } = await supabase
     .from("recurring_rules")
     .update(updateRow)
-    .eq("id", parsedRuleId)
-    .eq("user_id", user.id);
+    .eq("id", parsedRuleId);
   if (updateError) return { error: updateError };
 
   const exceptionPivot =
@@ -520,7 +513,6 @@ export async function updateRecurringSegmentInPlace(
 
   return deleteModifiedExceptionsFromChain(
     supabase,
-    user.id,
     chainRuleIds,
     exceptionPivot,
   );
@@ -551,7 +543,6 @@ export async function splitRecurringRuleAtDate(
 
   const { data: rule, error: fetchError } = await fetchRuleForEdit(
     supabase,
-    user.id,
     parsedRuleId,
   );
   if (fetchError) return { error: fetchError };
@@ -566,7 +557,6 @@ export async function splitRecurringRuleAtDate(
   const { data: existingAtDate, error: existingError } = await supabase
     .from("recurring_rules")
     .select("id")
-    .eq("user_id", user.id)
     .or(chainOrFilter(rootId))
     .eq("start_date", occurrence)
     .maybeSingle();
@@ -577,7 +567,6 @@ export async function splitRecurringRuleAtDate(
 
   const { ids: chainRuleIds, error: chainError } = await getChainRuleIds(
     supabase,
-    user.id,
     rootId,
   );
   if (chainError) return { error: chainError };
@@ -586,14 +575,12 @@ export async function splitRecurringRuleAtDate(
   const { error: endError } = await supabase
     .from("recurring_rules")
     .update({ end_date: lastDayOldRule })
-    .eq("id", parsedRuleId)
-    .eq("user_id", user.id);
+    .eq("id", parsedRuleId);
   if (endError) return { error: endError };
 
   const { data: nextSegment, error: nextError } = await supabase
     .from("recurring_rules")
     .select("start_date")
-    .eq("user_id", user.id)
     .or(chainOrFilter(rootId))
     .gt("start_date", occurrence)
     .order("start_date", { ascending: true })
@@ -646,7 +633,6 @@ export async function splitRecurringRuleAtDate(
 
   return deleteModifiedExceptionsFromChain(
     supabase,
-    user.id,
     chainRuleIds,
     occurrence,
   );
@@ -677,7 +663,6 @@ export async function applyRecurringEditFromDate(
   const occurrence = normalizeRuleDate(parsedOccurrenceDate);
   const { data: rule, error: fetchError } = await fetchRuleForEdit(
     supabase,
-    user.id,
     parsedRuleId,
   );
   if (fetchError) return { error: fetchError };
@@ -857,8 +842,12 @@ export async function createAccount(payload: {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { data: null, error: new Error("Not authenticated") };
+  // P1-1: use an RPC so both inserts are atomic — avoids the chicken-and-egg
+  // where the account_members INSERT fails after accounts INSERT succeeds,
+  // leaving the account permanently inaccessible under RLS.
+  // p_user_id removed: RPC now uses auth.uid() directly to prevent caller
+  // from supplying an arbitrary user_id (C-1 security fix).
   const { data, error } = await supabase.rpc("create_account_with_member", {
-    p_user_id: user.id,
     p_name: parsed.data.name,
     p_starting_balance: parsed.data.starting_balance,
   });
@@ -912,6 +901,18 @@ export async function deleteBudget(id: string): Promise<{ error: Error | null }>
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { error: new Error("Not authenticated") };
+  // P0-2: block deletion if non-owner members still exist.
+  // ON DELETE CASCADE would silently remove them — the plan requires an explicit guard.
+  const { data: memberRow } = await supabase
+    .from("account_members")
+    .select("id")
+    .eq("account_id", idParsed.data)
+    .neq("role", "owner")
+    .limit(1)
+    .maybeSingle();
+  if (memberRow) {
+    return { error: new Error("Remove all members before deleting this budget.") };
+  }
   const { error } = await supabase
     .from("accounts")
     .delete()
@@ -932,5 +933,138 @@ export async function deleteCategory(id: string): Promise<{ error: Error | null 
     .from("categories")
     .delete()
     .eq("id", idParsed.data);
+  return { error: error ?? null };
+}
+
+export async function createInvitation(
+  accountId: string,
+  email: string,
+): Promise<{ data: { token: string } | null; error: Error | null }> {
+  const parsed = safeParseMutation(createInvitationPayloadSchema, { accountId, email });
+  if (!parsed.ok) return { data: null, error: parsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: new Error("Not authenticated") };
+
+  const normalizedEmail = parsed.data.email.toLowerCase();
+
+  if (normalizedEmail === user.email?.toLowerCase()) {
+    return { data: null, error: new Error("You can't invite yourself.") };
+  }
+
+  // Verify caller is the account owner
+  const { data: account } = await supabase
+    .from("accounts")
+    .select("user_id")
+    .eq("id", parsed.data.accountId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!account) {
+    return { data: null, error: new Error("Only the budget owner can invite members.") };
+  }
+
+  // Check no unexpired pending invite already exists for this email
+  const { data: existing } = await supabase
+    .from("budget_invitations")
+    .select("id")
+    .eq("account_id", parsed.data.accountId)
+    .eq("invited_email", normalizedEmail)
+    .is("accepted_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (existing) {
+    return { data: null, error: new Error("An invite for this email is already pending.") };
+  }
+
+  const { data, error } = await supabase
+    .from("budget_invitations")
+    .insert({
+      account_id: parsed.data.accountId,
+      invited_by: user.id,
+      invited_email: normalizedEmail,
+    })
+    .select("token")
+    .single();
+  if (error) {
+    // P1-2: unique constraint on (account_id, invited_email) — treat as duplicate pending invite
+    if (error.code === "23505") {
+      return { data: null, error: new Error("An invite for this email is already pending.") };
+    }
+    return { data: null, error };
+  }
+  return { data: { token: data.token as string }, error: null };
+}
+
+export async function removeMember(
+  accountId: string,
+  userId: string,
+): Promise<{ error: Error | null }> {
+  const accountIdParsed = safeParseMutation(uuidSchema, accountId);
+  if (!accountIdParsed.ok) return { error: accountIdParsed.error };
+  const userIdParsed = safeParseMutation(uuidSchema, userId);
+  if (!userIdParsed.ok) return { error: userIdParsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+  if (userIdParsed.data === user.id) {
+    return { error: new Error("Use leaveAccount to leave a budget.") };
+  }
+  // RLS enforces that only the account owner can delete another member's row.
+  // The .neq("role", "owner") guard prevents accidentally removing the owner row.
+  const { error } = await supabase
+    .from("account_members")
+    .delete()
+    .eq("account_id", accountIdParsed.data)
+    .eq("user_id", userIdParsed.data)
+    .neq("role", "owner");
+  return { error: error ?? null };
+}
+
+export async function revokeInvitation(
+  id: string,
+): Promise<{ error: Error | null }> {
+  const idParsed = safeParseMutation(uuidSchema, id);
+  if (!idParsed.ok) return { error: idParsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+  const { error } = await supabase
+    .from("budget_invitations")
+    .delete()
+    .eq("id", idParsed.data)
+    .eq("invited_by", user.id);
+  return { error: error ?? null };
+}
+
+export async function leaveAccount(
+  accountId: string,
+): Promise<{ error: Error | null }> {
+  const accountIdParsed = safeParseMutation(uuidSchema, accountId);
+  if (!accountIdParsed.ok) return { error: accountIdParsed.error };
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: new Error("Not authenticated") };
+  // Owners cannot leave — they must delete the budget
+  const { data: account } = await supabase
+    .from("accounts")
+    .select("user_id")
+    .eq("id", accountIdParsed.data)
+    .maybeSingle();
+  if (account?.user_id === user.id) {
+    return { error: new Error("Budget owners cannot leave. Delete the budget instead.") };
+  }
+  const { error } = await supabase
+    .from("account_members")
+    .delete()
+    .eq("account_id", accountIdParsed.data)
+    .eq("user_id", user.id);
   return { error: error ?? null };
 }

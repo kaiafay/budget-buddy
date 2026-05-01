@@ -99,7 +99,9 @@ export default function LoginPage() {
         dispatch({ type: "SET_ERROR", error: "Invalid email or password" });
         return;
       }
-      router.push("/");
+      const params = new URLSearchParams(window.location.search);
+      const next = params.get("next");
+      router.push(next && next.startsWith("/") ? next : "/");
       return;
     }
 
@@ -141,12 +143,20 @@ export default function LoginPage() {
       return;
     }
 
+    // P1-4: carry ?next= through the email confirmation link so a new user
+    // who signed up via an invite link lands on /invite/{token} after confirming.
+    const signUpParams = new URLSearchParams(window.location.search);
+    const signUpNext = signUpParams.get("next");
+    const emailRedirectTo =
+      signUpNext && signUpNext.startsWith("/")
+        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(signUpNext)}`
+        : `${window.location.origin}/auth/confirm`;
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp(
       {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm`,
+          emailRedirectTo,
           data: {
             given_name: trimmedFirst,
             family_name: trimmedLast,

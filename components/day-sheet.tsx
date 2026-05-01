@@ -30,8 +30,8 @@ import {
 import { RecurringEditScopeDialog } from "@/components/recurring-edit-scope-dialog";
 import { GlassCategorySelectTrigger } from "@/components/glass-category-select-trigger";
 import { TransactionLeadingIcon } from "@/components/transaction-leading-icon";
-import { fetchCategories, fetchNextChainSegment } from "@/lib/api";
 import { categoriesSwrKey } from "@/lib/swr-keys";
+import { fetchCategories, fetchNextChainSegment } from "@/lib/api";
 import { getRecurringRuleIdAndDate } from "@/lib/recurring-rules";
 import {
   glassAmountInputClass,

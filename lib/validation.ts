@@ -99,6 +99,11 @@ export const createCategoryPayloadSchema = z.object({
   type: z.enum(["expense", "income"]),
 });
 
+export const createInvitationPayloadSchema = z.object({
+  accountId: uuidSchema,
+  email: z.string().email().max(254),
+});
+
 export const updateCategoryPayloadSchema = z.object({
   name: categoryNameSchema.optional(),
   icon: categoryIconSchema.optional(),
