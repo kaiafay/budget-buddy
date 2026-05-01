@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import {
   Users,
   UserPlus,
@@ -51,6 +52,15 @@ import { useActiveAccount } from "@/components/active-account-provider";
 interface BudgetMembersSectionProps {
   accountId: string;
   role: "owner" | "member";
+}
+
+function formatInviteExpiry(expiresAt: string): string {
+  const expires = parseISO(expiresAt);
+  const days = differenceInCalendarDays(expires, new Date());
+  if (days < 0) return "Expired";
+  if (days === 0) return "Expires today";
+  if (days === 1) return "Expires tomorrow";
+  return `Expires ${format(expires, "MMM d")}`;
 }
 
 export function BudgetMembersSection({
@@ -243,6 +253,9 @@ export function BudgetMembersSection({
                 <div className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
                   <span className="truncate text-sm text-white/70">
                     {inv.invited_email}
+                  </span>
+                  <span className="block text-xs text-white/40">
+                    {formatInviteExpiry(inv.expires_at)}
                   </span>
                 </div>
                 {/* P3-1: copy link button so owners can re-share without revoking */}
