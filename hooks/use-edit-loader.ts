@@ -103,7 +103,7 @@ export function useEditLoader(
       setScopeNextSegmentLoading(false);
       setScopeOccurrenceDate(null);
       setError(null);
-      fetchTransaction(editTxId)
+      fetchTransaction(editTxId, expectedAccountId)
         .then((tx) => {
           if (!tx) {
             setError("Couldn't find this transaction.");
@@ -128,7 +128,7 @@ export function useEditLoader(
       setScopeNextSegmentLoading(false);
       setScopeOccurrenceDate(null);
       setError(null);
-      fetchRecurringRule(editRuleId)
+      fetchRecurringRule(editRuleId, expectedAccountId)
         .then((rule) => {
           if (!rule) {
             setError("Couldn't find this recurring rule.");

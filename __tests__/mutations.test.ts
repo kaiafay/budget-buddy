@@ -714,6 +714,15 @@ describe("makeTransactionRecurring", () => {
   const mockMrTxDeleteEq1 = vi.fn(() => ({ eq: mockMrTxDeleteEq2 }));
   const mockMrTxDelete = vi.fn(() => ({ eq: mockMrTxDeleteEq1 }));
 
+  function txAccountChain(accountId: string | null) {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: accountId ? { account_id: accountId } : null,
+      error: null,
+    });
+    const eq = vi.fn().mockReturnValue({ maybeSingle });
+    return { select: vi.fn().mockReturnValue({ eq }), delete: mockMrTxDelete };
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockMrRuleSingle.mockResolvedValue({ data: { id: RULE_FOR_MR }, error: null });
@@ -724,7 +733,7 @@ describe("makeTransactionRecurring", () => {
         return { insert: mockMrRuleInsert, delete: mockMrRuleDelete };
       }
       if (table === "transactions") {
-        return { delete: mockMrTxDelete };
+        return txAccountChain(ACC1);
       }
       return {};
     };
@@ -766,6 +775,27 @@ describe("makeTransactionRecurring", () => {
     expect(mockMrRuleDelete).toHaveBeenCalled();
     expect(mockMrRuleDeleteEq1).toHaveBeenCalledWith("id", RULE_FOR_MR);
     expect(mockMrRuleDeleteEq2).toHaveBeenCalledWith("user_id", "user-1");
+  });
+
+  it("returns error when transaction belongs to a different account (cross-account guard)", async () => {
+    fromTableHandler = (table: string) => {
+      if (table === "recurring_rules") {
+        return { insert: mockMrRuleInsert, delete: mockMrRuleDelete };
+      }
+      if (table === "transactions") {
+        return txAccountChain(ACC123);
+      }
+      return {};
+    };
+    const result = await makeTransactionRecurring(TX_ONE, {
+      accountId: ACC1,
+      label: "Rent",
+      amount: -500,
+      startDate: "2026-01-01",
+      frequency: "monthly",
+    });
+    expect(result.error).not.toBeNull();
+    expect(mockMrRuleInsert).not.toHaveBeenCalled();
   });
 
   it("returns validation error for invalid transaction UUID without touching DB", async () => {
@@ -1453,6 +1483,17 @@ describe("leaveAccount", () => {
     };
     const { error } = await leaveAccount(ACC_SHARE);
     expect(error?.message).toMatch(/owner|delete/i);
+  });
+
+  it("returns error when account is not found (null guard)", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    const eq = vi.fn().mockReturnValue({ maybeSingle });
+    fromTableHandler = (table) => {
+      if (table === "accounts") return { select: vi.fn().mockReturnValue({ eq }) };
+      return {};
+    };
+    const { error } = await leaveAccount(ACC_SHARE);
+    expect(error?.message).toMatch(/not found/i);
   });
 
   it("returns validation error for invalid accountId", async () => {

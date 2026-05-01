@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { AccountMember } from "@/lib/types";
+import { uuidSchema } from "@/lib/validation";
 
 function adminClient() {
   return createAdminClient(
@@ -16,6 +17,13 @@ export async function getAccountMembers(accountId: string): Promise<{
   data: AccountMember[] | null;
   error: string | null;
 }> {
+  let parsedAccountId: string;
+  try {
+    parsedAccountId = uuidSchema.parse(accountId);
+  } catch {
+    return { data: null, error: "Invalid account ID." };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -28,7 +36,7 @@ export async function getAccountMembers(accountId: string): Promise<{
   const { data: selfRow } = await admin
     .from("account_members")
     .select("role")
-    .eq("account_id", accountId)
+    .eq("account_id", parsedAccountId)
     .eq("user_id", user.id)
     .maybeSingle();
   if (!selfRow) return { data: null, error: "Access denied." };
@@ -36,7 +44,7 @@ export async function getAccountMembers(accountId: string): Promise<{
   const { data: rows, error } = await admin
     .from("account_members")
     .select("id, account_id, user_id, role, invited_by, created_at")
-    .eq("account_id", accountId)
+    .eq("account_id", parsedAccountId)
     .order("created_at", { ascending: true });
   if (error) return { data: null, error: "Failed to load members." };
 

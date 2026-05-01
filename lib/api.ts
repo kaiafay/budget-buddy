@@ -65,7 +65,7 @@ export async function fetchCalendarData(
   const lastDay = new Date(year, month1Based, 0).getDate();
   const lastDayOfMonth = `${year}-${String(month1Based).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
-  const [accountRes, txBeforeRes, txRes, rulesRes, exceptionsRes] =
+  const [accountRes, txBeforeRes, txRes, rulesRes] =
     await Promise.all([
       // M-4: query account_members with join so role is read from DB,
       // not derived client-side (avoids silent breakage if roles expand).
@@ -93,17 +93,25 @@ export async function fetchCalendarData(
           "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id, account_id",
         )
         .eq("account_id", parsedAccountId),
-      supabase
-        .from("recurring_exceptions")
-        .select(
-          "id, rule_id, exception_date, type, modified_amount, modified_label, category_id",
-        ),
     ]);
 
   if (accountRes.error) throw new Error(accountRes.error.message);
   if (txBeforeRes.error) throw new Error(txBeforeRes.error.message);
   if (txRes.error) throw new Error(txRes.error.message);
   if (rulesRes.error) throw new Error(rulesRes.error.message);
+
+  // Scope exceptions server-side to this account's rules to avoid leaking
+  // exception rows from other accounts the user is also a member of.
+  const calendarRuleIds = (rulesRes.data ?? []).map((r) => r.id);
+  const exceptionsRes = calendarRuleIds.length > 0
+    ? await supabase
+        .from("recurring_exceptions")
+        .select(
+          "id, rule_id, exception_date, type, modified_amount, modified_label, category_id",
+        )
+        .in("rule_id", calendarRuleIds)
+    : { data: [] as Array<{ id: string; rule_id: string; exception_date: string; type: string; modified_amount: number | null; modified_label: string | null; category_id: string | null }>, error: null };
+
   if (exceptionsRes.error) throw new Error(exceptionsRes.error.message);
 
   const accountRow = accountRes.data
@@ -122,21 +130,15 @@ export async function fetchCalendarData(
       })()
     : null;
 
-  // recurring_exceptions are joined to recurring_rules via rule_id and the rules
-  // are already account-scoped above; exceptions are filtered to the user.
-  // Filter exceptions to only those whose rule was returned in this account scope
-  // so unrelated accounts' rule exceptions never reach the projection inputs.
-  const ruleIdSet = new Set((rulesRes.data ?? []).map((r) => r.id));
-  const filteredExceptions = (exceptionsRes.data ?? []).filter((e) =>
-    ruleIdSet.has(e.rule_id),
-  );
+  // exceptions are already scoped to this account's rule IDs by the server-side
+  // .in() filter above; no client-side post-filter needed.
 
   return {
     account: accountRow,
     txBefore: (txBeforeRes.data ?? []) as { amount: number }[],
     transactions: (txRes.data ?? []) as Transaction[],
     recurringRules: (rulesRes.data ?? []) as RecurringRule[],
-    exceptions: filteredExceptions as RecurringException[],
+    exceptions: (exceptionsRes.data ?? []) as RecurringException[],
     firstDayOfMonth,
     lastDayOfMonth,
   };
@@ -154,7 +156,7 @@ export async function fetchTransactions(accountId: string): Promise<{
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const [txRes, rulesRes, exceptionsRes] = await Promise.all([
+  const [txRes, rulesRes] = await Promise.all([
     supabase
       .from("transactions")
       .select("id, label, amount, date, category_id, account_id")
@@ -166,26 +168,27 @@ export async function fetchTransactions(accountId: string): Promise<{
         "id, start_date, end_date, root_rule_id, amount, label, frequency, category_id, account_id",
       )
       .eq("account_id", parsedAccountId),
-    supabase
-      .from("recurring_exceptions")
-      .select(
-        "id, rule_id, exception_date, type, modified_amount, modified_label, category_id",
-      ),
   ]);
 
   if (txRes.error) throw new Error(txRes.error.message);
   if (rulesRes.error) throw new Error(rulesRes.error.message);
-  if (exceptionsRes.error) throw new Error(exceptionsRes.error.message);
 
-  const ruleIdSet = new Set((rulesRes.data ?? []).map((r) => r.id));
-  const filteredExceptions = (exceptionsRes.data ?? []).filter((e) =>
-    ruleIdSet.has(e.rule_id),
-  );
+  const txRuleIds = (rulesRes.data ?? []).map((r) => r.id);
+  const exceptionsRes = txRuleIds.length > 0
+    ? await supabase
+        .from("recurring_exceptions")
+        .select(
+          "id, rule_id, exception_date, type, modified_amount, modified_label, category_id",
+        )
+        .in("rule_id", txRuleIds)
+    : { data: [] as Array<{ id: string; rule_id: string; exception_date: string; type: string; modified_amount: number | null; modified_label: string | null; category_id: string | null }>, error: null };
+
+  if (exceptionsRes.error) throw new Error(exceptionsRes.error.message);
 
   return {
     transactions: (txRes.data ?? []) as Transaction[],
     recurringRules: (rulesRes.data ?? []) as RecurringRule[],
-    exceptions: filteredExceptions as RecurringException[],
+    exceptions: (exceptionsRes.data ?? []) as RecurringException[],
   };
 }
 
@@ -242,6 +245,7 @@ export async function fetchCategories(accountId: string): Promise<Category[]> {
 
 export async function fetchTransaction(
   id: string,
+  accountId?: string | null,
 ): Promise<{
   id: string;
   label: string;
@@ -261,11 +265,13 @@ export async function fetchTransaction(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
-  const { data, error } = await supabase
+  const query = supabase
     .from("transactions")
     .select("id, label, amount, date, category_id, account_id")
-    .eq("id", parsedId)
-    .single();
+    .eq("id", parsedId);
+  const { data, error } = await (
+    accountId ? query.eq("account_id", uuidSchema.parse(accountId)) : query
+  ).single();
   if (error) {
     if (error.code === "PGRST116") return null;
     throw new Error(error.message);
@@ -282,6 +288,7 @@ export async function fetchTransaction(
 
 export async function fetchRecurringRule(
   id: string,
+  accountId?: string | null,
 ): Promise<RecurringRule | null> {
   let parsedId: string;
   try {
@@ -294,13 +301,15 @@ export async function fetchRecurringRule(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
-  const { data, error } = await supabase
+  const query = supabase
     .from("recurring_rules")
     .select(
       "id, label, amount, frequency, start_date, end_date, category_id, root_rule_id, account_id",
     )
-    .eq("id", parsedId)
-    .single();
+    .eq("id", parsedId);
+  const { data, error } = await (
+    accountId ? query.eq("account_id", uuidSchema.parse(accountId)) : query
+  ).single();
   if (error) {
     if (error.code === "PGRST116") return null;
     throw new Error(error.message);

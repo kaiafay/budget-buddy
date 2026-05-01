@@ -701,6 +701,18 @@ export async function makeTransactionRecurring(
   } = await supabase.auth.getUser();
   if (!user) return { error: new Error("Not authenticated") };
 
+  // Verify the source transaction belongs to the target account before mutating.
+  // RLS permits each operation independently, so without this check an attacker
+  // could delete a transaction from account A while creating a rule in account B.
+  const { data: txAccountRow } = await supabase
+    .from("transactions")
+    .select("account_id")
+    .eq("id", idParsed.data)
+    .maybeSingle();
+  if (!txAccountRow || txAccountRow.account_id !== parsedPayload.data.accountId) {
+    return { error: new Error("Transaction does not belong to the specified account") };
+  }
+
   let resolvedEndDate: string | null = null;
   if (parsedPayload.data.endDate) {
     resolvedEndDate = parsedPayload.data.endDate;
@@ -1058,7 +1070,8 @@ export async function leaveAccount(
     .select("user_id")
     .eq("id", accountIdParsed.data)
     .maybeSingle();
-  if (account?.user_id === user.id) {
+  if (!account) return { error: new Error("Budget not found.") };
+  if (account.user_id === user.id) {
     return { error: new Error("Budget owners cannot leave. Delete the budget instead.") };
   }
   const { error } = await supabase

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { uuidSchema } from "@/lib/validation";
 import { InviteClient } from "./invite-client";
 
 export default async function InvitePage({
@@ -16,7 +17,12 @@ export default async function InvitePage({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(`/login?next=/invite/${token}`);
+    try {
+      uuidSchema.parse(token);
+      redirect(`/login?next=/invite/${token}`);
+    } catch {
+      redirect("/login");
+    }
   }
 
   const adminClient = createAdminClient(
