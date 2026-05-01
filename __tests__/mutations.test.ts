@@ -1283,6 +1283,16 @@ describe("createInvitation", () => {
     return { select: vi.fn().mockReturnValue({ eq: eq1 }) };
   }
 
+  // Expired-invite cleanup chain:
+  //   .delete().eq("account_id",...).eq("invited_email",...).is(...).lt(...)
+  function expiredInviteCleanupChain(dbError: { message: string } | null = null) {
+    const lt = vi.fn().mockResolvedValue({ error: dbError });
+    const is = vi.fn().mockReturnValue({ lt });
+    const eq2 = vi.fn().mockReturnValue({ is });
+    const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
+    return { delete: vi.fn().mockReturnValue({ eq: eq1 }) };
+  }
+
   // Insert chain: .insert({}).select("token").single()
   function insertChain(
     result: { data: { token: string } | null; error: { code?: string; message: string } | null },
@@ -1326,6 +1336,7 @@ describe("createInvitation", () => {
       if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
       if (table === "budget_invitations") {
         inviteCallCount++;
+        if (inviteCallCount === 1) return expiredInviteCleanupChain();
         return existingInviteChain(true);
       }
       return {};
@@ -1334,13 +1345,26 @@ describe("createInvitation", () => {
     expect(error?.message).toMatch(/pending/i);
   });
 
+  it("returns cleanup error when expired pending invite cleanup fails", async () => {
+    fromTableHandler = (table) => {
+      if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
+      if (table === "budget_invitations") {
+        return expiredInviteCleanupChain({ message: "cleanup failed" });
+      }
+      return {};
+    };
+    const { error } = await createInvitation(ACC_SHARE, "guest@example.com");
+    expect(error?.message).toBe("cleanup failed");
+  });
+
   it("creates invite and returns token on success", async () => {
     let inviteCallCount = 0;
     fromTableHandler = (table) => {
       if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
       if (table === "budget_invitations") {
         inviteCallCount++;
-        if (inviteCallCount === 1) return existingInviteChain(false);
+        if (inviteCallCount === 1) return expiredInviteCleanupChain();
+        if (inviteCallCount === 2) return existingInviteChain(false);
         return insertChain({ data: { token: INV_TOKEN }, error: null });
       }
       return {};
@@ -1357,7 +1381,8 @@ describe("createInvitation", () => {
       if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
       if (table === "budget_invitations") {
         inviteCallCount++;
-        if (inviteCallCount === 1) return existingInviteChain(false);
+        if (inviteCallCount === 1) return expiredInviteCleanupChain();
+        if (inviteCallCount === 2) return existingInviteChain(false);
         const single = vi.fn().mockResolvedValue({ data: { token: INV_TOKEN }, error: null });
         const sel = vi.fn().mockReturnValue({ single });
         const ins = vi.fn().mockImplementation((row: Record<string, unknown>) => {
@@ -1378,7 +1403,8 @@ describe("createInvitation", () => {
       if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
       if (table === "budget_invitations") {
         inviteCallCount++;
-        if (inviteCallCount === 1) return existingInviteChain(false);
+        if (inviteCallCount === 1) return expiredInviteCleanupChain();
+        if (inviteCallCount === 2) return existingInviteChain(false);
         return insertChain({ data: null, error: { code: "23505", message: "unique" } });
       }
       return {};

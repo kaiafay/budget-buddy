@@ -977,6 +977,19 @@ export async function createInvitation(
     return { data: null, error: new Error("Only the budget owner can invite members.") };
   }
 
+  const now = new Date().toISOString();
+
+  // The DB enforces one unaccepted invite per account/email. Clear expired
+  // unaccepted rows first so an expired link does not block a fresh invite.
+  const { error: cleanupError } = await supabase
+    .from("budget_invitations")
+    .delete()
+    .eq("account_id", parsed.data.accountId)
+    .eq("invited_email", normalizedEmail)
+    .is("accepted_at", null)
+    .lt("expires_at", now);
+  if (cleanupError) return { data: null, error: cleanupError };
+
   // Check no unexpired pending invite already exists for this email
   const { data: existing } = await supabase
     .from("budget_invitations")
@@ -984,7 +997,7 @@ export async function createInvitation(
     .eq("account_id", parsed.data.accountId)
     .eq("invited_email", normalizedEmail)
     .is("accepted_at", null)
-    .gt("expires_at", new Date().toISOString())
+    .gt("expires_at", now)
     .maybeSingle();
   if (existing) {
     return { data: null, error: new Error("An invite for this email is already pending.") };
@@ -1000,7 +1013,8 @@ export async function createInvitation(
     .select("token")
     .single();
   if (error) {
-    // P1-2: unique constraint on (account_id, invited_email) — treat as duplicate pending invite
+    // P1-2: partial unique index on unaccepted account/email invites —
+    // treat a race-created duplicate pending invite as a friendly error.
     if (error.code === "23505") {
       return { data: null, error: new Error("An invite for this email is already pending.") };
     }
