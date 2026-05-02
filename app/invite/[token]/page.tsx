@@ -17,12 +17,9 @@ export default async function InvitePage({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    try {
-      uuidSchema.parse(token);
-      redirect(`/login?next=/invite/${token}`);
-    } catch {
-      redirect("/login");
-    }
+    redirect(
+      uuidSchema.safeParse(token).success ? `/login?next=/invite/${token}` : "/login",
+    );
   }
 
   const adminClient = createAdminClient(

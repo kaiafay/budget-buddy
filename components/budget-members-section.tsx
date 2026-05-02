@@ -108,6 +108,7 @@ export function BudgetMembersSection({
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [isRemoving, startRemoveTransition] = useTransition();
+  const [memberToRemove, setMemberToRemove] = useState<{ userId: string; email: string } | null>(null);
 
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [isRevoking, startRevokeTransition] = useTransition();
@@ -184,6 +185,7 @@ export function BudgetMembersSection({
       }
       void mutate(membersSwrKey(accountId));
       setRemovingUserId(null);
+      setMemberToRemove(null);
     });
   }
 
@@ -260,7 +262,7 @@ export function BudgetMembersSection({
                   type="button"
                   aria-label={`Remove ${member.email}`}
                   disabled={isRemoving && removingUserId === member.user_id}
-                  onClick={() => handleRemove(member.user_id)}
+                  onClick={() => { setRemoveError(null); setMemberToRemove({ userId: member.user_id, email: member.email }); }}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/50 transition-colors hover:border-destructive/40 hover:bg-destructive/15 hover:text-red-300 active:bg-destructive/20"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -423,6 +425,42 @@ export function BudgetMembersSection({
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={!!memberToRemove}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMemberToRemove(null);
+            setRemoveError(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="border-white/20 bg-card text-card-foreground">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove member?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {memberToRemove?.email} will lose access to this budget. You can
+              invite them back at any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {removeError && <InlineError light>{removeError}</InlineError>}
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl border border-border bg-muted text-foreground hover:bg-muted/80">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (memberToRemove) handleRemove(memberToRemove.userId);
+              }}
+              disabled={isRemoving}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80"
+            >
+              Remove member
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={leaveOpen}
