@@ -64,6 +64,9 @@ export default async function HomePage({
   );
   const initialSelectedDate = parseSelectedDate(params.selected);
 
+  // getUser is called server-side only to derive display props (givenName, avatarInitials)
+  // for the calendar header. All app data is fetched client-side via SWR.
+  // After a profile name change the user needs to router.refresh() or revisit / for updated props.
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
   const user = authData.user;

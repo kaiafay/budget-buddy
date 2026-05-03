@@ -31,6 +31,7 @@ supabase/
 .claudeignore
 
 # docs and notes
+/docs/
 *.md
 !README.md
 *.txt

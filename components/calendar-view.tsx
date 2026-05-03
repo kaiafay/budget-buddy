@@ -429,6 +429,9 @@ export function CalendarView({
               }
               if (!activeAccountId) return;
               if (opts?.recurringTouch) {
+                // invalidateNext12CalendarMonths covers future months from today;
+                // the extra mutate covers the currently visible month, which may
+                // be a past month outside that window.
                 invalidateNext12CalendarMonths(activeAccountId);
                 mutate(calendarMonthSwrKey(month, year, activeAccountId));
                 if (needDaySheetMonth) {
