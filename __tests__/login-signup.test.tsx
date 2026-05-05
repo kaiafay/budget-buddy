@@ -107,7 +107,7 @@ describe("LoginPage signup", () => {
     });
   });
 
-  it("prefills invite email and keeps it when toggling to signup", () => {
+  it("prefills invite email and keeps it when toggling to signup", async () => {
     window.history.replaceState(
       {},
       "",
@@ -116,7 +116,9 @@ describe("LoginPage signup", () => {
 
     render(<LoginPage />);
 
-    expect(screen.getByLabelText(/email/i)).toHaveValue("grace@example.com");
+    await waitFor(() => {
+      expect(screen.getByLabelText(/email/i)).toHaveValue("grace@example.com");
+    });
 
     fireEvent.click(screen.getByRole("button", { name: /sign up/i }));
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { glassInputClass } from "@/lib/glass-classes";
@@ -61,11 +61,15 @@ export default function LoginPage() {
   const router = useRouter();
   const [state, dispatch] = useReducer(formReducer, initialState);
   const { mode, firstName, lastName, inviteCode, error, signUpSuccess, resetSent } = state;
-  const [email, setEmail] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return new URLSearchParams(window.location.search).get("email") ?? "";
-  });
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    const invitedEmail = new URLSearchParams(window.location.search).get("email");
+    if (invitedEmail) {
+      setEmail(invitedEmail);
+    }
+  }, []);
 
   function goToMode(target: Mode) {
     dispatch({ type: "GO_TO_MODE", mode: target });
