@@ -991,14 +991,15 @@ export async function createInvitation(
 
   const now = new Date().toISOString();
 
-  // The DB enforces one unaccepted invite per account/email. Clear expired
-  // unaccepted rows first so an expired link does not block a fresh invite.
+  // The DB enforces one open invite per account/email. Clear expired open rows
+  // first so an expired link does not block a fresh invite.
   const { error: cleanupError } = await supabase
     .from("budget_invitations")
     .delete()
     .eq("account_id", parsed.data.accountId)
     .eq("invited_email", normalizedEmail)
     .is("accepted_at", null)
+    .is("declined_at", null)
     .lt("expires_at", now);
   if (cleanupError) return { data: null, error: cleanupError };
 
@@ -1009,6 +1010,7 @@ export async function createInvitation(
     .eq("account_id", parsed.data.accountId)
     .eq("invited_email", normalizedEmail)
     .is("accepted_at", null)
+    .is("declined_at", null)
     .gt("expires_at", now)
     .maybeSingle();
   if (existing) {
@@ -1025,7 +1027,7 @@ export async function createInvitation(
     .select("token")
     .single();
   if (error) {
-    // P1-2: partial unique index on unaccepted account/email invites —
+    // Partial unique index on open account/email invites —
     // treat a race-created duplicate pending invite as a friendly error.
     if (error.code === "23505") {
       return { data: null, error: new Error("An invite for this email is already pending.") };

@@ -418,9 +418,10 @@ export async function fetchPendingInvitations(
   if (!user) throw new Error("Not authenticated");
   const { data, error } = await supabase
     .from("budget_invitations")
-    .select("id, account_id, invited_by, invited_email, token, expires_at, accepted_at, created_at")
+    .select("id, account_id, invited_by, invited_email, token, expires_at, accepted_at, declined_at, created_at")
     .eq("account_id", accountId)
     .is("accepted_at", null)
+    .is("declined_at", null)
     .gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);

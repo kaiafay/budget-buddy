@@ -64,6 +64,7 @@ export type BudgetInvitation = {
   token: string;
   expires_at: string;
   accepted_at: string | null;
+  declined_at: string | null;
   created_at: string;
 };
 

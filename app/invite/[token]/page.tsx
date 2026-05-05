@@ -38,7 +38,7 @@ export default async function InvitePage({
 
   const { data: invite } = await adminClient
     .from("budget_invitations")
-    .select("id, invited_email, expires_at, accepted_at, accounts(name)")
+    .select("id, invited_email, expires_at, accepted_at, declined_at, accounts(name)")
     .eq("token", token)
     .maybeSingle();
 
@@ -64,6 +64,17 @@ export default async function InvitePage({
         mode="terminal"
         accountName={accountName}
         errorMessage="This invitation has already been used."
+      />
+    );
+  }
+
+  if (invite.declined_at) {
+    return (
+      <InviteClient
+        token={token}
+        mode="terminal"
+        accountName={accountName}
+        errorMessage="This invitation is no longer available."
       />
     );
   }
