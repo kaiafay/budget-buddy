@@ -219,6 +219,57 @@ describe("declineInvitation", () => {
     expect(mockAdminFrom).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects missing invites", async () => {
+    mockAdminFrom.mockReturnValue(inviteLoadChain(null));
+
+    const { data, error } = await declineInvitation(INV_TOKEN);
+
+    expect(data).toBeNull();
+    expect(error).toBe("Invalid invitation link.");
+    expect(mockAdminFrom).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects expired invites before updating the invite", async () => {
+    mockAdminFrom.mockReturnValue(
+      inviteLoadChain({
+        id: "invite-1",
+        invited_email: "guest@example.com",
+        expires_at: "2020-01-01T00:00:00.000Z",
+        accepted_at: null,
+        declined_at: null,
+      }),
+    );
+
+    const { data, error } = await declineInvitation(INV_TOKEN);
+
+    expect(data).toBeNull();
+    expect(error).toBe("This invitation has expired.");
+    expect(mockAdminFrom).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns unavailable when the invite closes before update completes", async () => {
+    let fromCallCount = 0;
+    mockAdminFrom.mockImplementation(() => {
+      fromCallCount++;
+      if (fromCallCount === 1) {
+        return inviteLoadChain({
+          id: "invite-1",
+          invited_email: "guest@example.com",
+          expires_at: "2999-01-01T00:00:00.000Z",
+          accepted_at: null,
+          declined_at: null,
+        });
+      }
+      return declineUpdateChain(null);
+    });
+
+    const { data, error } = await declineInvitation(INV_TOKEN);
+
+    expect(data).toBeNull();
+    expect(error).toBe("This invitation is no longer available.");
+    expect(mockAdminFrom).toHaveBeenCalledTimes(2);
+  });
+
   it("sets declined_at for a matching open invite", async () => {
     let fromCallCount = 0;
     mockAdminFrom.mockImplementation(() => {

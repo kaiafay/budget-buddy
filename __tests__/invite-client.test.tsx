@@ -102,4 +102,28 @@ describe("InviteClient", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("shows decline action errors without leaving the invite screen", async () => {
+    mockDeclineInvitation.mockResolvedValue({
+      data: null,
+      error: "This invitation has expired.",
+    });
+
+    render(
+      <InviteClient
+        token="cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        accountName="Family Budget"
+        errorMessage={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /decline invitation/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("This invitation has expired.")).toBeInTheDocument();
+      expect(
+        screen.queryByText(/this invitation has been declined/i),
+      ).not.toBeInTheDocument();
+    });
+  });
 });
