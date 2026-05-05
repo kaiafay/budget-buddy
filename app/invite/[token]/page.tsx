@@ -1,8 +1,16 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { uuidSchema } from "@/lib/validation";
 import { InviteClient } from "./invite-client";
+
+function accountNameFromInviteAccounts(
+  accounts: unknown,
+): string {
+  if (Array.isArray(accounts)) {
+    return accounts[0]?.name ?? "Shared Budget";
+  }
+  return (accounts as { name?: string } | null)?.name ?? "Shared Budget";
+}
 
 export default async function InvitePage({
   params,
@@ -11,14 +19,14 @@ export default async function InvitePage({
 }) {
   const { token } = await params;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect(
-      uuidSchema.safeParse(token).success ? `/login?next=/invite/${token}` : "/login",
+  if (!uuidSchema.safeParse(token).success) {
+    return (
+      <InviteClient
+        token={token}
+        mode="terminal"
+        accountName={null}
+        errorMessage="This invitation link is invalid."
+      />
     );
   }
 
@@ -30,39 +38,90 @@ export default async function InvitePage({
 
   const { data: invite } = await adminClient
     .from("budget_invitations")
-    .select("id, invited_email, expires_at, accepted_at, accounts(name)")
+    .select("id, invited_email, expires_at, accepted_at, declined_at, accounts(name)")
     .eq("token", token)
     .maybeSingle();
 
-  let errorMessage: string | null = null;
-  let errorCode: "wrong-email" | null = null;
-  let accountName: string | null = null;
-  let invitedEmail: string | null = null;
-
   if (!invite) {
-    errorMessage = "This invitation link is invalid.";
-  } else if (invite.accepted_at) {
-    errorMessage = "This invitation has already been used.";
-  } else if (new Date(invite.expires_at) < new Date()) {
-    errorMessage =
-      "This invitation has expired. Ask the budget owner for a new invite link.";
-  } else if (invite.invited_email !== user.email?.toLowerCase()) {
-    errorMessage =
-      "This invitation was sent to a different email address. Make sure you're signed in with the correct account.";
-    errorCode = "wrong-email";
-    invitedEmail = invite.invited_email as string;
-  } else {
-    accountName =
-      (invite.accounts as unknown as { name: string } | null)?.name ?? "Shared Budget";
+    return (
+      <InviteClient
+        token={token}
+        mode="terminal"
+        accountName={null}
+        errorMessage="This invitation link is invalid."
+      />
+    );
   }
+
+  const accountName = accountNameFromInviteAccounts(invite.accounts);
+  const invitedEmail = invite.invited_email as string;
+  const expiresAt = invite.expires_at as string;
+
+  if (invite.accepted_at) {
+    return (
+      <InviteClient
+        token={token}
+        mode="terminal"
+        accountName={accountName}
+        errorMessage="This invitation has already been used."
+      />
+    );
+  }
+
+  if (invite.declined_at) {
+    return (
+      <InviteClient
+        token={token}
+        mode="terminal"
+        accountName={accountName}
+        errorMessage="This invitation is no longer available."
+      />
+    );
+  }
+
+  if (new Date(expiresAt) < new Date()) {
+    return (
+      <InviteClient
+        token={token}
+        mode="terminal"
+        accountName={accountName}
+        errorMessage="This invitation has expired. Ask the budget owner for a new invite link."
+      />
+    );
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return (
+      <InviteClient
+        token={token}
+        mode="public"
+        accountName={accountName}
+        errorMessage={null}
+        invitedEmail={invitedEmail}
+        expiresAt={expiresAt}
+      />
+    );
+  }
+
+  const isWrongEmail = invitedEmail !== user.email?.toLowerCase();
 
   return (
     <InviteClient
       token={token}
-      accountName={accountName}
-      errorMessage={errorMessage}
-      errorCode={errorCode}
-      invitedEmail={invitedEmail}
+      mode={isWrongEmail ? "terminal" : "accept"}
+      accountName={isWrongEmail ? null : accountName}
+      errorMessage={
+        isWrongEmail
+          ? "This invitation was sent to a different email address. Make sure you're signed in with the correct account."
+          : null
+      }
+      errorCode={isWrongEmail ? "wrong-email" : null}
+      invitedEmail={isWrongEmail ? invitedEmail : null}
       currentUserEmail={user.email ?? null}
     />
   );

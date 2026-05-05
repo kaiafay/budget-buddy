@@ -9,11 +9,14 @@ type AcceptInvitationRpcResult = {
   error_message: string | null;
 };
 
+const inviteTokenPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function acceptInvitation(token: string): Promise<{
   data: { accountId: string; accountName: string } | null;
   error: string | null;
 }> {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) {
+  if (!inviteTokenPattern.test(token)) {
     return { data: null, error: "Invalid invitation link." };
   }
 
@@ -60,4 +63,79 @@ export async function acceptInvitation(token: string): Promise<{
     },
     error: null,
   };
+}
+
+export async function declineInvitation(token: string): Promise<{
+  data: { declined: true } | null;
+  error: string | null;
+}> {
+  if (!inviteTokenPattern.test(token)) {
+    return { data: null, error: "Invalid invitation link." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { data: null, error: "Not authenticated." };
+
+  const userEmail = user.email?.toLowerCase() ?? "";
+  if (!userEmail) return { data: null, error: "Not authenticated." };
+
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } },
+  );
+
+  const { data: invite, error: inviteError } = await adminClient
+    .from("budget_invitations")
+    .select("id, invited_email, expires_at, accepted_at, declined_at")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (inviteError) {
+    console.error("load invitation for decline failed", inviteError);
+    return { data: null, error: "Failed to decline invitation. Please try again." };
+  }
+  if (!invite) {
+    return { data: null, error: "Invalid invitation link." };
+  }
+  if (invite.accepted_at) {
+    return { data: null, error: "This invitation has already been used." };
+  }
+  if (invite.declined_at) {
+    return { data: null, error: "This invitation is no longer available." };
+  }
+  const now = new Date();
+  const nowIso = now.toISOString();
+  if (new Date(invite.expires_at as string) < now) {
+    return { data: null, error: "This invitation has expired." };
+  }
+  if ((invite.invited_email as string) !== userEmail) {
+    return {
+      data: null,
+      error: "This invitation was sent to a different email address.",
+    };
+  }
+
+  const { data: updated, error: updateError } = await adminClient
+    .from("budget_invitations")
+    .update({ declined_at: nowIso })
+    .eq("id", invite.id)
+    .is("accepted_at", null)
+    .is("declined_at", null)
+    .gt("expires_at", nowIso)
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) {
+    console.error("decline invitation failed", updateError);
+    return { data: null, error: "Failed to decline invitation. Please try again." };
+  }
+  if (!updated) {
+    return { data: null, error: "This invitation is no longer available." };
+  }
+
+  return { data: { declined: true }, error: null };
 }

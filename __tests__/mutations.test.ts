@@ -1270,25 +1270,27 @@ describe("createInvitation", () => {
   }
 
   // Existing-invite check chain:
-  //   .select("id").eq("account_id",...).eq("invited_email",...).is(...).gt(...).maybeSingle()
+  //   .select("id").eq("account_id",...).eq("invited_email",...).is("accepted_at",...).is("declined_at",...).gt(...).maybeSingle()
   function existingInviteChain(found: boolean) {
     const maybeSingle = vi.fn().mockResolvedValue({
       data: found ? { id: "existing-invite-id" } : null,
       error: null,
     });
     const gt = vi.fn().mockReturnValue({ maybeSingle });
-    const is = vi.fn().mockReturnValue({ gt });
-    const eq2 = vi.fn().mockReturnValue({ is });
+    const isDeclined = vi.fn().mockReturnValue({ gt });
+    const isAccepted = vi.fn().mockReturnValue({ is: isDeclined });
+    const eq2 = vi.fn().mockReturnValue({ is: isAccepted });
     const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
     return { select: vi.fn().mockReturnValue({ eq: eq1 }) };
   }
 
   // Expired-invite cleanup chain:
-  //   .delete().eq("account_id",...).eq("invited_email",...).is(...).lt(...)
+  //   .delete().eq("account_id",...).eq("invited_email",...).is("accepted_at",...).is("declined_at",...).lt(...)
   function expiredInviteCleanupChain(dbError: { message: string } | null = null) {
     const lt = vi.fn().mockResolvedValue({ error: dbError });
-    const is = vi.fn().mockReturnValue({ lt });
-    const eq2 = vi.fn().mockReturnValue({ is });
+    const isDeclined = vi.fn().mockReturnValue({ lt });
+    const isAccepted = vi.fn().mockReturnValue({ is: isDeclined });
+    const eq2 = vi.fn().mockReturnValue({ is: isAccepted });
     const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
     return { delete: vi.fn().mockReturnValue({ eq: eq1 }) };
   }
@@ -1406,6 +1408,42 @@ describe("createInvitation", () => {
     const { data, error } = await createInvitation(ACC_SHARE, "guest@example.com");
     expect(error).toBeNull();
     expect(data?.token).toBe(INV_TOKEN);
+  });
+
+  it("ignores declined invitations when checking for an existing pending invite", async () => {
+    const isCalls: Array<[string, unknown]> = [];
+    let inviteCallCount = 0;
+    fromTableHandler = (table) => {
+      if (table === "accounts") return ownerCheckChain({ user_id: "user-1" });
+      if (table === "budget_invitations") {
+        inviteCallCount++;
+        if (inviteCallCount === 1) return expiredInviteCleanupChain();
+        if (inviteCallCount === 2) {
+          const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+          const gt = vi.fn().mockReturnValue({ maybeSingle });
+          const isDeclined = vi.fn().mockImplementation((column: string, value: unknown) => {
+            isCalls.push([column, value]);
+            return { gt };
+          });
+          const isAccepted = vi.fn().mockImplementation((column: string, value: unknown) => {
+            isCalls.push([column, value]);
+            return { is: isDeclined };
+          });
+          const eq2 = vi.fn().mockReturnValue({ is: isAccepted });
+          const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
+          return { select: vi.fn().mockReturnValue({ eq: eq1 }) };
+        }
+        return insertChain({ data: { token: INV_TOKEN }, error: null });
+      }
+      return {};
+    };
+
+    const { data, error } = await createInvitation(ACC_SHARE, "guest@example.com");
+
+    expect(error).toBeNull();
+    expect(data?.token).toBe(INV_TOKEN);
+    expect(isCalls).toContainEqual(["accepted_at", null]);
+    expect(isCalls).toContainEqual(["declined_at", null]);
   });
 
   it("normalises email to lowercase before storing", async () => {

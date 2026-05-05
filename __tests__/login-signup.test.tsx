@@ -106,4 +106,22 @@ describe("LoginPage signup", () => {
       );
     });
   });
+
+  it("prefills invite email and keeps it when toggling to signup", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/login?email=grace%40example.com&next=/invite/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    );
+
+    render(<LoginPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/email/i)).toHaveValue("grace@example.com");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /sign up/i }));
+
+    expect(screen.getByLabelText(/email/i)).toHaveValue("grace@example.com");
+  });
 });
