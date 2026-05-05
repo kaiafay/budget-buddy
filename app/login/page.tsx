@@ -147,6 +147,7 @@ export default function LoginPage() {
     // who signed up via an invite link lands on /invite/{token} after confirming.
     const signUpParams = new URLSearchParams(window.location.search);
     const signUpNext = signUpParams.get("next");
+    const isInviteSignUp = signUpNext?.startsWith("/invite/") ?? false;
     const emailRedirectTo =
       signUpNext && signUpNext.startsWith("/")
         ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(signUpNext)}`
@@ -160,6 +161,7 @@ export default function LoginPage() {
           data: {
             given_name: trimmedFirst,
             family_name: trimmedLast,
+            skip_default_budget: isInviteSignUp,
           },
         },
       },
