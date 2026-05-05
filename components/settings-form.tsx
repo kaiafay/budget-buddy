@@ -274,6 +274,7 @@ export default function SettingsForm() {
 
   function handleSaveInitialBalance() {
     setBalanceError(null);
+    if (isSharedMember) return;
     const balance = parseFloat(startingBalance);
     if (Number.isNaN(balance)) {
       setBalanceError("Please enter a valid starting balance.");
@@ -717,6 +718,11 @@ export default function SettingsForm() {
               Enter your account balance at the time you started tracking in
               Budget Buddy.
             </p>
+            {isSharedMember && (
+              <p className="text-xs text-white/50">
+                Only the budget owner can set the starting balance.
+              </p>
+            )}
             <div className="flex flex-col gap-2">
               <Label
                 htmlFor="balance"
@@ -740,14 +746,17 @@ export default function SettingsForm() {
                   }}
                   className="h-11 rounded-xl border-white/20 bg-white/10 pl-8 tabular-nums text-white placeholder:text-white/40"
                   placeholder="0.00"
-                  disabled={!activeAccountId}
+                  disabled={!activeAccountId || isSharedMember}
                 />
               </div>
               {balanceError && <InlineError>{balanceError}</InlineError>}
               <Button
                 type="button"
                 disabled={
-                  isSavingBalance || !startingBalance || !activeAccountId
+                  isSavingBalance ||
+                  !startingBalance ||
+                  !activeAccountId ||
+                  isSharedMember
                 }
                 onClick={handleSaveInitialBalance}
                 className="h-11 rounded-xl border border-white/20 bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80"
