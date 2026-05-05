@@ -107,7 +107,9 @@ export async function declineInvitation(token: string): Promise<{
   if (invite.declined_at) {
     return { data: null, error: "This invitation is no longer available." };
   }
-  if (new Date(invite.expires_at as string) < new Date()) {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  if (new Date(invite.expires_at as string) < now) {
     return { data: null, error: "This invitation has expired." };
   }
   if ((invite.invited_email as string) !== userEmail) {
@@ -119,10 +121,11 @@ export async function declineInvitation(token: string): Promise<{
 
   const { data: updated, error: updateError } = await adminClient
     .from("budget_invitations")
-    .update({ declined_at: new Date().toISOString() })
+    .update({ declined_at: nowIso })
     .eq("id", invite.id)
     .is("accepted_at", null)
     .is("declined_at", null)
+    .gt("expires_at", nowIso)
     .select("id")
     .maybeSingle();
 

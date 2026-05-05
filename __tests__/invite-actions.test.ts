@@ -56,10 +56,11 @@ function declineUpdateChain(
 ) {
   const maybeSingle = vi.fn().mockResolvedValue({ data: result, error });
   const select = vi.fn().mockReturnValue({ maybeSingle });
-  const isDeclined = vi.fn().mockReturnValue({ select });
+  const gt = vi.fn().mockReturnValue({ select });
+  const isDeclined = vi.fn().mockReturnValue({ gt });
   const isAccepted = vi.fn().mockReturnValue({ is: isDeclined });
   const eq = vi.fn().mockReturnValue({ is: isAccepted });
-  return { update: vi.fn().mockReturnValue({ eq }) };
+  return { update: vi.fn().mockReturnValue({ eq }), gt };
 }
 
 describe("acceptInvitation", () => {
@@ -272,6 +273,7 @@ describe("declineInvitation", () => {
 
   it("sets declined_at for a matching open invite", async () => {
     let fromCallCount = 0;
+    let updateChain: ReturnType<typeof declineUpdateChain> | null = null;
     mockAdminFrom.mockImplementation(() => {
       fromCallCount++;
       if (fromCallCount === 1) {
@@ -283,7 +285,8 @@ describe("declineInvitation", () => {
           declined_at: null,
         });
       }
-      return declineUpdateChain({ id: "invite-1" });
+      updateChain = declineUpdateChain({ id: "invite-1" });
+      return updateChain;
     });
 
     const { data, error } = await declineInvitation(INV_TOKEN);
@@ -291,6 +294,10 @@ describe("declineInvitation", () => {
     expect(error).toBeNull();
     expect(data).toEqual({ declined: true });
     expect(mockAdminFrom).toHaveBeenCalledTimes(2);
+    expect(updateChain?.gt).toHaveBeenCalledWith(
+      "expires_at",
+      expect.any(String),
+    );
   });
 
   it("rejects already accepted invites", async () => {
