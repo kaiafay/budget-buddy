@@ -51,4 +51,26 @@ describe("InviteClient", () => {
       );
     });
   });
+
+  it("routes public invite users to login with prefilled email and preserved invite path", () => {
+    render(
+      <InviteClient
+        token="cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+        mode="public"
+        accountName="Family Budget"
+        errorMessage={null}
+        invitedEmail="invited@example.com"
+        expiresAt="2026-05-12T12:00:00.000Z"
+      />,
+    );
+
+    expect(screen.getByText("Family Budget")).toBeInTheDocument();
+    expect(screen.getByText(/in\*\*\*@example\.com/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(mockPush).toHaveBeenCalledWith(
+      "/login?email=invited%40example.com&next=%2Finvite%2Fcccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    );
+  });
 });

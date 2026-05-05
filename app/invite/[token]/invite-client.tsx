@@ -10,10 +10,12 @@ import { createClient } from "@/lib/supabase/client";
 
 interface InviteClientProps {
   token: string;
+  mode?: "public" | "accept" | "terminal";
   accountName: string | null;
   errorMessage: string | null;
   errorCode?: "wrong-email" | null;
   invitedEmail?: string | null;
+  expiresAt?: string | null;
   currentUserEmail?: string | null;
 }
 
@@ -27,10 +29,12 @@ function maskEmail(email: string | null | undefined): string | null {
 
 export function InviteClient({
   token,
+  mode = "accept",
   accountName,
   errorMessage,
   errorCode = null,
   invitedEmail = null,
+  expiresAt = null,
   currentUserEmail = null,
 }: InviteClientProps) {
   const router = useRouter();
@@ -63,7 +67,50 @@ export function InviteClient({
     router.push(`/login?next=/invite/${token}`);
   }
 
-  if (errorMessage) {
+  function handleContinue() {
+    const params = new URLSearchParams();
+    if (invitedEmail) {
+      params.set("email", invitedEmail);
+    }
+    params.set("next", `/invite/${token}`);
+    router.push(`/login?${params.toString()}`);
+  }
+
+  if (mode === "public") {
+    const maskedInvitedEmail = maskEmail(invitedEmail);
+    const formattedExpiry = expiresAt
+      ? new Intl.DateTimeFormat(undefined, {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date(expiresAt))
+      : null;
+
+    return (
+      <AuthCard subtitle="Budget invitation">
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <p className="text-sm text-white/70">You&apos;ve been invited to join</p>
+            <p className="text-lg font-semibold text-white">{accountName}</p>
+            {maskedInvitedEmail && (
+              <p className="text-sm text-white/60">Sent to {maskedInvitedEmail}</p>
+            )}
+            {formattedExpiry && (
+              <p className="text-xs text-white/50">Expires {formattedExpiry}</p>
+            )}
+          </div>
+
+          <Button
+            onClick={handleContinue}
+            className="h-11 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Continue
+          </Button>
+        </div>
+      </AuthCard>
+    );
+  }
+
+  if (errorMessage || mode === "terminal") {
     const isWrongEmail = errorCode === "wrong-email";
     const maskedInvitedEmail = maskEmail(invitedEmail);
 

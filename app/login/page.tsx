@@ -61,7 +61,10 @@ export default function LoginPage() {
   const router = useRouter();
   const [state, dispatch] = useReducer(formReducer, initialState);
   const { mode, firstName, lastName, inviteCode, error, signUpSuccess, resetSent } = state;
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return new URLSearchParams(window.location.search).get("email") ?? "";
+  });
   const [password, setPassword] = useState("");
 
   function goToMode(target: Mode) {
