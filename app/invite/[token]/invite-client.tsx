@@ -184,7 +184,7 @@ export function InviteClient({
             disabled={signingOut}
             className={
               isWrongEmail
-                ? "h-11 w-full text-sm text-white/70 hover:text-white"
+                ? "h-11 w-full text-sm text-white/70 hover:bg-white/10 hover:text-white active:bg-white/15"
                 : "h-11 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
             }
           >
@@ -216,7 +216,7 @@ export function InviteClient({
           variant="ghost"
           onClick={handleDecline}
           disabled={accepting || declining}
-          className="h-11 w-full text-sm text-white/70 hover:text-white"
+          className="h-11 w-full text-sm text-white/70 hover:bg-white/10 hover:text-white active:bg-white/15"
         >
           {declining ? "Declining..." : "Decline invitation"}
         </Button>
