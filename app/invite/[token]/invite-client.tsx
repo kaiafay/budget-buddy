@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AuthCard } from "@/components/auth-card";
 import { Button } from "@/components/ui/button";
 import { InlineError } from "@/components/inline-error";
-import { acceptInvitation } from "@/lib/invite-actions";
+import { acceptInvitation, declineInvitation } from "@/lib/invite-actions";
 import { createClient } from "@/lib/supabase/client";
 
 interface InviteClientProps {
@@ -39,6 +39,8 @@ export function InviteClient({
 }: InviteClientProps) {
   const router = useRouter();
   const [accepting, setAccepting] = useState(false);
+  const [declining, setDeclining] = useState(false);
+  const [declined, setDeclined] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,6 +54,19 @@ export function InviteClient({
       return;
     }
     router.push(`/?account=${data.accountId}`);
+  }
+
+  async function handleDecline() {
+    setDeclining(true);
+    setError(null);
+    const { data, error: actionError } = await declineInvitation(token);
+    if (actionError || !data) {
+      setError(actionError ?? "Something went wrong. Please try again.");
+      setDeclining(false);
+      return;
+    }
+    setDeclined(true);
+    setDeclining(false);
   }
 
   async function handleUseAnotherAccount() {
@@ -104,6 +119,24 @@ export function InviteClient({
             className="h-11 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             Continue
+          </Button>
+        </div>
+      </AuthCard>
+    );
+  }
+
+  if (declined) {
+    return (
+      <AuthCard subtitle="Budget invitation">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <p className="text-sm text-white/70">
+            This invitation has been declined.
+          </p>
+          <Button
+            onClick={() => router.push("/")}
+            className="h-11 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Go to Budget Buddy
           </Button>
         </div>
       </AuthCard>
@@ -174,18 +207,18 @@ export function InviteClient({
 
         <Button
           onClick={handleAccept}
-          disabled={accepting}
+          disabled={accepting || declining}
           className="h-11 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
           {accepting ? "Joining..." : "Accept invitation"}
         </Button>
         <Button
           variant="ghost"
-          onClick={() => router.push("/")}
-          disabled={accepting}
+          onClick={handleDecline}
+          disabled={accepting || declining}
           className="h-11 w-full text-sm text-white/70 hover:text-white"
         >
-          Decline
+          {declining ? "Declining..." : "Decline invitation"}
         </Button>
       </div>
     </AuthCard>
