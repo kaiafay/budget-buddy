@@ -41,7 +41,15 @@ A shared test account exists in Supabase for manual and automated testing. Its c
 - `TEST_LOGIN_USERNAME` — the email address
 - `TEST_LOGIN_PASSWORD` — the password
 
-**Do not create a new Supabase user for each test run.** Reuse this account. To sign in from the browser, enter these credentials on the login page at `http://localhost:3000/login`. To sign in programmatically:
+**Do not create a new Supabase user for each test run.** Reuse this account. To sign in from the browser, enter these credentials on the login page at `http://localhost:3000/login`.
+
+**Database safety rules — the Supabase instance is PRODUCTION:**
+- Only create or modify data within the test account's own budget during manual testing.
+- Never use the service role key to read, modify, or delete data belonging to other users.
+- Clean up test data you create during manual testing when done (delete test transactions, recurring rules, etc. that you added). Leave the test account's default budget intact.
+- Never run seed scripts or bulk operations against the database.
+
+To sign in programmatically:
 
 ```js
 const { createClient } = require('@supabase/supabase-js');
@@ -62,6 +70,10 @@ await adminClient.auth.admin.createUser({
   email_confirm: true,
 });
 ```
+
+### Implementation plans
+
+Implementation plans are provided via **GitHub issues**, not committed files. When given a task like "Implement the plan in issue #42", read it with `gh issue view 42` and execute from there.
 
 ### Important caveats
 
