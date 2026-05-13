@@ -34,6 +34,35 @@ printf 'NEXT_PUBLIC_SUPABASE_URL=%s\nNEXT_PUBLIC_SUPABASE_ANON_KEY=%s\nSUPABASE_
   "$NEXT_PUBLIC_SUPABASE_URL" "$NEXT_PUBLIC_SUPABASE_ANON_KEY" "$SUPABASE_SERVICE_ROLE_KEY" > .env.local
 ```
 
+### Test account
+
+A shared test account exists in Supabase for manual and automated testing. Its credentials are stored as Cursor Cloud secrets:
+
+- `TEST_LOGIN_USERNAME` — the email address
+- `TEST_LOGIN_PASSWORD` — the password
+
+**Do not create a new Supabase user for each test run.** Reuse this account. To sign in from the browser, enter these credentials on the login page at `http://localhost:3000/login`. To sign in programmatically:
+
+```js
+const { createClient } = require('@supabase/supabase-js');
+const client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+await client.auth.signInWithPassword({
+  email: process.env.TEST_LOGIN_USERNAME,
+  password: process.env.TEST_LOGIN_PASSWORD,
+});
+```
+
+If the test account is missing or broken, recreate it using the admin API (requires `SUPABASE_SERVICE_ROLE_KEY`):
+
+```js
+const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+await adminClient.auth.admin.createUser({
+  email: process.env.TEST_LOGIN_USERNAME,
+  password: process.env.TEST_LOGIN_PASSWORD,
+  email_confirm: true,
+});
+```
+
 ### Important caveats
 
 - **No local database**: Supabase is remote-only. There is no `supabase/` CLI config, no Docker, no local Postgres.
